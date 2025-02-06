@@ -1,6 +1,12 @@
 # MusicBeeSearchBar
 
 A modern, customizable search bar plugin for MusicBee that provides unified search across your music library.
+  
+  
+![output2](https://github.com/user-attachments/assets/ce125a4d-824e-4097-b232-031e9a8a0f82)
+
+
+
 
 ## Features
 
@@ -21,6 +27,7 @@ A modern, customizable search bar plugin for MusicBee that provides unified sear
   - Queue Last
   - Search in Tab
   - Open Filter
+- **Quick Launcher**: Can be used as a quick song/album selector while MusicBee is hidden
 
 ## Installation
 
