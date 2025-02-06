@@ -90,9 +90,6 @@
     <Compile Include="Config\Config.cs" />
     <Compile Include="Services\ActionService.cs" />
     <Compile Include="Utils\ApplicationCommand.cs" />
-    <Compile Include="CustomMenu.cs">
-      <SubType>Component</SubType>
-    </Compile>
     <Compile Include="Utils\MusicBeeHelpers.cs" />
     <Compile Include="MusicBeeInterface.cs" />
     <Compile Include="Plugin.cs" />
