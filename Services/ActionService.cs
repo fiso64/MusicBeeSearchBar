@@ -225,6 +225,9 @@ namespace MusicBeePlugin.Services
                 mbApi.NowPlayingList_Clear();
             
             mbApi.NowPlayingList_QueueFilesNext(files);
+
+            if (action.ClearQueueBeforeAdd && mbApi.Player_GetPlayState() == PlayState.Playing)
+                mbApi.Player_PlayPause();
         }
 
         private void QueueLast(SearchResult result, QueueLastActionData action)
