@@ -20,9 +20,10 @@ namespace MusicBeePlugin
         public const bool LAZY_LOAD = false;
 
         public static MusicBeeApiInterface mbApi;
-
-        private PluginInfo about = new PluginInfo();
+        private static Config.Config config;
         
+        private PluginInfo about = new PluginInfo();
+
         public PluginInfo Initialise(IntPtr apiInterfacePtr)
         {
             mbApi = new MusicBeeApiInterface();
@@ -53,7 +54,7 @@ namespace MusicBeePlugin
             }
         }
 
-        public void Startup()
+        private void Startup()
         {
             if (!LAZY_LOAD)
                 MusicBeeHelpers.LoadMethods();
@@ -63,86 +64,51 @@ namespace MusicBeePlugin
             mbApi.MB_RegisterCommand("Modern Search Bar: Artist Search", (a, b) => ShowSearchBar("a: "));
             mbApi.MB_RegisterCommand("Modern Search Bar: Album Search", (a, b) => ShowSearchBar("l: "));
             mbApi.MB_RegisterCommand("Modern Search Bar: Song Search", (a, b) => ShowSearchBar("s: "));
+
+            LoadConfig();
+
+            if (!config.FirstStartupComplete)
+            {
+                var result = MessageBox.Show(
+                    "It's recommended to adjust the search bar actions before use. Open settings now?",
+                    "Modern Search Bar: First Time Setup",
+                    MessageBoxButtons.OKCancel,
+                    MessageBoxIcon.Question
+                );
+
+                config.FirstStartupComplete = true;
+                SaveConfig();
+
+                if (result == DialogResult.OK)
+                {
+                    ShowConfigDialog();
+                }
+            }
         }
 
-        public static void ShowSearchBar(string defaultText = null)
+        public static void LoadConfig()
         {
-            var actionConfig = new SearchActionsConfig()
-            {
-                ArtistAction = new ActionConfig()
-                {
-                    Default = new SearchInTabActionData()
-                    {
-                        TabChoice = ApplicationCommand.GeneralGotoTab4,
-                        FocusMainPanelAfterAction = true,
-                        UseSortArtist = true,
-                    },
-                    Ctrl = new PlayActionData()
-                    {
-                        FocusMainPanelAfterAction = true,
-                    },
-                    Shift = new QueueNextActionData()
-                    {
-                        FocusMainPanelAfterAction = true,
-                    },
-                    CtrlShift = new QueueLastActionData()
-                    {
-                        FocusMainPanelAfterAction = true,
-                    }
-                },
+            var configPath = Path.Combine(mbApi.Setting_GetPersistentStoragePath(), "ModernSearchBar", "config.json");
+            config = Config.Config.LoadFromPath(configPath, mbApi);
+        }
 
-                AlbumAction = new ActionConfig()
-                {
-                    Default = new OpenFilterInTabActionData()
-                    {
-                        TabChoice = ApplicationCommand.GeneralGotoTab3
-                    },
-                    Ctrl = new PlayActionData()
-                    {
-                        FocusMainPanelAfterAction = true,
-                    },
-                    Shift = new QueueNextActionData()
-                    {
-                        FocusMainPanelAfterAction = true,
-                    },
-                    CtrlShift = new QueueLastActionData()
-                    {
-                        FocusMainPanelAfterAction = true,
-                    }
-                },
+        public static void SaveConfig()
+        {
+            var configPath = Path.Combine(mbApi.Setting_GetPersistentStoragePath(), "ModernSearchBar", "config.json");
+            Config.Config.SaveToPath(configPath, config);
+        }
 
-                SongAction = new ActionConfig()
-                {
-                    Default = new PlayActionData()
-                    {
-                        FocusMainPanelAfterAction = true,
-                    },
-                    Ctrl = new PlayActionData()
-                    {
-                        FocusMainPanelAfterAction = true,
-                    },
-                    Shift = new QueueNextActionData()
-                    {
-                        FocusMainPanelAfterAction = true,
-                    },
-                    CtrlShift = new QueueLastActionData()
-                    {
-                        FocusMainPanelAfterAction = true,
-                    }
-                }
-            };
-
+        public void ShowSearchBar(string defaultText = null)
+        {
             var mbHwnd = mbApi.MB_GetWindowHandle();
             var mbControl = Control.FromHandle(mbHwnd);
             SynchronizationContext mainContext = SynchronizationContext.Current;
 
-            var uiConfig = SearchUIConfig.GetDefault(mbApi);
-
-            var actionService = new ActionService(actionConfig);
+            var actionService = new ActionService(config.SearchActions);
 
             Thread searchBarThread = new Thread(() =>
             {
-                var searchBarForm = new SearchBar(mbControl, mainContext, mbApi, actionService.RunAction, uiConfig, defaultText);
+                var searchBarForm = new SearchBar(mbControl, mainContext, mbApi, actionService.RunAction, config.SearchUI, defaultText);
                 Application.Run(searchBarForm);
             });
 
@@ -152,7 +118,24 @@ namespace MusicBeePlugin
 
         public bool Configure(IntPtr panelHandle)
         {
+            LoadConfig();
+            var cfgForm = new ConfigurationForm(config, mbApi);
+            if (cfgForm.ShowDialog() == DialogResult.OK)
+            {
+                config = cfgForm.Config;
+                SaveConfig();
+            }
             return true;
+        }
+
+        public static void ShowConfigDialog()
+        {
+            var cfgForm = new ConfigurationForm(config, mbApi);
+            if (cfgForm.ShowDialog() == DialogResult.OK)
+            {
+                config = cfgForm.Config;
+                SaveConfig();
+            }
         }
     }
 }

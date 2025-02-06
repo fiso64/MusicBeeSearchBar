@@ -45,6 +45,8 @@ namespace MusicBeePlugin.Utils
 
         public static void InvokeCommand(ApplicationCommand command, object parameters = null)
         {
+            if (command == ApplicationCommand.None)
+                return;
             if (!LoadedMethods)
                 LoadMethods();
             if (invokeApplicationCommandMethod == null)

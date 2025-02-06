@@ -81,9 +81,9 @@ namespace MusicBeePlugin.UI
                 };
             }
 
-            songIcon = CreateIcon(Color.LightGray, 14, 14, ResultType.Song, 2);
-            albumIcon = CreateIcon(Color.DarkGray, 14, 14, ResultType.Album, 2);
-            artistIcon = CreateIcon(Color.Gray, 14, 14, ResultType.Artist, 2);
+            songIcon = CreateIcon(Color.LightGray, 16, 16, ResultType.Song, 2);
+            albumIcon = CreateIcon(Color.DarkGray, 16, 16, ResultType.Album, 2);
+            artistIcon = CreateIcon(Color.Gray, 16, 16, ResultType.Artist, 2);
 
             Size = searchUIConfig.InitialSize;
             BackColor = searchUIConfig.BaseColor;
@@ -118,7 +118,7 @@ namespace MusicBeePlugin.UI
                 Dock = DockStyle.Top,
                 Padding = new Padding(10),
                 BackColor = searchUIConfig.BaseColor,
-                Height = 40,
+                Height = 42,
                 BorderStyle = BorderStyle.FixedSingle,
             };
 
@@ -145,7 +145,7 @@ namespace MusicBeePlugin.UI
                 ForeColor = searchUIConfig.TextColor,
                 BorderStyle = BorderStyle.None,
                 Font = new Font("Arial", 12),
-                ItemHeight = 40,
+                ItemHeight = 42,
                 Visible = false,
                 TabStop = false, // To prevent focusing on listbox with tab key.
                 Height = 0 // Initially set height to 0
@@ -168,7 +168,14 @@ namespace MusicBeePlugin.UI
         {
             searchBox.KeyDown += (s, e) =>
             {
-                if (e.KeyCode == Keys.ControlKey) 
+                if (e.Control && e.KeyCode == Keys.P)
+                {
+                    Close();
+                    musicBeeContext.Post(_ => Plugin.ShowConfigDialog(), null);
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                }
+                else if (e.KeyCode == Keys.ControlKey) 
                 {
                     // temporary hack to fix control+enter bug that makes the selected index jump to 0
                     preservedIndex = resultsListBox.SelectedIndex;
@@ -343,7 +350,7 @@ namespace MusicBeePlugin.UI
                 resultsListBox.Visible = false;
                 resultsListBox.Items.Clear();
                 UpdateResultsListHeight(0);
-                Height = 40;
+                Height = 42;
                 return;
             }
 
@@ -363,13 +370,13 @@ namespace MusicBeePlugin.UI
                 resultsListBox.Visible = true;
                 resultsListBox.SelectedIndex = 0; // Select the first item by default when results appear
                 UpdateResultsListHeight(searchResults.Count);
-                Height = 40 + resultsListBox.Height;
+                Height = 42 + resultsListBox.Height;
             }
             else
             {
                 resultsListBox.Visible = false;
                 UpdateResultsListHeight(0);
-                Height = 40;
+                Height = 42;
             }
         }
 

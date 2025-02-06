@@ -1,4 +1,6 @@
 
+- show images for all result types
+
 - disallow matching a single text part multiple times. E.g query 'NAME NA' should not match 'NAME'.
 
 - add s: synonym prefix for t:. Add other prefix synonyms, like al: (whatever is defined in musicbee)
@@ -7,16 +9,12 @@
 
 - fix ctrl+backspace not working when text is selected
 
-- option to use the musicbee skin color for the search bar (on by default)
+- use the musicbee skin color for the search bar by default
 
-- show images for all result types
-
-- json configuration for all actions, type order, prefixes, "enabled" (bools controlling whether result type included in index), "require prefix" (bools controlling whether or not prefix is required), etc.
-- in addition to creating default json config on first run, should also extract a readme detailing all the possible configuration options
+- more configuration: result type order, prefixes, "enabled" (bools controlling whether result type included in index), "require prefix" (bools controlling whether or not prefix is required), etc.
 
 - test performance on large library and optimize if needed
 
-- configuration UI. Ctrl+p while search bar is active to open searchbar config window.
 - Setup wizard on first run: First screen: Configure actions for the three result types. Second screen: Prompt to go to hotkey settings and assign a hotkey to open the search bar.
 
 - see if it's possible to open specific tab types (music explorer, library) programmatically

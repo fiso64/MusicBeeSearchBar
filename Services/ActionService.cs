@@ -80,12 +80,31 @@ namespace MusicBeePlugin.Services
                 MusicBeeHelpers.MinimiseRestoreOrFocus();
         }
 
-        private void GotoTab(ApplicationCommand tab)
+        private void GotoTab(TabChoice tab)
         {
-            if (tab == 0)
-                return;
+            var command = ApplicationCommand.None;
+
+            if (tab == TabChoice.CurrentTab)
+            {
+                command = ApplicationCommand.None;
+            }
+            else if (tab == TabChoice.NewTab)
+            {
+                command = ApplicationCommand.FileNewTab;
+            }
             else
-                MusicBeeHelpers.InvokeCommand(tab);
+            {
+                char lastChar = tab.ToString().Last();
+                if (char.IsDigit(lastChar))
+                {
+                    string commandString = $"GeneralGotoTab{lastChar}";
+
+                    if (Enum.TryParse(commandString, out ApplicationCommand parsedCommand))
+                        command = parsedCommand;
+                }
+            }
+
+            MusicBeeHelpers.InvokeCommand(command);
         }
 
         private async void Search(string searchBoxText, SearchResult result, SearchInTabActionData action)

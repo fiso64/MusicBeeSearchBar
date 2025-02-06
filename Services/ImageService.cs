@@ -15,15 +15,16 @@ namespace MusicBeePlugin.Services
         public ImageService(MusicBeeApiInterface mbApi, SearchService searchService)
         {
             this.mbApi = mbApi;
+            this.searchService = searchService;
         }
 
-        public void GetArtistImage(string artist) // modify to return a suitable image object
+        public async Task GetArtistImageAsync(string artist) // modify to return a suitable image object
         {
             string imagePath = mbApi.Library_GetArtistPictureThumb(artist); // might be null or empty
             // image needs to be loaded from path
         }
 
-        public void GetAlbumImage(string album) // modify to return a suitable image object
+        public async Task GetAlbumImageAsync(string album) // modify to return a suitable image object
         {
             var first = searchService.database.FirstOrDefault(x => x.Album == album);
             if (first != null)
@@ -33,7 +34,7 @@ namespace MusicBeePlugin.Services
             }
         }
 
-        public void GetFileImage(string filepath) // modify to return a suitable image object
+        public async Task GetFileImageAsync(string filepath) // modify to return a suitable image object
         {
             mbApi.Library_GetArtworkEx(filepath, 0, true, out var pictureLocation, out _, out byte[] imageData); // again, might be null
         }
