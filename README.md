@@ -5,7 +5,7 @@ A modern, customizable search bar plugin for MusicBee that provides unified sear
 ## Features
 
 - **Unified Search**: Search for artists, albums, and songs all in one place
-- **Fuzzy Search**: Intelligent matching that always prioritizes the best matches
+- **Fuzzy Search**: Intelligent matching that always prioritizes the best results
 - **Filtering**: Use prefixes to filter results:
   - `a:` for artists
   - `l:` for albums
