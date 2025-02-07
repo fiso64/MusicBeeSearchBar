@@ -30,10 +30,10 @@ A modern, customizable search bar plugin for MusicBee that provides unified sear
 
 ## Installation
 
-1. Download the latest release
-2. Copy `mb_SearchBar.dll` to your MusicBee Plugins folder
-3. Restart MusicBee
-4. Enable the plugin in MusicBee's preferences under Plugins
+1.  Download the the latest release [here](https://github.com/fiso64/MusicBeeSearchBar/releases/latest).
+2.  Extract the files into the MusicBee Plugins folder (usually located at `MusicBee\Plugins`).
+3.  Restart MusicBee.
+4.  The plugin should now be available in Preferences > Plugins.
 
 ## Usage
 
