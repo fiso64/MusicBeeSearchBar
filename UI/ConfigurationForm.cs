@@ -39,7 +39,7 @@ namespace MusicBeePlugin.UI
             this.SuspendLayout();
             
             // Form properties
-            this.Text = "Quick Search Configuration";
+            this.Text = "Modern Search Bar Configuration";
             this.ClientSize = new Size(800, 600);
             this.MinimumSize = new Size(800, 600);
             this.StartPosition = FormStartPosition.CenterParent;
