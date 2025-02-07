@@ -339,7 +339,7 @@ namespace MusicBeePlugin.UI
                 filter &= ResultType.Album;
                 query = query.Substring(2).TrimStart();
             }
-            else if (query.StartsWith("t:", StringComparison.OrdinalIgnoreCase))
+            else if (query.StartsWith("t:", StringComparison.OrdinalIgnoreCase) || query.StartsWith("s:", StringComparison.OrdinalIgnoreCase))
             {
                 filter &= ResultType.Song;
                 query = query.Substring(2).TrimStart();
