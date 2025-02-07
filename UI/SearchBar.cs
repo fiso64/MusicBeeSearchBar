@@ -47,7 +47,7 @@ namespace MusicBeePlugin.UI
             mbApi = musicBeeApi;
             this.resultAcceptAction = resultAcceptAction;
             this.searchUIConfig = searchUIConfig;
-            searchService = new SearchService(musicBeeApi, searchUIConfig.GroupResultsByType);
+            searchService = new SearchService(musicBeeApi, searchUIConfig);
             searchService.LoadTracks();
             InitializeUI();
             InitializeHotkeys();

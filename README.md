@@ -69,6 +69,6 @@ Access the configuration panel through:
 - `Alt+A`: Execute album action for current result
 - `Ctrl+P`: Open configuration
 - `Esc`: Close search bar
-- `↑/↓`: Navigate results
+- `Up/Down`: Navigate results
 - `Enter`: Execute action
 - `Ctrl/Shift + Enter`: Execute alternative actions

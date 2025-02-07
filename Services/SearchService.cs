@@ -41,12 +41,12 @@ namespace MusicBeePlugin.Services
     {
         public List<Track> database;
         private MusicBeeApiInterface mbApi;
-        private bool groupResultsByType = true;
+        private Config.SearchUIConfig config;
 
-        public SearchService(MusicBeeApiInterface mbApi, bool groupResultsByType = true)
+        public SearchService(MusicBeeApiInterface mbApi, Config.SearchUIConfig config)
         {
             this.mbApi = mbApi;
-            this.groupResultsByType = groupResultsByType;
+            this.config = config;
         }
 
         public void LoadTracks()
@@ -103,14 +103,14 @@ namespace MusicBeePlugin.Services
                 results.AddRange(songResults);
             }
 
-            var res = results.OrderByDescending(r => groupResultsByType ? GetResultTypePriority(r.Type) : 0)
+            var res = results.OrderByDescending(r => GetResultTypePriority(r.Type))
                 .ThenByDescending(r => CalculateOverallScore(r, normalizedQuery))
                 .ToList();
 
             return res;
         }
 
-        private List<SearchResult> SearchArtists(string[] queryWords, string normalizedQuery, int limit = 5)
+        private List<SearchResult> SearchArtists(string[] queryWords, string normalizedQuery)
         {
             return database
                 .SelectMany(t => 
@@ -125,7 +125,7 @@ namespace MusicBeePlugin.Services
                 .Select(group => group.First())
                 .Where(x => !string.IsNullOrEmpty(x.Artist) && QueryMatchesWords(NormalizeString(x.Artist), queryWords))
                 .OrderByDescending(x => CalculateArtistScore(x.Artist, normalizedQuery, queryWords))
-                .Take(limit)
+                .Take(config.ArtistResultLimit)
                 .Select(x => new SearchResult
                 {
                     Title = x.Artist,
@@ -135,14 +135,14 @@ namespace MusicBeePlugin.Services
                 }).ToList();
         }
 
-        private List<SearchResult> SearchAlbums(string[] queryWords, string normalizedQuery, int limit = 5)
+        private List<SearchResult> SearchAlbums(string[] queryWords, string normalizedQuery)
         {
             return database
                 .GroupBy(t => new { t.Album, t.AlbumArtist })
                 .Select(group => group.First())
                 .Where(track => !string.IsNullOrEmpty(track.Album) && QueryMatchesWords(NormalizeString(track.AlbumArtist + " " + track.Album), queryWords))
                 .OrderByDescending(track => CalculateAlbumScore(track.Album, normalizedQuery, queryWords))
-                .Take(limit)
+                .Take(config.AlbumResultLimit)
                 .Select(track => new SearchResult
                 {
                     Title = track.Album,
@@ -152,15 +152,14 @@ namespace MusicBeePlugin.Services
                 }).ToList();
         }
 
-        private List<SearchResult> SearchSongs(string[] queryWords, string normalizedQuery, int limit = 10)
+        private List<SearchResult> SearchSongs(string[] queryWords, string normalizedQuery)
         {
             return database
                 .Where(track =>
                     !string.IsNullOrEmpty(track.TrackTitle) && QueryMatchesWords(NormalizeString(track.Artists + " " + track.TrackTitle), queryWords)
-                //|| (!string.IsNullOrEmpty(track.Artist) && QueryMatchesAllWords(NormalizeString(track.Artist), queryWords))
                 )
                 .OrderByDescending(track => CalculateSongScore(track, normalizedQuery, queryWords))
-                .Take(limit)
+                .Take(config.SongResultLimit)
                 .Select(track => new SearchResult
                 {
                     Title = track.TrackTitle,
@@ -174,15 +173,17 @@ namespace MusicBeePlugin.Services
         {
             if (string.IsNullOrEmpty(text)) return false;
             if (queryWords.Length == 0) return true;
+            if (!config.EnableContainsCheck) return true;
 
             string normalizedText = NormalizeString(text);
-     
             return queryWords.All(word => normalizedText.Contains(word));
         }
 
 
         private int GetResultTypePriority(ResultType type)
         {
+            if (!config.GroupResultsByType) return 0;
+            
             switch (type)
             {
                 case ResultType.Artist: return 3;
@@ -221,31 +222,6 @@ namespace MusicBeePlugin.Services
             double artistScore = string.IsNullOrEmpty(track.Artists) ? 0 : CalculateFuzzyScore(NormalizeString(track.Artists), NormalizeString(query), queryWords);
             return titleScore + artistScore * 0.5;
         }
-
-        //private double CalculateFuzzyScore(string text, string query, string[] queryWords) // TODO: Use a better fuzzy score algorithm
-        //{
-        //    if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(query)) return 0;
-
-        //    double score = 0;
-        //    int matchedWordCount = 0;
-        //    string normalizedText = NormalizeString(text);
-
-        //    foreach (string word in queryWords)
-        //    {
-        //        if (normalizedText.Contains(word))
-        //        {
-        //            score += (double)word.Length / normalizedText.Length; // Base score for word presence
-        //            matchedWordCount++;
-        //        }
-        //    }
-
-        //    if (matchedWordCount == queryWords.Length && queryWords.Length > 0)
-        //    {
-        //        score += 0.5; // Bonus for matching all words
-        //    }
-
-        //    return score;
-        //}
 
         private double CalculateFuzzyScore(string text, string query, string[] queryWords)
         {

@@ -53,6 +53,7 @@ namespace MusicBeePlugin.UI
 
             // Add tabs
             TabPage actionsTab = new TabPage("Actions");
+            TabPage searchTab = new TabPage("Search");
             TabPage appearanceTab = new TabPage("Appearance");
             
             // Configure Actions tab
@@ -86,23 +87,24 @@ namespace MusicBeePlugin.UI
             actionsTab.Controls.Add(actionsScrollPanel);
             
             tabControl.TabPages.Add(actionsTab);
+            tabControl.TabPages.Add(searchTab);
             tabControl.TabPages.Add(appearanceTab);
 
             this.Controls.Add(tabControl);
 
-            // Configure Appearance tab
-            TableLayoutPanel appearanceLayout = new TableLayoutPanel
+            // Configure Search tab
+            TableLayoutPanel searchLayout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 Padding = new Padding(10),
                 ColumnCount = 2,
-                RowCount = 7,
+                RowCount = 5,
                 AutoSize = true
             };
 
-            // Set column styles
-            appearanceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            appearanceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            // Set column styles for search tab
+            searchLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            searchLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
             // Group Results checkbox
             groupResultsCheckbox = new CheckBox
@@ -112,8 +114,71 @@ namespace MusicBeePlugin.UI
                 AutoSize = true
             };
             groupResultsCheckbox.CheckedChanged += (s, e) => _config.SearchUI.GroupResultsByType = groupResultsCheckbox.Checked;
-            appearanceLayout.Controls.Add(new Label { Text = "Group Results:", AutoSize = true }, 0, 0);
-            appearanceLayout.Controls.Add(groupResultsCheckbox, 1, 0);
+            searchLayout.Controls.Add(new Label { Text = "Group Results:", AutoSize = true }, 0, 0);
+            searchLayout.Controls.Add(groupResultsCheckbox, 1, 0);
+
+            // Enable Contains Check
+            var enableContainsCheckbox = new CheckBox
+            {
+                Text = "Enable Contains Check",
+                Checked = _config.SearchUI.EnableContainsCheck,
+                AutoSize = true
+            };
+            enableContainsCheckbox.CheckedChanged += (s, e) => _config.SearchUI.EnableContainsCheck = enableContainsCheckbox.Checked;
+            searchLayout.Controls.Add(new Label { Text = "Filter Results:", AutoSize = true }, 0, 1);
+            searchLayout.Controls.Add(enableContainsCheckbox, 1, 1);
+
+            // Artist Result Limit
+            var artistLimitInput = new NumericUpDown
+            {
+                Minimum = 1,
+                Maximum = 99,
+                Value = _config.SearchUI.ArtistResultLimit,
+                Width = 70
+            };
+            artistLimitInput.ValueChanged += (s, e) => _config.SearchUI.ArtistResultLimit = (int)artistLimitInput.Value;
+            searchLayout.Controls.Add(new Label { Text = "Artist Result Limit:", AutoSize = true }, 0, 2);
+            searchLayout.Controls.Add(artistLimitInput, 1, 2);
+
+            // Album Result Limit
+            var albumLimitInput = new NumericUpDown
+            {
+                Minimum = 1,
+                Maximum = 99,
+                Value = _config.SearchUI.AlbumResultLimit,
+                Width = 70
+            };
+            albumLimitInput.ValueChanged += (s, e) => _config.SearchUI.AlbumResultLimit = (int)albumLimitInput.Value;
+            searchLayout.Controls.Add(new Label { Text = "Album Result Limit:", AutoSize = true }, 0, 3);
+            searchLayout.Controls.Add(albumLimitInput, 1, 3);
+
+            // Song Result Limit
+            var songLimitInput = new NumericUpDown
+            {
+                Minimum = 1,
+                Maximum = 99,
+                Value = _config.SearchUI.SongResultLimit,
+                Width = 70
+            };
+            songLimitInput.ValueChanged += (s, e) => _config.SearchUI.SongResultLimit = (int)songLimitInput.Value;
+            searchLayout.Controls.Add(new Label { Text = "Song Result Limit:", AutoSize = true }, 0, 4);
+            searchLayout.Controls.Add(songLimitInput, 1, 4);
+
+            searchTab.Controls.Add(searchLayout);
+
+            // Configure Appearance tab
+            TableLayoutPanel appearanceLayout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(10),
+                ColumnCount = 2,
+                RowCount = 6,
+                AutoSize = true
+            };
+
+            // Set column styles
+            appearanceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            appearanceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
             // Overlay Opacity numeric input
             opacityInput = new NumericUpDown
@@ -124,8 +189,8 @@ namespace MusicBeePlugin.UI
                 Width = 70
             };
             opacityInput.ValueChanged += (s, e) => _config.SearchUI.OverlayOpacity = (double)opacityInput.Value / 100;
-            appearanceLayout.Controls.Add(new Label { Text = "Overlay Opacity (%):", AutoSize = true }, 0, 1);
-            appearanceLayout.Controls.Add(opacityInput, 1, 1);
+            appearanceLayout.Controls.Add(new Label { Text = "Overlay Opacity (%):", AutoSize = true }, 0, 0);
+            appearanceLayout.Controls.Add(opacityInput, 1, 0);
 
             // Max Results numeric input
             maxResultsInput = new NumericUpDown
@@ -136,20 +201,20 @@ namespace MusicBeePlugin.UI
                 Width = 70
             };
             maxResultsInput.ValueChanged += (s, e) => _config.SearchUI.MaxResultsVisible = (int)maxResultsInput.Value;
-            appearanceLayout.Controls.Add(new Label { Text = "Max Visible Results:", AutoSize = true }, 0, 2);
-            appearanceLayout.Controls.Add(maxResultsInput, 1, 2);
+            appearanceLayout.Controls.Add(new Label { Text = "Max Visible Results:", AutoSize = true }, 0, 1);
+            appearanceLayout.Controls.Add(maxResultsInput, 1, 1);
 
             // Color pickers
             textColorButton = CreateColorButton("Text Color", _config.SearchUI.TextColor);
             baseColorButton = CreateColorButton("Base Color", _config.SearchUI.BaseColor);
             highlightColorButton = CreateColorButton("Highlight Color", _config.SearchUI.ResultHighlightColor);
 
-            appearanceLayout.Controls.Add(new Label { Text = "Text Color:", AutoSize = true }, 0, 3);
-            appearanceLayout.Controls.Add(textColorButton, 1, 3);
-            appearanceLayout.Controls.Add(new Label { Text = "Base Color:", AutoSize = true }, 0, 4);
-            appearanceLayout.Controls.Add(baseColorButton, 1, 4);
-            appearanceLayout.Controls.Add(new Label { Text = "Highlight Color:", AutoSize = true }, 0, 5);
-            appearanceLayout.Controls.Add(highlightColorButton, 1, 5);
+            appearanceLayout.Controls.Add(new Label { Text = "Text Color:", AutoSize = true }, 0, 2);
+            appearanceLayout.Controls.Add(textColorButton, 1, 2);
+            appearanceLayout.Controls.Add(new Label { Text = "Base Color:", AutoSize = true }, 0, 3);
+            appearanceLayout.Controls.Add(baseColorButton, 1, 3);
+            appearanceLayout.Controls.Add(new Label { Text = "Highlight Color:", AutoSize = true }, 0, 4);
+            appearanceLayout.Controls.Add(highlightColorButton, 1, 4);
 
             // Initial Size inputs
             TableLayoutPanel sizePanel = new TableLayoutPanel
@@ -181,8 +246,8 @@ namespace MusicBeePlugin.UI
             sizePanel.Controls.Add(new Label { Text = "Height:", AutoSize = true }, 2, 0);
             sizePanel.Controls.Add(heightInput, 3, 0);
 
-            appearanceLayout.Controls.Add(new Label { Text = "Initial Size:", AutoSize = true }, 0, 6);
-            appearanceLayout.Controls.Add(sizePanel, 1, 6);
+            appearanceLayout.Controls.Add(new Label { Text = "Initial Size:", AutoSize = true }, 0, 5);
+            appearanceLayout.Controls.Add(sizePanel, 1, 5);
 
             appearanceTab.Controls.Add(appearanceLayout);
 

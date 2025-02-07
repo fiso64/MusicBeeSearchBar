@@ -120,11 +120,15 @@ namespace MusicBeePlugin.Config
         }
     }
 
-    public class SearchUIConfig
+    public class SearchUIConfig // should be split into two configs, one for the search UI and one for the search behavior
     {
         public bool GroupResultsByType { get; set; } = true;
+        public bool EnableContainsCheck { get; set; } = true;
         public double OverlayOpacity { get; set; } = 0.4;
         public int MaxResultsVisible { get; set; } = 6;
+        public int ArtistResultLimit { get; set; } = 5;
+        public int AlbumResultLimit { get; set; } = 5;
+        public int SongResultLimit { get; set; } = 10;
         public Color TextColor { get; set; } = Color.White;
         public Color BaseColor { get; set; } = Color.FromArgb(30, 30, 30);
         public Color ResultHighlightColor { get; set; } = Color.FromArgb(60, 60, 60);
