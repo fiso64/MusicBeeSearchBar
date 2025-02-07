@@ -57,6 +57,10 @@ namespace MusicBeePlugin.UI
                 searchBox.Text = defaultText;
                 searchBox.Select(searchBox.Text.Length, 0);
             }
+            else
+            {
+                SearchBoxSetDefaultResults();
+            }
         }
 
         private void InitializeUI()
@@ -67,7 +71,7 @@ namespace MusicBeePlugin.UI
             {
                 musicBeeContext.Post(_ =>
                 {
-                    overlay = new OverlayForm(musicBeeControl, searchUIConfig.OverlayOpacity);
+                    overlay = new OverlayForm(musicBeeControl, searchUIConfig.OverlayOpacity, 0.08);
                     overlay.Show();
                 }, null);
 
@@ -294,8 +298,8 @@ namespace MusicBeePlugin.UI
                         // Triangle pointing right
                         Point[] points = {
                             new Point(2, 2),
-                            new Point(width - 2, height / 2),
-                            new Point(2, height - 2)
+                            new Point(width - 4, (height - 2) / 2),
+                            new Point(2, height - 4)
                         };
                         g.DrawPolygon(pen, points);
                         break;
@@ -324,6 +328,32 @@ namespace MusicBeePlugin.UI
             return icon;
         }
 
+        private void SearchBoxSetDefaultResults()
+        {
+            switch (searchUIConfig.DefaultResults)
+            {
+                case SearchUIConfig.DefaultResultsChoice.Playing:
+                    var playingItems = searchService.GetPlayingItems();
+                    if (playingItems != null)
+                    {
+                        UpdateResultsList(playingItems);
+                        return;
+                    }
+                    break;
+                case SearchUIConfig.DefaultResultsChoice.Selected:
+                    var selectedItems = searchService.GetSelectedTracks();
+                    if (selectedItems.Count > 0)
+                    {
+                        UpdateResultsList(selectedItems);
+                        return;
+                    }
+                    break;
+                default:
+                    UpdateResultsList(null);
+                    return;
+            }
+        }
+
         private void SearchBox_TextChanged(object sender, EventArgs e)
         {
             string query = searchBox.Text.Trim();
@@ -347,11 +377,7 @@ namespace MusicBeePlugin.UI
 
             if (string.IsNullOrWhiteSpace(query))
             {
-                resultsListBox.Visible = false;
-                resultsListBox.Items.Clear();
-                UpdateResultsListHeight(0);
-                Height = 42;
-                return;
+                SearchBoxSetDefaultResults();
             }
 
             var searchResults = searchService.Search(query, filter);
@@ -361,7 +387,7 @@ namespace MusicBeePlugin.UI
         private void UpdateResultsList(List<SearchResult> searchResults)
         {
             resultsListBox.Items.Clear();
-            if (searchResults.Count > 0)
+            if (searchResults != null && searchResults.Count > 0)
             {
                 foreach (var result in searchResults)
                 {
@@ -412,7 +438,7 @@ namespace MusicBeePlugin.UI
             {
                 int iconWidth = 16;
                 int iconPaddingRight = 5;
-                int textStartX = bounds.X + iconWidth + iconPaddingRight + 5;
+                int textStartX = bounds.X + iconWidth + iconPaddingRight + 8;
                 int offsetY = 4;
 
                 Font titleFont = new Font(resultsListBox.Font.FontFamily, 12, FontStyle.Regular);
@@ -430,7 +456,7 @@ namespace MusicBeePlugin.UI
 
                 if (currentIcon != null)
                 {
-                    g.DrawImage(currentIcon, bounds.X + 5, bounds.Y + (bounds.Height - currentIcon.Height) / 2);
+                    g.DrawImage(currentIcon, bounds.X + 6, bounds.Y + (bounds.Height - currentIcon.Height) / 2);
                 }
 
 
@@ -496,16 +522,85 @@ namespace MusicBeePlugin.UI
 
     public class OverlayForm : Form
     {
-        public OverlayForm(Control targetControl, double opacity)
+        private double _targetOpacity;
+        private double _fadeDurationSeconds;
+        private System.Windows.Forms.Timer _fadeTimer;
+        private double _opacityIncrement;
+
+        public OverlayForm(Control targetControl, double opacity, double fadeDurationSeconds)
         {
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
-            // this.TopMost = true;
             BackColor = Color.Black;
-            Opacity = opacity;
+            Opacity = 0;
             ShowInTaskbar = false;
             Size = targetControl.Size;
             Location = targetControl.PointToScreen(Point.Empty);
+
+            _targetOpacity = opacity;
+            _fadeDurationSeconds = fadeDurationSeconds;
+
+            if (_fadeDurationSeconds > 0)
+            {
+                _fadeTimer = new System.Windows.Forms.Timer();
+                _fadeTimer.Interval = 30;
+                _fadeTimer.Tick += FadeTimer_Tick;
+                _opacityIncrement = (_targetOpacity / (_fadeDurationSeconds * 1000.0 / _fadeTimer.Interval));
+            }
+            else
+            {
+                Opacity = _targetOpacity;
+            }
+
+            if (_fadeTimer != null)
+            {
+                _fadeTimer.Start();
+            }
+
+            targetControl.LocationChanged += (sender, e) =>
+            {
+                Location = targetControl.PointToScreen(Point.Empty);
+            };
+
+            targetControl.SizeChanged += (sender, e) =>
+            {
+                Size = targetControl.Size;
+            };
+        }
+
+        private void FadeTimer_Tick(object sender, EventArgs e)
+        {
+            Opacity += _opacityIncrement;
+
+            if (Opacity >= _targetOpacity)
+            {
+                Opacity = _targetOpacity;
+                _fadeTimer.Stop();
+                _fadeTimer.Dispose();
+                _fadeTimer = null;
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (_fadeTimer != null))
+            {
+                _fadeTimer.Stop();
+                _fadeTimer.Dispose();
+                _fadeTimer = null;
+            }
+            base.Dispose(disposing);
+        }
+
+        protected override void OnHandleDestroyed(EventArgs e)
+        {
+            if (_fadeTimer != null)
+            {
+                _fadeTimer.Stop();
+                _fadeTimer.Dispose();
+                _fadeTimer = null;
+            }
+            base.OnHandleDestroyed(e);
         }
     }
 }

@@ -164,6 +164,24 @@ namespace MusicBeePlugin.UI
             searchLayout.Controls.Add(new Label { Text = "Song Result Limit:", AutoSize = true }, 0, 4);
             searchLayout.Controls.Add(songLimitInput, 1, 4);
 
+            // Default Results Choice
+            var defaultResultsComboBox = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width = 120
+            };
+            defaultResultsComboBox.Items.AddRange(Enum.GetNames(typeof(SearchUIConfig.DefaultResultsChoice)));
+            defaultResultsComboBox.SelectedItem = _config.SearchUI.DefaultResults.ToString();
+            defaultResultsComboBox.SelectedIndexChanged += (s, e) =>
+            {
+                if (Enum.TryParse(defaultResultsComboBox.SelectedItem.ToString(), out SearchUIConfig.DefaultResultsChoice choice))
+                {
+                    _config.SearchUI.DefaultResults = choice;
+                }
+            };
+            searchLayout.Controls.Add(new Label { Text = "Default Results:", AutoSize = true }, 0, 5);
+            searchLayout.Controls.Add(defaultResultsComboBox, 1, 5);
+
             searchTab.Controls.Add(searchLayout);
 
             // Configure Appearance tab

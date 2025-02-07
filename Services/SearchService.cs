@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MusicBeePlugin.Utils;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -23,6 +24,28 @@ namespace MusicBeePlugin.Services
         public string Detail { get; set; }
         public ResultType Type;
         public Track Values;
+
+        public SearchResult(Track track, ResultType type)
+        {
+            Values = track;
+            Type = type;
+            
+            switch (type)
+            {
+                case ResultType.Song:
+                    Title = track.TrackTitle;
+                    Detail = track.Artist;
+                    break;
+                case ResultType.Album:
+                    Title = track.Album;
+                    Detail = track.AlbumArtist;
+                    break;
+                case ResultType.Artist:
+                    Title = track.Artist;
+                    Detail = "";
+                    break;
+            }
+        }
     }
 
     public class Track
@@ -35,6 +58,34 @@ namespace MusicBeePlugin.Services
         public string AlbumArtist;
         public string SortAlbumArtist;
         public string Filepath;
+
+        MetaDataType[] fields = new MetaDataType[]
+        {
+            MetaDataType.TrackTitle,
+            MetaDataType.Artists,
+            MetaDataType.Artists,
+            MetaDataType.SortArtist,
+            MetaDataType.Album,
+            MetaDataType.AlbumArtist,
+            MetaDataType.SortAlbumArtist,
+        };
+
+        public Track(string filepath)
+        {
+            Filepath = filepath;
+            mbApi.Library_GetFileTags(filepath, fields, out string[] results);
+            
+            if (results != null && results.Length == fields.Length)
+            {
+                TrackTitle = results[0];
+                Artist = results[1];
+                Artists = results[2];
+                SortArtist = results[3];
+                Album = results[4];
+                AlbumArtist = results[5];
+                SortAlbumArtist = results[6];
+            }
+        }
     }
 
     public class SearchService
@@ -52,30 +103,9 @@ namespace MusicBeePlugin.Services
         public void LoadTracks()
         {
             mbApi.Library_QueryFilesEx("", out string[] files);
-            var fields = new MetaDataType[] 
-            { 
-                MetaDataType.TrackTitle,
-                MetaDataType.Artists,
-                MetaDataType.Artists,
-                MetaDataType.SortArtist,
-                MetaDataType.Album, 
-                MetaDataType.AlbumArtist,
-                MetaDataType.SortAlbumArtist,
-            };
             database = files.Select(filepath =>
             {
-                mbApi.Library_GetFileTags(filepath, fields, out string[] results);
-                return new Track() 
-                { 
-                    TrackTitle = results[0],
-                    Artist = results[1],
-                    Artists = results[2], 
-                    SortArtist = results[3],
-                    Album = results[4], 
-                    AlbumArtist = results[5], 
-                    SortAlbumArtist = results[6],
-                    Filepath = filepath
-                };
+                return new Track(filepath);
             }).ToList();
         }
 
@@ -126,13 +156,8 @@ namespace MusicBeePlugin.Services
                 .Where(x => !string.IsNullOrEmpty(x.Artist) && QueryMatchesWords(NormalizeString(x.Artist), queryWords))
                 .OrderByDescending(x => CalculateArtistScore(x.Artist, normalizedQuery, queryWords))
                 .Take(config.ArtistResultLimit)
-                .Select(x => new SearchResult
-                {
-                    Title = x.Artist,
-                    Detail = "",
-                    Type = ResultType.Artist,
-                    Values = x.Track
-                }).ToList();
+                .Select(x => new SearchResult(x.Track, ResultType.Artist))
+                .ToList();
         }
 
         private List<SearchResult> SearchAlbums(string[] queryWords, string normalizedQuery)
@@ -143,13 +168,8 @@ namespace MusicBeePlugin.Services
                 .Where(track => !string.IsNullOrEmpty(track.Album) && QueryMatchesWords(NormalizeString(track.AlbumArtist + " " + track.Album), queryWords))
                 .OrderByDescending(track => CalculateAlbumScore(track.Album, normalizedQuery, queryWords))
                 .Take(config.AlbumResultLimit)
-                .Select(track => new SearchResult
-                {
-                    Title = track.Album,
-                    Detail = track.AlbumArtist,
-                    Type = ResultType.Album,
-                    Values = track
-                }).ToList();
+                .Select(track => new SearchResult(track, ResultType.Album))
+                .ToList();
         }
 
         private List<SearchResult> SearchSongs(string[] queryWords, string normalizedQuery)
@@ -160,13 +180,8 @@ namespace MusicBeePlugin.Services
                 )
                 .OrderByDescending(track => CalculateSongScore(track, normalizedQuery, queryWords))
                 .Take(config.SongResultLimit)
-                .Select(track => new SearchResult
-                {
-                    Title = track.TrackTitle,
-                    Detail = track.Artists,
-                    Type = ResultType.Song,
-                    Values = track
-                }).ToList();
+                .Select(track => new SearchResult(track, ResultType.Song))
+                .ToList();
         }
 
         private bool QueryMatchesWords(string text, string[] queryWords) // TODO: Disallow matching a single text part multiple times
@@ -291,6 +306,43 @@ namespace MusicBeePlugin.Services
                     '{', '}', '/', '\\', '+', '=', '*', '&', '#', '@',
                     '$', '%', '^', '|', '~', '<', '>' }, 
                 StringSplitOptions.RemoveEmptyEntries));
+        }
+    
+        public List<SearchResult> GetPlayingItems()
+        {
+            string path = mbApi.NowPlaying_GetFileUrl();
+
+            if (string.IsNullOrEmpty(path))
+                return null;
+
+            var res = new List<SearchResult>() {
+                new SearchResult(new Track(path), ResultType.Artist),
+                new SearchResult(new Track(path), ResultType.Album),
+                new SearchResult(new Track(path), ResultType.Song),
+            };
+
+            return res;
+        }
+
+        public List<SearchResult> GetSelectedTracks()
+        {
+            mbApi.Library_QueryFilesEx("domain=SelectedFiles", out string[] files);
+
+            if (files == null || files.Length == 0)
+                return new List<SearchResult>();
+
+            var tracks = files.Select(filepath => new Track(filepath)).ToList();
+
+            var results = new List<SearchResult>();
+            
+            foreach (var track in tracks)
+                results.Add(new SearchResult(track, ResultType.Artist));
+            foreach (var track in tracks)
+                results.Add(new SearchResult(track, ResultType.Album));
+            foreach (var track in tracks)
+                results.Add(new SearchResult(track, ResultType.Song));
+
+            return results;
         }
     }
 

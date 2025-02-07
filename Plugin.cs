@@ -61,11 +61,16 @@ namespace MusicBeePlugin
             if (!LAZY_LOAD)
                 MusicBeeHelpers.LoadMethods();
 
-            mbApi.MB_RegisterCommand("Modern Search Bar: Show Search Bar", (a, b) => ShowSearchBar());
-            mbApi.MB_RegisterCommand("Modern Search Bar: Show Search Bar (2)", (a, b) => ShowSearchBar());
-            mbApi.MB_RegisterCommand("Modern Search Bar: Artist Search", (a, b) => ShowSearchBar("a: "));
-            mbApi.MB_RegisterCommand("Modern Search Bar: Album Search", (a, b) => ShowSearchBar("l: "));
-            mbApi.MB_RegisterCommand("Modern Search Bar: Song Search", (a, b) => ShowSearchBar("s: "));
+            mbApi.MB_RegisterCommand("Modern Search Bar: Search", (a, b) => ShowSearchBar());
+            mbApi.MB_RegisterCommand("Modern Search Bar: Search (2)", (a, b) => ShowSearchBar());
+
+            mbApi.MB_RegisterCommand("Modern Search Bar: Search Artists", (a, b) => ShowSearchBar("a: "));
+            mbApi.MB_RegisterCommand("Modern Search Bar: Search Albums", (a, b) => ShowSearchBar("l: "));
+            mbApi.MB_RegisterCommand("Modern Search Bar: Search Songs", (a, b) => ShowSearchBar("s: "));
+
+            mbApi.MB_RegisterCommand("Modern Search Bar: Selected: Artist Action", (a, b) => PerformActionOnSelected(ResultType.Artist));
+            mbApi.MB_RegisterCommand("Modern Search Bar: Selected: Album Action", (a, b) => PerformActionOnSelected(ResultType.Album));
+            mbApi.MB_RegisterCommand("Modern Search Bar: Selected: Song Action", (a, b) => PerformActionOnSelected(ResultType.Song));
 
             LoadConfig();
 
@@ -120,6 +125,19 @@ namespace MusicBeePlugin
 
             searchBarThread.SetApartmentState(ApartmentState.STA);
             searchBarThread.Start();
+        }
+
+        public void PerformActionOnSelected(ResultType actionType)
+        {
+            var modifiers = Keys.None;
+            if (Control.ModifierKeys.HasFlag(Keys.Control)) modifiers |= Keys.Control;
+            if (Control.ModifierKeys.HasFlag(Keys.Shift)) modifiers |= Keys.Shift;
+
+            var path = MusicBeeHelpers.GetFirstSelectedTrack().path;
+            var result = new SearchResult(new Track(path), actionType);
+            
+            var actionService = new ActionService(config.SearchActions);
+            actionService.RunAction(result.Title, result, new KeyEventArgs(modifiers));
         }
 
         public bool Configure(IntPtr panelHandle)
