@@ -24,6 +24,8 @@ namespace MusicBeePlugin
         
         private PluginInfo about = new PluginInfo();
 
+        private static readonly ManualResetEvent startupComplete = new ManualResetEvent(false);
+
         public PluginInfo Initialise(IntPtr apiInterfacePtr)
         {
             mbApi = new MusicBeeApiInterface();
@@ -84,6 +86,8 @@ namespace MusicBeePlugin
                     ShowConfigDialog();
                 }
             }
+            
+            startupComplete.Set();
         }
 
         public static void LoadConfig()
@@ -100,6 +104,8 @@ namespace MusicBeePlugin
 
         public void ShowSearchBar(string defaultText = null)
         {
+            startupComplete.WaitOne();
+
             var mbHwnd = mbApi.MB_GetWindowHandle();
             var mbControl = Control.FromHandle(mbHwnd);
             SynchronizationContext mainContext = SynchronizationContext.Current;
