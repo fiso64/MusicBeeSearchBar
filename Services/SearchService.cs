@@ -113,10 +113,13 @@ namespace MusicBeePlugin.Services
         private List<SearchResult> SearchArtists(string[] queryWords, string normalizedQuery, int limit = 5)
         {
             return database
-                .SelectMany(t => t.Artists?.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(artist => artist.Trim())
-                    .Distinct()
-                    .Select(artist => new { Artist = artist, Track = t }) 
+                .SelectMany(t => 
+                    (t.Artists?.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Concat(new[] { t.SortArtist })
+                        .Where(a => !string.IsNullOrEmpty(a))
+                        .Select(artist => artist.Trim())
+                        .Distinct()
+                        .Select(artist => new { Artist = artist, Track = t }))
                     ?? Enumerable.Empty<(string Artist, Track Track)>().Select(x => new { Artist = x.Artist, Track = x.Track }))
                 .GroupBy(x => x.Artist.ToLower())
                 .Select(group => group.First())
