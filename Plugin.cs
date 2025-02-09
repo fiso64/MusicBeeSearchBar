@@ -67,6 +67,7 @@ namespace MusicBeePlugin
             mbApi.MB_RegisterCommand("Modern Search Bar: Search Artists", (a, b) => ShowSearchBar("a: "));
             mbApi.MB_RegisterCommand("Modern Search Bar: Search Albums", (a, b) => ShowSearchBar("l: "));
             mbApi.MB_RegisterCommand("Modern Search Bar: Search Songs", (a, b) => ShowSearchBar("s: "));
+            mbApi.MB_RegisterCommand("Modern Search Bar: Search Playlists", (a, b) => ShowSearchBar("p: "));
 
             mbApi.MB_RegisterCommand("Modern Search Bar: Selected: Artist Action", (a, b) => PerformActionOnSelected(ResultType.Artist));
             mbApi.MB_RegisterCommand("Modern Search Bar: Selected: Album Action", (a, b) => PerformActionOnSelected(ResultType.Album));
@@ -143,12 +144,7 @@ namespace MusicBeePlugin
         public bool Configure(IntPtr panelHandle)
         {
             LoadConfig();
-            var cfgForm = new ConfigurationForm(config, mbApi);
-            if (cfgForm.ShowDialog() == DialogResult.OK)
-            {
-                config = cfgForm.Config;
-                SaveConfig();
-            }
+            ShowConfigDialog();
             return true;
         }
 

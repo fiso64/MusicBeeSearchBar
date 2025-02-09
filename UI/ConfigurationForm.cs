@@ -75,6 +75,7 @@ namespace MusicBeePlugin.UI
             actionsLayout.Controls.Add(CreateActionPanel("Artist Actions", _config.SearchActions.ArtistAction), 0, 0);
             actionsLayout.Controls.Add(CreateActionPanel("Album Actions", _config.SearchActions.AlbumAction), 0, 1);
             actionsLayout.Controls.Add(CreateActionPanel("Song Actions", _config.SearchActions.SongAction), 0, 2);
+            actionsLayout.Controls.Add(CreateActionPanel("Playlist Actions", _config.SearchActions.PlaylistAction), 0, 3);
 
             // Wrap the layout in a panel to enable scrolling
             Panel actionsScrollPanel = new Panel
@@ -163,12 +164,25 @@ namespace MusicBeePlugin.UI
             searchLayout.Controls.Add(new Label { Text = "Song Result Limit:", AutoSize = true }, 0, 4);
             searchLayout.Controls.Add(songLimitInput, 1, 4);
 
+            // Playlist Result Limit
+            var playlistLimitInput = new NumericUpDown
+            {
+                Minimum = 1,
+                Maximum = 99,
+                Value = _config.SearchUI.PlaylistResultLimit,
+                Width = 70
+            };
+            playlistLimitInput.ValueChanged += (s, e) => _config.SearchUI.PlaylistResultLimit = (int)playlistLimitInput.Value;
+            searchLayout.Controls.Add(new Label { Text = "Playlist Result Limit:", AutoSize = true }, 0, 5);
+            searchLayout.Controls.Add(playlistLimitInput, 1, 5);
+
             // Default Results Choice
             var defaultResultsComboBox = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Width = 120
             };
+            defaultResultsComboBox.MouseWheel += (s, e) => ((HandledMouseEventArgs)e).Handled = true;
             defaultResultsComboBox.Items.AddRange(Enum.GetNames(typeof(SearchUIConfig.DefaultResultsChoice)));
             defaultResultsComboBox.SelectedItem = _config.SearchUI.DefaultResults.ToString();
             defaultResultsComboBox.SelectedIndexChanged += (s, e) =>
@@ -178,8 +192,8 @@ namespace MusicBeePlugin.UI
                     _config.SearchUI.DefaultResults = choice;
                 }
             };
-            searchLayout.Controls.Add(new Label { Text = "Default Results:", AutoSize = true }, 0, 5);
-            searchLayout.Controls.Add(defaultResultsComboBox, 1, 5);
+            searchLayout.Controls.Add(new Label { Text = "Default Results:", AutoSize = true }, 0, 6);
+            searchLayout.Controls.Add(defaultResultsComboBox, 1, 6);
 
             searchTab.Controls.Add(searchLayout);
 
@@ -336,10 +350,10 @@ namespace MusicBeePlugin.UI
             layout.Controls.Add(new Label { Text = "Ctrl+Shift+Enter:", AutoSize = true }, 0, 3);
 
             // Add action combo boxes with their corresponding options panels
-            var (defaultCombo, defaultOptions) = CreateActionControls(actionConfig.Default);
-            var (ctrlCombo, ctrlOptions) = CreateActionControls(actionConfig.Ctrl);
-            var (shiftCombo, shiftOptions) = CreateActionControls(actionConfig.Shift);
-            var (ctrlShiftCombo, ctrlShiftOptions) = CreateActionControls(actionConfig.CtrlShift);
+            var (defaultCombo, defaultOptions) = CreateActionControls(actionConfig.Default, actionConfig);
+            var (ctrlCombo, ctrlOptions) = CreateActionControls(actionConfig.Ctrl, actionConfig);
+            var (shiftCombo, shiftOptions) = CreateActionControls(actionConfig.Shift, actionConfig);
+            var (ctrlShiftCombo, ctrlShiftOptions) = CreateActionControls(actionConfig.CtrlShift, actionConfig);
 
             layout.Controls.Add(defaultCombo, 1, 0);
             layout.Controls.Add(ctrlCombo, 1, 1);
@@ -355,13 +369,14 @@ namespace MusicBeePlugin.UI
             return groupBox;
         }
 
-        private (ComboBox, Panel) CreateActionControls(BaseActionData currentAction)
+        private (ComboBox, Panel) CreateActionControls(BaseActionData currentAction, ActionConfig actionConfig)
         {
             ComboBox comboBox = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Width = 200
             };
+            comboBox.MouseWheel += (s, e) => ((HandledMouseEventArgs)e).Handled = true;
 
             Panel optionsPanel = new Panel
             {
@@ -382,11 +397,18 @@ namespace MusicBeePlugin.UI
             comboBox.SelectedIndex = GetActionIndex(currentAction);
             UpdateOptionsPanel(optionsPanel, currentAction);
 
+            // Store reference to which action we're modifying
+            Action<BaseActionData> updateAction = null;
+            if (currentAction == actionConfig.Default) updateAction = x => actionConfig.Default = x;
+            else if (currentAction == actionConfig.Ctrl) updateAction = x => actionConfig.Ctrl = x;
+            else if (currentAction == actionConfig.Shift) updateAction = x => actionConfig.Shift = x;
+            else if (currentAction == actionConfig.CtrlShift) updateAction = x => actionConfig.CtrlShift = x;
+
             // Add event handler to update options when selection changes
             comboBox.SelectedIndexChanged += (sender, e) => 
             {
                 var newAction = CreateActionFromIndex(comboBox.SelectedIndex);
-                currentAction = newAction;  // Update the reference in the config
+                updateAction(newAction);  // Update the correct reference in the config
                 UpdateOptionsPanel(optionsPanel, newAction);
             };
 
@@ -449,6 +471,7 @@ namespace MusicBeePlugin.UI
                         DropDownStyle = ComboBoxStyle.DropDownList,
                         Width = 150
                     };
+                    tabComboBox.MouseWheel += (s, e) => ((HandledMouseEventArgs)e).Handled = true;
                     tabComboBox.Items.AddRange(Enum.GetNames(typeof(TabChoice)));
                     tabComboBox.SelectedIndex = (int)searchAction.TabChoice;
                     tabComboBox.SelectedIndexChanged += (s, e) => searchAction.TabChoice = (TabChoice)tabComboBox.SelectedIndex;
@@ -495,12 +518,22 @@ namespace MusicBeePlugin.UI
                     toggleSearchEntireLibraryCheckBox.CheckedChanged += (s, e) => 
                         searchAction.ToggleSearchEntireLibraryBeforeSearch = toggleSearchEntireLibraryCheckBox.Checked;
 
+                    var useLeftSidebarCheckBox = new CheckBox
+                    {
+                        Text = "Use Left Sidebar",
+                        AutoSize = true,
+                        Checked = searchAction.UseLeftSidebar
+                    };
+                    useLeftSidebarCheckBox.CheckedChanged += (s, e) => 
+                        searchAction.UseLeftSidebar = useLeftSidebarCheckBox.Checked;
+
                     controls.AddRange(new Control[] { 
                         useSortArtistCheckBox, 
                         searchAddPrefixCheckBox,
                         clearSearchBarCheckBox,
                         useSearchBarTextCheckBox,
-                        toggleSearchEntireLibraryCheckBox
+                        toggleSearchEntireLibraryCheckBox,
+                        useLeftSidebarCheckBox
                     });
                     break;
 
@@ -510,6 +543,7 @@ namespace MusicBeePlugin.UI
                         DropDownStyle = ComboBoxStyle.DropDownList,
                         Width = 150
                     };
+                    filterTabComboBox.MouseWheel += (s, e) => ((HandledMouseEventArgs)e).Handled = true;
                     filterTabComboBox.Items.AddRange(Enum.GetNames(typeof(TabChoice)));
                     filterTabComboBox.SelectedIndex = (int)filterAction.TabChoice;
                     filterTabComboBox.SelectedIndexChanged += (s, e) => filterAction.TabChoice = (TabChoice)filterTabComboBox.SelectedIndex;
@@ -638,14 +672,9 @@ namespace MusicBeePlugin.UI
             }
 
             // Validate size
-            if (widthInput.Value < 200 || widthInput.Value > 1000)
+            if (widthInput.Value < 1 || widthInput.Value > 10000)
             {
-                ShowError("Width must be between 200 and 1000 pixels.");
-                return false;
-            }
-            if (heightInput.Value < 40 || heightInput.Value > 1000)
-            {
-                ShowError("Height must be between 40 and 1000 pixels.");
+                ShowError("Width must be between 1 and 10000 pixels.");
                 return false;
             }
 

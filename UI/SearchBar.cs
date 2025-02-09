@@ -29,6 +29,7 @@ namespace MusicBeePlugin.UI
         private Image songIcon;
         private Image albumIcon;
         private Image artistIcon;
+        private Image playlistIcon;
         private OverlayForm overlay;
 
         private SearchUIConfig searchUIConfig;
@@ -88,6 +89,7 @@ namespace MusicBeePlugin.UI
             songIcon = CreateIcon(Color.LightGray, 16, 16, ResultType.Song, 2);
             albumIcon = CreateIcon(Color.DarkGray, 16, 16, ResultType.Album, 2);
             artistIcon = CreateIcon(Color.Gray, 16, 16, ResultType.Artist, 2);
+            playlistIcon = CreateIcon(Color.LightGray, 16, 16, ResultType.Playlist, 2);
 
             Size = searchUIConfig.InitialSize;
             BackColor = searchUIConfig.BaseColor;
@@ -323,6 +325,18 @@ namespace MusicBeePlugin.UI
                             bodyHeight
                         );
                         break;
+                    case ResultType.Playlist:
+                        // List icon (3 horizontal lines)
+                        int lineSpacing = 4;
+                        for (int i = 0; i < 3; i++)
+                        {
+                            g.DrawLine(pen,
+                                3,
+                                4 + i * lineSpacing,
+                                width - 4,
+                                4 + i * lineSpacing);
+                        }
+                        break;
                 }
             }
             return icon;
@@ -361,17 +375,22 @@ namespace MusicBeePlugin.UI
 
             if (query.StartsWith("a:", StringComparison.OrdinalIgnoreCase))
             {
-                filter &= ResultType.Artist;
+                filter = ResultType.Artist;
                 query = query.Substring(2).TrimStart();
             }
             else if (query.StartsWith("l:", StringComparison.OrdinalIgnoreCase))
             {
-                filter &= ResultType.Album;
+                filter = ResultType.Album;
                 query = query.Substring(2).TrimStart();
             }
             else if (query.StartsWith("t:", StringComparison.OrdinalIgnoreCase) || query.StartsWith("s:", StringComparison.OrdinalIgnoreCase))
             {
-                filter &= ResultType.Song;
+                filter = ResultType.Song;
+                query = query.Substring(2).TrimStart();
+            }
+            else if (query.StartsWith("p:", StringComparison.OrdinalIgnoreCase))
+            {
+                filter = ResultType.Playlist;
                 query = query.Substring(2).TrimStart();
             }
 
@@ -453,6 +472,8 @@ namespace MusicBeePlugin.UI
                     currentIcon = albumIcon;
                 else if (resultItem.Type == ResultType.Artist)
                     currentIcon = artistIcon;
+                else if (resultItem.Type == ResultType.Playlist)
+                    currentIcon = playlistIcon;
 
                 if (currentIcon != null)
                 {
@@ -473,6 +494,11 @@ namespace MusicBeePlugin.UI
                 else if (resultItem.Type == ResultType.Artist)
                 {
                     g.DrawString(resultItem.Title, titleFont, textBrush, textStartX, bounds.Y + offsetY + 5);
+                }
+                else if (resultItem.Type == ResultType.Playlist)
+                {
+                    g.DrawString(resultItem.Title, titleFont, textBrush, textStartX, bounds.Y + offsetY);
+                    g.DrawString(resultItem.Detail, detailFont, new SolidBrush(detailColor), textStartX, bounds.Y + offsetY + titleFont.GetHeight() + 2);
                 }
             }
         }

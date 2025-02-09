@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using static MusicBeePlugin.Plugin;
@@ -30,6 +31,8 @@ namespace MusicBeePlugin.Services
                 actionCfg = actionsConfig.AlbumAction;
             else if (result.Type == ResultType.Song)
                 actionCfg = actionsConfig.SongAction;
+            else if (result.Type == ResultType.Playlist)
+                actionCfg = actionsConfig.PlaylistAction;
             else return true;
 
             BaseActionData action;
@@ -107,7 +110,7 @@ namespace MusicBeePlugin.Services
             MusicBeeHelpers.InvokeCommand(command);
         }
 
-        private async void Search(string searchBoxText, SearchResult result, SearchInTabActionData action)
+        private void Search(string searchBoxText, SearchResult result, SearchInTabActionData action)
         {
             RestoreOrFocus();
             GotoTab(action.TabChoice);
@@ -132,20 +135,32 @@ namespace MusicBeePlugin.Services
                     query = (action.SearchAddPrefix ? "T:" : "") + result.Values.TrackTitle;
             }
 
-            var searchBox = MusicBeeHelpers.FocusSearchBox();
-            WinApiHelpers.SetEditText(searchBox, query);
-            WinApiHelpers.SendEnterKey(searchBox);
-
-            if (!action._actionExecuted)
+            if (!action.UseLeftSidebar)
             {
-                await Task.Delay(100);
+                var searchBox = MusicBeeHelpers.FocusSearchBox();
+                WinApiHelpers.SetEditText(searchBox, query);
                 WinApiHelpers.SendEnterKey(searchBox);
-            }
 
-            if (action.ClearSearchBarTextAfterSearch)
+                if (!action._actionExecuted)
+                {
+                    Thread.Sleep(100);
+                    WinApiHelpers.SendEnterKey(searchBox);
+                }
+
+                if (action.ClearSearchBarTextAfterSearch)
+                {
+                    Thread.Sleep(50);
+                    WinApiHelpers.SetEditText(searchBox, "");
+                }
+            }
+            else
             {
-                await Task.Delay(50);
-                WinApiHelpers.SetEditText(searchBox, "");
+                MusicBeeHelpers.FocusLeftSidebar();
+
+                Thread.Sleep(50);
+
+                foreach (var c in query)
+                    SendKeys.SendWait(c.ToString());
             }
 
             if (action.ToggleSearchEntireLibraryBeforeSearch)
@@ -154,6 +169,11 @@ namespace MusicBeePlugin.Services
 
         private void OpenFilter(SearchResult result, OpenFilterInTabActionData action)
         {
+            if (result.Type == ResultType.Playlist)
+            {
+                return;
+            }
+
             RestoreOrFocus();
             GotoTab(action.TabChoice);
 
@@ -259,6 +279,11 @@ namespace MusicBeePlugin.Services
                 }
 
                 mbApi.Library_QueryFilesEx(query, out string[] files);
+                return files;
+            }
+            else if (result.Type == ResultType.Playlist)
+            {
+                mbApi.Playlist_QueryFilesEx(result.Values.Filepath, out string[] files);
                 return files;
             }
             else

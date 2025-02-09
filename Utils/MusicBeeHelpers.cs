@@ -10,6 +10,7 @@ using System.Linq.Expressions;
 using System.Windows.Forms;
 using System.Xml.Linq;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace MusicBeePlugin.Utils
 {
@@ -77,16 +78,16 @@ namespace MusicBeePlugin.Utils
             return WinApiHelpers.GetFocus();
         }
 
-        public static async void FocusMainPanel()
+        public static void FocusMainPanel()
         {
             FocusSearchBox();
+
             var hwnd = mbApi.MB_GetWindowHandle();
             var windowRect = WinApiHelpers.GetWindowRect(hwnd);
             int windowWidth = windowRect.Width;
 
             WinApiHelpers.SendShiftTab();
-
-            await Task.Delay(5);
+            Thread.Sleep(10);
 
             var focusedControl = WinApiHelpers.GetFocus();
             var controlRect = WinApiHelpers.GetWindowRect(focusedControl);
@@ -95,6 +96,13 @@ namespace MusicBeePlugin.Utils
             {
                 WinApiHelpers.SendShiftTab();
             }
+        }
+
+        public static void FocusLeftSidebar()
+        {
+            FocusSearchBox();
+            Thread.Sleep(50);
+            WinApiHelpers.SendKey(Keys.Tab);
         }
 
         public static void MinimiseRestoreOrFocus()

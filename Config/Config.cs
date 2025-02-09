@@ -60,6 +60,7 @@ namespace MusicBeePlugin.Config
         public bool ClearSearchBarTextAfterSearch = false;
         public bool UseSearchBarText = false;
         public bool ToggleSearchEntireLibraryBeforeSearch = false;
+        public bool UseLeftSidebar = false;
     }
 
     public class OpenFilterInTabActionData : BaseActionData
@@ -87,6 +88,8 @@ namespace MusicBeePlugin.Config
         public ActionConfig ArtistAction;
         public ActionConfig AlbumAction;
         public ActionConfig SongAction;
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+        public ActionConfig PlaylistAction;
 
         public static SearchActionsConfig GetDefault()
         {
@@ -116,6 +119,14 @@ namespace MusicBeePlugin.Config
                 CtrlShift = new QueueLastActionData()
             };
 
+            config.PlaylistAction = new ActionConfig
+            {
+                Default = new PlayActionData(),
+                Ctrl = new PlayActionData(),
+                Shift = new QueueNextActionData(),
+                CtrlShift = new PlayActionData { ShufflePlay = true }
+            };
+
             return config;
         }
     }
@@ -129,6 +140,7 @@ namespace MusicBeePlugin.Config
         public int ArtistResultLimit { get; set; } = 5;
         public int AlbumResultLimit { get; set; } = 5;
         public int SongResultLimit { get; set; } = 10;
+        public int PlaylistResultLimit { get; set; } = 5;
         public enum DefaultResultsChoice { Playing, Selected, None };
         public DefaultResultsChoice DefaultResults = DefaultResultsChoice.Playing;
         public Color TextColor { get; set; } = Color.White;
@@ -171,8 +183,32 @@ namespace MusicBeePlugin.Config
                     {
                         Formatting = Formatting.Indented,
                     };
-                    return JsonConvert.DeserializeObject<Config>(jsonContent, settings) 
-                        ?? GetDefault(mbApi);
+                    var defaultConfig = GetDefault(mbApi);
+                    var loadedConfig = JsonConvert.DeserializeObject<Config>(jsonContent, settings);
+                    
+                    if (loadedConfig == null)
+                        return defaultConfig;
+
+                    // Merge SearchActions
+                    if (loadedConfig.SearchActions == null)
+                        loadedConfig.SearchActions = defaultConfig.SearchActions;
+                    else
+                    {
+                        if (loadedConfig.SearchActions.ArtistAction == null)
+                            loadedConfig.SearchActions.ArtistAction = defaultConfig.SearchActions.ArtistAction;
+                        if (loadedConfig.SearchActions.AlbumAction == null)
+                            loadedConfig.SearchActions.AlbumAction = defaultConfig.SearchActions.AlbumAction;
+                        if (loadedConfig.SearchActions.SongAction == null)
+                            loadedConfig.SearchActions.SongAction = defaultConfig.SearchActions.SongAction;
+                        if (loadedConfig.SearchActions.PlaylistAction == null)
+                            loadedConfig.SearchActions.PlaylistAction = defaultConfig.SearchActions.PlaylistAction;
+                    }
+
+                    // Merge SearchUI
+                    if (loadedConfig.SearchUI == null)
+                        loadedConfig.SearchUI = defaultConfig.SearchUI;
+
+                    return loadedConfig;
                 }
             }
             catch (Exception ex)

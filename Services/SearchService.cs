@@ -15,7 +15,8 @@ namespace MusicBeePlugin.Services
         Song = 1,
         Album = 2,
         Artist = 4,
-        All = Song | Album | Artist
+        Playlist = 8,
+        All = Song | Album | Artist | Playlist
     }
 
     public class SearchResult
@@ -43,6 +44,10 @@ namespace MusicBeePlugin.Services
                 case ResultType.Artist:
                     Title = track.Artist;
                     Detail = "";
+                    break;
+                case ResultType.Playlist:
+                    Title = track.TrackTitle; // Using TrackTitle to store playlist name
+                    Detail = "Playlist";
                     break;
             }
         }
@@ -133,6 +138,12 @@ namespace MusicBeePlugin.Services
                 results.AddRange(songResults);
             }
 
+            if ((enabledTypes & ResultType.Playlist) == ResultType.Playlist)
+            {
+                var playlistResults = SearchPlaylists(queryWords, normalizedQuery);
+                results.AddRange(playlistResults);
+            }
+
             var res = results.OrderByDescending(r => GetResultTypePriority(r.Type))
                 .ThenByDescending(r => CalculateOverallScore(r, normalizedQuery))
                 .ToList();
@@ -154,7 +165,7 @@ namespace MusicBeePlugin.Services
                 .GroupBy(x => x.Artist.ToLower())
                 .Select(group => group.First())
                 .Where(x => !string.IsNullOrEmpty(x.Artist) && QueryMatchesWords(NormalizeString(x.Artist), queryWords))
-                .OrderByDescending(x => CalculateArtistScore(x.Artist, normalizedQuery, queryWords))
+                .OrderByDescending(x => CalculateGeneralItemScore(x.Artist, normalizedQuery, queryWords))
                 .Take(config.ArtistResultLimit)
                 .Select(x => new SearchResult(x.Track, ResultType.Artist))
                 .ToList();
@@ -166,7 +177,7 @@ namespace MusicBeePlugin.Services
                 .GroupBy(t => new { t.Album, t.AlbumArtist })
                 .Select(group => group.First())
                 .Where(track => !string.IsNullOrEmpty(track.Album) && QueryMatchesWords(NormalizeString(track.AlbumArtist + " " + track.Album), queryWords))
-                .OrderByDescending(track => CalculateAlbumScore(track.Album, normalizedQuery, queryWords))
+                .OrderByDescending(track => CalculateGeneralItemScore(track.Album, normalizedQuery, queryWords))
                 .Take(config.AlbumResultLimit)
                 .Select(track => new SearchResult(track, ResultType.Album))
                 .ToList();
@@ -181,6 +192,18 @@ namespace MusicBeePlugin.Services
                 .OrderByDescending(track => CalculateSongScore(track, normalizedQuery, queryWords))
                 .Take(config.SongResultLimit)
                 .Select(track => new SearchResult(track, ResultType.Song))
+                .ToList();
+        }
+
+        private List<SearchResult> SearchPlaylists(string[] queryWords, string normalizedQuery)
+        {
+            return GetAllPlaylists()
+                .Where(p => !string.IsNullOrEmpty(p.Name) && QueryMatchesWords(NormalizeString(p.Name), queryWords))
+                .OrderByDescending(p => CalculateGeneralItemScore(p.Name, normalizedQuery, queryWords))
+                .Take(config.PlaylistResultLimit)
+                .Select(p => new SearchResult(
+                    new Track(p.Path) { TrackTitle = p.Name }, // Using TrackTitle to store playlist name
+                    ResultType.Playlist))
                 .ToList();
         }
 
@@ -204,6 +227,7 @@ namespace MusicBeePlugin.Services
                 case ResultType.Artist: return 3;
                 case ResultType.Album: return 2;
                 case ResultType.Song: return 1;
+                case ResultType.Playlist: return 0;
                 default: return 0;
             }
         }
@@ -212,23 +236,17 @@ namespace MusicBeePlugin.Services
         {
             switch (result.Type)
             {
-                case ResultType.Artist: return CalculateArtistScore(result.Title, query, query.Split(' '));
-                case ResultType.Album: return CalculateAlbumScore(result.Title, query, query.Split(' '));
+                case ResultType.Artist: return CalculateGeneralItemScore(result.Title, query, query.Split(' '));
+                case ResultType.Album: return CalculateGeneralItemScore(result.Title, query, query.Split(' '));
                 case ResultType.Song: return CalculateSongScore(result.Values, query, query.Split(' '));
                 default: return 0;
             }
         }
 
-        private double CalculateArtistScore(string artist, string query, string[] queryWords)
+        private double CalculateGeneralItemScore(string item, string query, string[] queryWords)
         {
-            if (string.IsNullOrEmpty(artist)) return 0;
-            return CalculateFuzzyScore(NormalizeString(artist), NormalizeString(query), queryWords);
-        }
-
-        private double CalculateAlbumScore(string album, string query, string[] queryWords)
-        {
-            if (string.IsNullOrEmpty(album)) return 0;
-            return CalculateFuzzyScore(NormalizeString(album), NormalizeString(query), queryWords);
+            if (string.IsNullOrEmpty(item)) return 0;
+            return CalculateFuzzyScore(NormalizeString(item), NormalizeString(query), queryWords);
         }
 
         private double CalculateSongScore(Track track, string query, string[] queryWords)
@@ -352,6 +370,21 @@ namespace MusicBeePlugin.Services
 
             return results;
         }
-    }
 
+        private List<(string Name, string Path)> GetAllPlaylists()
+        {
+            var res = new List<(string Name, string Path)>();
+            if (mbApi.Playlist_QueryPlaylists())
+            {
+                var path = mbApi.Playlist_QueryGetNextPlaylist();
+                while (!string.IsNullOrEmpty(path))
+                {
+                    var name = mbApi.Playlist_GetName(path);
+                    res.Add((name, path));
+                    path = mbApi.Playlist_QueryGetNextPlaylist();
+                }
+            }
+            return res;
+        }
+    }
 }

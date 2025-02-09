@@ -297,5 +297,13 @@ namespace MusicBeePlugin.Utils
 
             keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
         }
+
+        public static void SendTab()
+        {
+            ReleaseAllModifierKeys();
+
+            keybd_event(VK_TAB, 0, 0, UIntPtr.Zero);
+            keybd_event(VK_TAB, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        }
     }
 }
