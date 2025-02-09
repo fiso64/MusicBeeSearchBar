@@ -132,7 +132,7 @@ namespace MusicBeePlugin.UI
             var artistLimitInput = new NumericUpDown
             {
                 Minimum = 1,
-                Maximum = 99,
+                Maximum = 10000,
                 Value = _config.SearchUI.ArtistResultLimit,
                 Width = 70
             };
@@ -144,7 +144,7 @@ namespace MusicBeePlugin.UI
             var albumLimitInput = new NumericUpDown
             {
                 Minimum = 1,
-                Maximum = 99,
+                Maximum = 10000,
                 Value = _config.SearchUI.AlbumResultLimit,
                 Width = 70
             };
@@ -156,7 +156,7 @@ namespace MusicBeePlugin.UI
             var songLimitInput = new NumericUpDown
             {
                 Minimum = 1,
-                Maximum = 99,
+                Maximum = 10000,
                 Value = _config.SearchUI.SongResultLimit,
                 Width = 70
             };
@@ -168,7 +168,7 @@ namespace MusicBeePlugin.UI
             var playlistLimitInput = new NumericUpDown
             {
                 Minimum = 1,
-                Maximum = 99,
+                Maximum = 10000,
                 Value = _config.SearchUI.PlaylistResultLimit,
                 Width = 70
             };
