@@ -64,10 +64,10 @@ namespace MusicBeePlugin.Services
         public string SortAlbumArtist;
         public string Filepath;
 
-        MetaDataType[] fields = new MetaDataType[]
+        static MetaDataType[] fields = new MetaDataType[]
         {
             MetaDataType.TrackTitle,
-            MetaDataType.Artists,
+            MetaDataType.Artist,
             MetaDataType.Artists,
             MetaDataType.SortArtist,
             MetaDataType.Album,
@@ -90,6 +90,18 @@ namespace MusicBeePlugin.Services
                 AlbumArtist = results[5];
                 SortAlbumArtist = results[6];
             }
+        }
+
+        public Track(Track other)
+        {
+            TrackTitle = other.TrackTitle;
+            Artist = other.Artist;
+            Artists = other.Artists;
+            SortArtist = other.SortArtist;
+            Album = other.Album;
+            AlbumArtist = other.AlbumArtist;
+            SortAlbumArtist = other.SortAlbumArtist;
+            Filepath = other.Filepath;
         }
     }
 
@@ -337,8 +349,15 @@ namespace MusicBeePlugin.Services
 
             var res = new List<SearchResult>();
 
-            if (!string.IsNullOrWhiteSpace(track.Artist))
-                res.Add(new SearchResult(track, ResultType.Artist));
+            if (!string.IsNullOrWhiteSpace(track.Artists))
+            {
+                var artists = track.Artists.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => x.Trim())
+                    .DistinctBy(x => x.ToLower());
+
+                foreach (var artist in artists)
+                    res.Add(new SearchResult(new Track(track) { Artist = artist, SortArtist = artist }, ResultType.Artist));
+            }
 
             if (!string.IsNullOrWhiteSpace(track.Album))
                 res.Add(new SearchResult(track, ResultType.Album));
@@ -356,17 +375,21 @@ namespace MusicBeePlugin.Services
             var tracks = files.Select(filepath => new Track(filepath)).ToList();
 
             var results = new List<SearchResult>();
-            
-            foreach (var track in tracks)
-            {
-                if (!string.IsNullOrWhiteSpace(track.Artist))
-                    results.Add(new SearchResult(track, ResultType.Artist));
-            }
-            foreach (var track in tracks)
-            {
-                if (!string.IsNullOrWhiteSpace(track.Album))
-                    results.Add(new SearchResult(track, ResultType.Album));
-            }
+
+            var artists = tracks.Where(t => !string.IsNullOrWhiteSpace(t.Artists))
+                .SelectMany(t => t.Artists.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => new { Artist = x.Trim(), Track = t }))
+                .DistinctBy(x => x.Artist.ToLower());
+
+            foreach (var item in artists)
+                results.Add(new SearchResult(new Track(item.Track) { Artist = item.Artist, SortArtist = item.Artist }, ResultType.Artist));
+
+            var albums = tracks.Where(t => !string.IsNullOrWhiteSpace(t.Album))
+                .Select(t => new { Album = t.Album.Trim(), Track = t })
+                .DistinctBy(x => x.Album.ToLower());
+
+            foreach (var item in albums)
+                results.Add(new SearchResult(item.Track, ResultType.Album));
 
             return results;
         }
