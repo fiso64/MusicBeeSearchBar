@@ -161,24 +161,9 @@ namespace MusicBeePlugin.Services
 
                 Thread.Sleep(50);
 
-                SendKeys.SendWait("="); // type a character to reveal the search box
-
-
-                int count = 0;
-                IntPtr searchBar = IntPtr.Zero;
-
-                while (count++ < 20)
-                {
-                    Thread.Sleep(50);
-                    searchBar = WinApiHelpers.GetFocus();
-                    if (WinApiHelpers.IsEdit(searchBar))
-                        break;
-                }
-
                 WinApiHelpers.SendKey(Keys.Home);
 
                 SendKeys.SendWait("="); // type a character to reveal the search box
-
 
                 int count = 0;
                 IntPtr searchBar = IntPtr.Zero;
