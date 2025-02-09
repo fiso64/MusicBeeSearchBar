@@ -20,7 +20,6 @@ namespace MusicBeePlugin.UI
         private NumericUpDown opacityInput;
         private NumericUpDown maxResultsInput;
         private NumericUpDown widthInput;
-        private NumericUpDown heightInput;
         private Button textColorButton;
         private Button baseColorButton;
         private Button highlightColorButton;
@@ -250,19 +249,8 @@ namespace MusicBeePlugin.UI
             };
             widthInput.ValueChanged += (s, e) => _config.SearchUI.InitialSize = new Size((int)widthInput.Value, _config.SearchUI.InitialSize.Height);
 
-            heightInput = new NumericUpDown
-            {
-                Minimum = 40,
-                Maximum = 1000,
-                Value = _config.SearchUI.InitialSize.Height,
-                Width = 70
-            };
-            heightInput.ValueChanged += (s, e) => _config.SearchUI.InitialSize = new Size(_config.SearchUI.InitialSize.Width, (int)heightInput.Value);
-
             sizePanel.Controls.Add(new Label { Text = "Width:", AutoSize = true }, 0, 0);
             sizePanel.Controls.Add(widthInput, 1, 0);
-            sizePanel.Controls.Add(new Label { Text = "Height:", AutoSize = true }, 2, 0);
-            sizePanel.Controls.Add(heightInput, 3, 0);
 
             appearanceLayout.Controls.Add(new Label { Text = "Initial Size:", AutoSize = true }, 0, 5);
             appearanceLayout.Controls.Add(sizePanel, 1, 5);

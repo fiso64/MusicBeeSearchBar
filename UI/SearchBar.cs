@@ -149,7 +149,7 @@ namespace MusicBeePlugin.UI
                 ForeColor = searchUIConfig.TextColor,
                 BorderStyle = BorderStyle.None,
                 Font = new Font("Arial", 12),
-                ItemHeight = 42,
+                ItemHeight = (int)(42 * (CreateGraphics().DpiX / 96.0)), // Scale based on DPI
                 Visible = false,
                 TabStop = false, // To prevent focusing on listbox with tab key.
                 Height = 0 // Initially set height to 0
