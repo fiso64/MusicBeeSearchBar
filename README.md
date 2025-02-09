@@ -15,6 +15,7 @@ A modern, customizable search bar plugin for MusicBee that provides unified sear
   - `a:` for artists
   - `l:` for albums
   - `s:` for songs
+  - `p:` for playlists
 - **Customizable Actions**: Configure different actions for each result type:
   - Default click
   - Ctrl + click
@@ -53,7 +54,7 @@ Access the configuration panel through:
 ### Configurable Options
 
 - **Actions**: Configure what happens when selecting results
-  - Different actions for artists, albums, and songs
+  - Different actions for artists, albums, songs, etc
   - Separate actions for different key combinations
   - Various action types with customizable parameters
 
