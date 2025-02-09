@@ -315,11 +315,15 @@ namespace MusicBeePlugin.Services
             if (string.IsNullOrEmpty(path))
                 return null;
 
-            var res = new List<SearchResult>() {
-                new SearchResult(new Track(path), ResultType.Artist),
-                new SearchResult(new Track(path), ResultType.Album),
-                new SearchResult(new Track(path), ResultType.Song),
-            };
+            var track = new Track(path);
+
+            var res = new List<SearchResult>();
+
+            if (!string.IsNullOrWhiteSpace(track.Artist))
+                res.Add(new SearchResult(track, ResultType.Artist));
+
+            if (!string.IsNullOrWhiteSpace(track.Album))
+                res.Add(new SearchResult(track, ResultType.Album));
 
             return res;
         }
@@ -336,11 +340,15 @@ namespace MusicBeePlugin.Services
             var results = new List<SearchResult>();
             
             foreach (var track in tracks)
-                results.Add(new SearchResult(track, ResultType.Artist));
+            {
+                if (!string.IsNullOrWhiteSpace(track.Artist))
+                    results.Add(new SearchResult(track, ResultType.Artist));
+            }
             foreach (var track in tracks)
-                results.Add(new SearchResult(track, ResultType.Album));
-            foreach (var track in tracks)
-                results.Add(new SearchResult(track, ResultType.Song));
+            {
+                if (!string.IsNullOrWhiteSpace(track.Album))
+                    results.Add(new SearchResult(track, ResultType.Album));
+            }
 
             return results;
         }
