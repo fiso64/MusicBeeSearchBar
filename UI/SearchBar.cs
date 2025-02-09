@@ -208,11 +208,8 @@ namespace MusicBeePlugin.UI
                 {
                     if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                     {
-                        if (resultsListBox.SelectedIndex < resultsListBox.Items.Count - 1)
-                        {
-                            resultsListBox.SelectedIndex++;
-                            resultsListBox.Invalidate();
-                        }
+                        resultsListBox.SelectedIndex = (resultsListBox.SelectedIndex + 1) % resultsListBox.Items.Count;
+                        resultsListBox.Invalidate();
                     }
                     e.Handled = true; // Prevent further processing of Down key, keep focus on searchBox
                     e.SuppressKeyPress = true;
@@ -222,10 +219,10 @@ namespace MusicBeePlugin.UI
                     if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                     {
                         if (resultsListBox.SelectedIndex > 0)
-                        {
                             resultsListBox.SelectedIndex--;
-                            resultsListBox.Invalidate();
-                        }
+                        else
+                            resultsListBox.SelectedIndex = resultsListBox.Items.Count - 1;
+                        resultsListBox.Invalidate();
                     }
                     e.Handled = true; // Prevent further processing of Up key, keep focus on searchBox
                     e.SuppressKeyPress = true;

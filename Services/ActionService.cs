@@ -2,11 +2,13 @@
 using MusicBeePlugin.Utils;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Windows.Forms.VisualStyles;
 using static MusicBeePlugin.Plugin;
 
 
@@ -159,8 +161,32 @@ namespace MusicBeePlugin.Services
 
                 Thread.Sleep(50);
 
-                foreach (var c in query)
-                    SendKeys.SendWait(c.ToString());
+                WinApiHelpers.SendKey(Keys.Home);
+
+                SendKeys.SendWait("="); // type a character to reveal the search box
+
+
+                int count = 0;
+                IntPtr searchBar = IntPtr.Zero;
+
+                while (count++ < 20)
+                {
+                    Thread.Sleep(50);
+                    searchBar = WinApiHelpers.GetFocus();
+                    if (WinApiHelpers.IsEdit(searchBar))
+                        break;
+                }
+
+                if (searchBar != IntPtr.Zero)
+                {
+                    WinApiHelpers.SetEditText(searchBar, query);
+
+                    if (action.ClearSearchBarTextAfterSearch)
+                    {
+                        Thread.Sleep(50);
+                        WinApiHelpers.SendKey(Keys.Escape);
+                    }
+                }
             }
 
             if (action.ToggleSearchEntireLibraryBeforeSearch)
