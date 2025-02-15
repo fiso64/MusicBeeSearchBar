@@ -34,6 +34,9 @@ namespace MusicBeePlugin.UI
 
         private SearchUIConfig searchUIConfig;
 
+        private PictureBox loadingIndicator;
+        private bool isLoading = true;
+
         public SearchBar(
             Control musicBeeControl,
             SynchronizationContext musicBeeContext,
@@ -49,18 +52,17 @@ namespace MusicBeePlugin.UI
             this.resultAcceptAction = resultAcceptAction;
             this.searchUIConfig = searchUIConfig;
             searchService = new SearchService(musicBeeApi, searchUIConfig);
-            searchService.LoadTracks();
             InitializeUI();
             InitializeHotkeys();
+            InitializeLoadingIndicator();
+
+            // Start loading tracks asynchronously
+            LoadTracksAsync();
 
             if (!string.IsNullOrEmpty(defaultText))
             {
                 searchBox.Text = defaultText;
                 searchBox.Select(searchBox.Text.Length, 0);
-            }
-            else
-            {
-                SearchBoxSetDefaultResults();
             }
         }
 
@@ -276,6 +278,93 @@ namespace MusicBeePlugin.UI
             KeyPreview = true; // Need to set KeyPreview to true for Form to receive KeyDown events before controls
         }
 
+        private void InitializeLoadingIndicator()
+        {
+            loadingIndicator = new PictureBox
+            {
+                Size = new Size(24, 24),
+                BackColor = Color.Transparent,
+                Image = CreateLoadingSpinner(24, searchUIConfig.TextColor),
+                Visible = true
+            };
+            
+            // Position the loading indicator in the search box
+            searchBox.TextChanged += (s, e) => UpdateLoadingIndicatorPosition();
+            searchBox.SizeChanged += (s, e) => UpdateLoadingIndicatorPosition();
+            UpdateLoadingIndicatorPosition();
+
+            Controls.Add(loadingIndicator);
+            loadingIndicator.BringToFront();
+
+            // Start the spinner animation
+            var spinTimer = new System.Windows.Forms.Timer { Interval = 50 };
+            spinTimer.Tick += (s, e) => {
+                if (loadingIndicator.Image != null && !loadingIndicator.IsDisposed)
+                {
+                    loadingIndicator.Image.RotateFlip(RotateFlipType.Rotate90FlipNone);
+                    loadingIndicator.Refresh();
+                }
+            };
+            spinTimer.Start();
+        }
+
+        private void UpdateLoadingIndicatorPosition()
+        {
+            if (loadingIndicator != null && !loadingIndicator.IsDisposed)
+            {
+                loadingIndicator.Location = new Point(
+                    searchBox.Right - loadingIndicator.Width - 10,
+                    searchBox.Top + (searchBox.Height - loadingIndicator.Height) / 2
+                );
+            }
+        }
+
+        private async Task LoadTracksAsync()
+        {
+            try
+            {
+                // Show default results immediately
+                SearchBoxSetDefaultResults();
+
+                await searchService.LoadTracksAsync();
+                isLoading = false;
+                
+                // Update UI on completion
+                if (!IsDisposed)
+                {
+                    BeginInvoke((Action)(() => {
+                        if (loadingIndicator != null && !loadingIndicator.IsDisposed)
+                        {
+                            loadingIndicator.Visible = false;
+                            loadingIndicator.Dispose();
+                        }
+                        
+                        // Only refresh results if there's a search in progress
+                        if (!string.IsNullOrWhiteSpace(searchBox.Text))
+                        {
+                            SearchBox_TextChanged(null, EventArgs.Empty);
+                        }
+                    }));
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error loading tracks: {ex}");
+            }
+        }
+
+        private Bitmap CreateLoadingSpinner(int size, Color color)
+        {
+            Bitmap bmp = new Bitmap(size, size);
+            using (Graphics g = Graphics.FromImage(bmp))
+            using (Pen pen = new Pen(color, 2))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.DrawArc(pen, 2, 2, size - 4, size - 4, 0, 300);
+            }
+            return bmp;
+        }
+
         private Bitmap CreateIcon(Color color, int width, int height, ResultType type, int lineWidth = 1)
         {
             Bitmap icon = new Bitmap(width, height);
@@ -368,6 +457,19 @@ namespace MusicBeePlugin.UI
         private void SearchBox_TextChanged(object sender, EventArgs e)
         {
             string query = searchBox.Text.Trim();
+
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                SearchBoxSetDefaultResults();
+                return;
+            }
+
+            if (isLoading)
+            {
+                UpdateResultsList(null);
+                return;
+            }
+
             var filter = ResultType.All;
 
             if (query.StartsWith("a:", StringComparison.OrdinalIgnoreCase))
@@ -391,11 +493,6 @@ namespace MusicBeePlugin.UI
                 query = query.Substring(2).TrimStart();
             }
 
-            if (string.IsNullOrWhiteSpace(query))
-            {
-                SearchBoxSetDefaultResults();
-            }
-
             var searchResults = searchService.Search(query, filter);
             UpdateResultsList(searchResults);
         }
@@ -411,6 +508,7 @@ namespace MusicBeePlugin.UI
                 }
                 resultsListBox.Visible = true;
                 resultsListBox.SelectedIndex = 0; // Select the first item by default when results appear
+                resultsListBox.TopIndex = 0;      // Reset scroll position
                 UpdateResultsListHeight(searchResults.Count);
                 Height = 42 + resultsListBox.Height;
             }

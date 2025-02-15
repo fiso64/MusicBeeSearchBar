@@ -165,6 +165,7 @@ namespace MusicBeePlugin.Services
         public List<Track> database;
         private MusicBeeApiInterface mbApi;
         private Config.SearchUIConfig config;
+        public bool IsLoaded { get; private set; } = false;
 
         public SearchService(MusicBeeApiInterface mbApi, Config.SearchUIConfig config)
         {
@@ -172,14 +173,18 @@ namespace MusicBeePlugin.Services
             this.config = config;
         }
 
-        public void LoadTracks()
+        public async Task LoadTracksAsync()
         {
-            mbApi.Library_QueryFilesEx("", out string[] files);
-            database = files.Select(filepath => new Track(filepath)).ToList();
+            await Task.Run(() => {
+                mbApi.Library_QueryFilesEx("", out string[] files);
+                database = files.Select(filepath => new Track(filepath)).ToList();
+                IsLoaded = true;
+            });
         }
 
         public List<SearchResult> Search(string query, ResultType enabledTypes)
         {
+            if (!IsLoaded) return new List<SearchResult>();
             var results = new List<SearchResult>();
             string normalizedQuery = NormalizeString(query);
             string[] queryWords = normalizedQuery.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
