@@ -135,10 +135,25 @@ namespace MusicBeePlugin
             if (Control.ModifierKeys.HasFlag(Keys.Shift)) modifiers |= Keys.Shift;
 
             var path = MusicBeeHelpers.GetFirstSelectedTrack().path;
-            var result = new SearchResult(new Track(path), actionType);
-            
+            var track = new Track(path);
+
+            SearchResult result = null;
+
+            if (actionType == ResultType.Song)
+            {
+                result = new SongResult(path);
+            }
+            else if (actionType == ResultType.Artist)
+            {
+                result = new ArtistResult(track.Artist, track.SortArtist);
+            }
+            else if (actionType == ResultType.Album)
+            {
+                result = new AlbumResult(track.Album, track.AlbumArtist, track.SortAlbumArtist);
+            }
+
             var actionService = new ActionService(config.SearchActions);
-            actionService.RunAction(result.Title, result, new KeyEventArgs(modifiers));
+            actionService.RunAction(result.DisplayTitle, result, new KeyEventArgs(modifiers));
         }
 
         public bool Configure(IntPtr panelHandle)

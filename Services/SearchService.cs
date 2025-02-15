@@ -1,6 +1,7 @@
 ﻿using MusicBeePlugin.Utils;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -16,40 +17,94 @@ namespace MusicBeePlugin.Services
         Album = 2,
         Artist = 4,
         Playlist = 8,
-        All = Song | Album | Artist | Playlist
+        All = 15,
     }
 
     public class SearchResult
     {
-        public string Title { get; set; }
-        public string Detail { get; set; }
+        public string DisplayTitle;
+        public string DisplayDetail;
         public ResultType Type;
-        public Track Values;
+    }
 
-        public SearchResult(Track track, ResultType type)
+    public class SongResult : SearchResult
+    {
+        public string TrackTitle;
+        public string Artist;
+        public string SortArtist;
+        public string Filepath;
+
+        static MetaDataType[] fields = new MetaDataType[]
         {
-            Values = track;
-            Type = type;
-            
-            switch (type)
+            MetaDataType.TrackTitle,
+            MetaDataType.Artist,
+            MetaDataType.SortArtist,
+        };
+
+        public SongResult(string filepath)
+        {
+            Filepath = filepath;
+            mbApi.Library_GetFileTags(filepath, fields, out string[] results);
+
+            if (results != null)
             {
-                case ResultType.Song:
-                    Title = track.TrackTitle;
-                    Detail = track.Artist;
-                    break;
-                case ResultType.Album:
-                    Title = track.Album;
-                    Detail = track.AlbumArtist;
-                    break;
-                case ResultType.Artist:
-                    Title = track.Artist;
-                    Detail = "";
-                    break;
-                case ResultType.Playlist:
-                    Title = track.TrackTitle; // Using TrackTitle to store playlist name
-                    Detail = "Playlist";
-                    break;
+                TrackTitle = results[0];
+                Artist = results[1];
+                SortArtist = results[2];
             }
+
+            DisplayTitle = TrackTitle;
+            DisplayDetail = Artist;
+            Type = ResultType.Song;
+        }
+    }
+
+    public class AlbumResult : SearchResult
+    {
+        public string Album;
+        public string AlbumArtist;
+        public string SortAlbumArtist;
+
+        public AlbumResult(string album, string albumArtist, string sortAlbumArtist)
+        {
+            Album = album;
+            AlbumArtist = albumArtist;
+            DisplayTitle = album;
+            DisplayDetail = albumArtist;
+            SortAlbumArtist = sortAlbumArtist;
+            Type = ResultType.Album;
+        }
+    }
+
+    public class ArtistResult : SearchResult
+    {
+        public string Artist;
+        public string SortArtist;
+
+        public ArtistResult(string artist, string sortArtist)
+        {
+            Artist = artist;
+            SortArtist = sortArtist;
+            Type = ResultType.Artist;
+            DisplayTitle = Artist;
+
+            if (!Artist.Equals(SortArtist, StringComparison.OrdinalIgnoreCase))
+                DisplayDetail = SortArtist;
+        }
+    }
+
+    public class PlaylistResult : SearchResult
+    {
+        public string PlaylistName;
+        public string PlaylistPath;
+
+        public PlaylistResult(string playlistName, string playlistPath)
+        {
+            PlaylistName = playlistName;
+            PlaylistPath = playlistPath;
+            Type = ResultType.Playlist;
+            DisplayTitle = PlaylistName;
+            DisplayDetail = "Playlist";
         }
     }
 
@@ -120,10 +175,7 @@ namespace MusicBeePlugin.Services
         public void LoadTracks()
         {
             mbApi.Library_QueryFilesEx("", out string[] files);
-            database = files.Select(filepath =>
-            {
-                return new Track(filepath);
-            }).ToList();
+            database = files.Select(filepath => new Track(filepath)).ToList();
         }
 
         public List<SearchResult> Search(string query, ResultType enabledTypes)
@@ -163,27 +215,26 @@ namespace MusicBeePlugin.Services
             return res;
         }
 
-        private List<SearchResult> SearchArtists(string[] queryWords, string normalizedQuery)
+        private List<ArtistResult> SearchArtists(string[] queryWords, string normalizedQuery)
         {
             return database
                 .SelectMany(t => 
-                    (t.Artists?.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
-                        .Concat(new[] { t.SortArtist })
+                    (t.Artist?.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Concat(t.SortArtist?.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
                         .Where(a => !string.IsNullOrEmpty(a))
                         .Select(artist => artist.Trim())
                         .Distinct()
                         .Select(artist => new { Artist = artist, Track = t }))
-                    ?? Enumerable.Empty<(string Artist, Track Track)>().Select(x => new { Artist = x.Artist, Track = x.Track }))
-                .GroupBy(x => x.Artist.ToLower())
-                .Select(group => group.First())
+                    ?? Enumerable.Empty<(string Artist, Track Track)>().Select(x => new { x.Artist, x.Track }))
+                .DistinctBy(x => x.Artist.ToLower())
                 .Where(x => !string.IsNullOrEmpty(x.Artist) && QueryMatchesWords(NormalizeString(x.Artist), queryWords))
                 .OrderByDescending(x => CalculateGeneralItemScore(x.Artist, normalizedQuery, queryWords))
                 .Take(config.ArtistResultLimit)
-                .Select(x => new SearchResult(x.Track, ResultType.Artist))
+                .Select(x => new ArtistResult(x.Artist, x.Track.SortArtist))
                 .ToList();
         }
 
-        private List<SearchResult> SearchAlbums(string[] queryWords, string normalizedQuery)
+        private List<AlbumResult> SearchAlbums(string[] queryWords, string normalizedQuery)
         {
             return database
                 .GroupBy(t => new { t.Album, t.AlbumArtist })
@@ -191,31 +242,29 @@ namespace MusicBeePlugin.Services
                 .Where(track => !string.IsNullOrEmpty(track.Album) && QueryMatchesWords(NormalizeString(track.AlbumArtist + " " + track.Album), queryWords))
                 .OrderByDescending(track => CalculateGeneralItemScore(track.Album, normalizedQuery, queryWords))
                 .Take(config.AlbumResultLimit)
-                .Select(track => new SearchResult(track, ResultType.Album))
+                .Select(track => new AlbumResult(track.Album, track.AlbumArtist, track.SortAlbumArtist))
                 .ToList();
         }
 
-        private List<SearchResult> SearchSongs(string[] queryWords, string normalizedQuery)
+        private List<SongResult> SearchSongs(string[] queryWords, string normalizedQuery)
         {
             return database
                 .Where(track =>
                     !string.IsNullOrEmpty(track.TrackTitle) && QueryMatchesWords(NormalizeString(track.Artists + " " + track.TrackTitle), queryWords)
                 )
-                .OrderByDescending(track => CalculateSongScore(track, normalizedQuery, queryWords))
+                .OrderByDescending(track => CalculateSongScore(track.Artist, track.TrackTitle, normalizedQuery, queryWords))
                 .Take(config.SongResultLimit)
-                .Select(track => new SearchResult(track, ResultType.Song))
+                .Select(track => new SongResult(track.Filepath))
                 .ToList();
         }
 
-        private List<SearchResult> SearchPlaylists(string[] queryWords, string normalizedQuery)
+        private List<PlaylistResult> SearchPlaylists(string[] queryWords, string normalizedQuery)
         {
             return GetAllPlaylists()
                 .Where(p => !string.IsNullOrEmpty(p.Name) && QueryMatchesWords(NormalizeString(p.Name), queryWords))
                 .OrderByDescending(p => CalculateGeneralItemScore(p.Name, normalizedQuery, queryWords))
                 .Take(config.PlaylistResultLimit)
-                .Select(p => new SearchResult(
-                    new Track(p.Path) { TrackTitle = p.Name }, // Using TrackTitle to store playlist name
-                    ResultType.Playlist))
+                .Select(p => new PlaylistResult(p.Name, p.Path))
                 .ToList();
         }
 
@@ -228,7 +277,6 @@ namespace MusicBeePlugin.Services
             string normalizedText = NormalizeString(text);
             return queryWords.All(word => normalizedText.Contains(word));
         }
-
 
         private int GetResultTypePriority(ResultType type)
         {
@@ -248,9 +296,9 @@ namespace MusicBeePlugin.Services
         {
             switch (result.Type)
             {
-                case ResultType.Artist: return CalculateGeneralItemScore(result.Title, query, query.Split(' '));
-                case ResultType.Album: return CalculateGeneralItemScore(result.Title, query, query.Split(' '));
-                case ResultType.Song: return CalculateSongScore(result.Values, query, query.Split(' '));
+                case ResultType.Artist: return CalculateGeneralItemScore(result.DisplayTitle, query, query.Split(' '));
+                case ResultType.Album: return CalculateGeneralItemScore(result.DisplayTitle, query, query.Split(' '));
+                case ResultType.Song: return CalculateSongScore(((SongResult)result).Artist, ((SongResult)result).TrackTitle, query, query.Split(' '));
                 default: return 0;
             }
         }
@@ -261,10 +309,10 @@ namespace MusicBeePlugin.Services
             return CalculateFuzzyScore(NormalizeString(item), NormalizeString(query), queryWords);
         }
 
-        private double CalculateSongScore(Track track, string query, string[] queryWords)
+        private double CalculateSongScore(string artist, string title, string query, string[] queryWords)
         {
-            double titleScore = string.IsNullOrEmpty(track.TrackTitle) ? 0 : CalculateFuzzyScore(NormalizeString(track.TrackTitle), NormalizeString(query), queryWords);
-            double artistScore = string.IsNullOrEmpty(track.Artists) ? 0 : CalculateFuzzyScore(NormalizeString(track.Artists), NormalizeString(query), queryWords);
+            double titleScore = string.IsNullOrEmpty(title) ? 0 : CalculateFuzzyScore(NormalizeString(title), NormalizeString(query), queryWords);
+            double artistScore = string.IsNullOrEmpty(artist) ? 0 : CalculateFuzzyScore(NormalizeString(artist), NormalizeString(query), queryWords);
             return titleScore + artistScore * 0.5;
         }
 
@@ -356,11 +404,11 @@ namespace MusicBeePlugin.Services
                     .DistinctBy(x => x.ToLower());
 
                 foreach (var artist in artists)
-                    res.Add(new SearchResult(new Track(track) { Artist = artist, SortArtist = artist }, ResultType.Artist));
+                    res.Add(new ArtistResult(artist, artist));
             }
 
             if (!string.IsNullOrWhiteSpace(track.Album))
-                res.Add(new SearchResult(track, ResultType.Album));
+                res.Add(new AlbumResult(track.Album, track.AlbumArtist, track.SortAlbumArtist));
 
             return res;
         }
@@ -382,14 +430,14 @@ namespace MusicBeePlugin.Services
                 .DistinctBy(x => x.Artist.ToLower());
 
             foreach (var item in artists)
-                results.Add(new SearchResult(new Track(item.Track) { Artist = item.Artist, SortArtist = item.Artist }, ResultType.Artist));
+                results.Add(new ArtistResult(item.Artist, item.Artist));
 
             var albums = tracks.Where(t => !string.IsNullOrWhiteSpace(t.Album))
                 .Select(t => new { Album = t.Album.Trim(), Track = t })
                 .DistinctBy(x => x.Album.ToLower());
 
             foreach (var item in albums)
-                results.Add(new SearchResult(item.Track, ResultType.Album));
+                results.Add(new AlbumResult(item.Track.Album, item.Track.AlbumArtist, item.Track.SortAlbumArtist));
 
             return results;
         }

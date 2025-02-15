@@ -477,25 +477,14 @@ namespace MusicBeePlugin.UI
                     g.DrawImage(currentIcon, bounds.X + 6, bounds.Y + (bounds.Height - currentIcon.Height) / 2);
                 }
 
-
-                if (resultItem.Type == ResultType.Song)
+                if (string.IsNullOrEmpty(resultItem.DisplayDetail))
                 {
-                    g.DrawString(resultItem.Title, titleFont, textBrush, textStartX, bounds.Y + offsetY);
-                    g.DrawString(resultItem.Detail, detailFont, new SolidBrush(detailColor), textStartX, bounds.Y + offsetY + titleFont.GetHeight() + 2);
+                    g.DrawString(resultItem.DisplayTitle, titleFont, textBrush, textStartX, bounds.Y + offsetY + 5);
                 }
-                else if (resultItem.Type == ResultType.Album)
+                else
                 {
-                    g.DrawString(resultItem.Title, titleFont, textBrush, textStartX, bounds.Y + offsetY);
-                    g.DrawString(resultItem.Detail, detailFont, new SolidBrush(detailColor), textStartX, bounds.Y + offsetY + titleFont.GetHeight() + 2);
-                }
-                else if (resultItem.Type == ResultType.Artist)
-                {
-                    g.DrawString(resultItem.Title, titleFont, textBrush, textStartX, bounds.Y + offsetY + 5);
-                }
-                else if (resultItem.Type == ResultType.Playlist)
-                {
-                    g.DrawString(resultItem.Title, titleFont, textBrush, textStartX, bounds.Y + offsetY);
-                    g.DrawString(resultItem.Detail, detailFont, new SolidBrush(detailColor), textStartX, bounds.Y + offsetY + titleFont.GetHeight() + 2);
+                    g.DrawString(resultItem.DisplayTitle, titleFont, textBrush, textStartX, bounds.Y + offsetY);
+                    g.DrawString(resultItem.DisplayDetail, detailFont, new SolidBrush(detailColor), textStartX, bounds.Y + offsetY + titleFont.GetHeight() + 2);
                 }
             }
         }

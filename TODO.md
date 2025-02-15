@@ -1,5 +1,13 @@
 
+- fix artists (all kinds)
+
+- improve performance 
+
+- search for A:Artist T:title instead of just T:title
+
 - show images for all result types
+
+- rounded corners
 
 - disallow matching a single text part multiple times. E.g query 'NAME NA' should not match 'NAME'.
 

@@ -127,14 +127,25 @@ namespace MusicBeePlugin.Services
             }
             else
             {
-                string artistValue = action.UseSortArtist ? result.Values.SortArtist : result.Values.Artist;
-
-                if (result.Type == ResultType.Artist)
-                    query = (action.SearchAddPrefix ? "A:" : "") + artistValue;
-                else if (result.Type == ResultType.Album)
-                    query = (action.SearchAddPrefix ? "AL:" : "") + result.Values.Album;
+                if (result is ArtistResult artistResult)
+                {
+                    string artist = action.UseSortArtist ? artistResult.SortArtist : artistResult.Artist;
+                    query = (action.SearchAddPrefix ? "A:" : "") + artist;
+                }
+                else if (result is AlbumResult albumResult)
+                {
+                    query = (action.SearchAddPrefix ? "AL:" : "") + albumResult.Album;
+                }
+                else if (result is SongResult songResult)
+                {
+                    string artist = action.UseSortArtist ? songResult.SortArtist : songResult.Artist;
+                    artist = action.SearchAddPrefix ? $"A:{artist}" : artist;
+                    query = artist + " " + (action.SearchAddPrefix ? "T:" : "") + songResult.TrackTitle;
+                }
                 else
-                    query = (action.SearchAddPrefix ? "T:" : "") + result.Values.TrackTitle;
+                {
+                    query = result.DisplayTitle;
+                }
             }
 
             if (!action.UseLeftSidebar)
@@ -205,28 +216,27 @@ namespace MusicBeePlugin.Services
             if (action.GoBackBeforeOpenFilter)
                 MusicBeeHelpers.InvokeCommand(ApplicationCommand.GeneralGoBack);
 
-            MetaDataType field1, field2 = 0;
-            string value1, value2 = null;
-            string artistValue = action.UseSortArtist ? result.Values.SortArtist : result.Values.Artist;
+            MetaDataType field1 = 0, field2 = 0;
+            string value1 = null, value2 = null;
 
-            if (result.Type == ResultType.Artist)
+            if (result is ArtistResult artistResult)
             {
                 field1 = action.UseSortArtist ? MetaDataType.SortArtist : MetaDataType.Artist;
-                value1 = artistValue;
+                value1 = action.UseSortArtist ? artistResult.SortArtist : artistResult.Artist;
             }
-            else if (result.Type == ResultType.Album)
+            else if (result is AlbumResult albumResult)
             {
                 field1 = MetaDataType.Album;
-                value1 = result.Values.Album;
+                value1 = albumResult.Album;
                 field2 = action.UseSortArtist ? MetaDataType.SortAlbumArtist : MetaDataType.AlbumArtist;
-                value2 = action.UseSortArtist ? result.Values.SortAlbumArtist : result.Values.AlbumArtist;
+                value2 = action.UseSortArtist ? albumResult.SortAlbumArtist : albumResult.AlbumArtist;
             }
-            else
+            else if (result is SongResult songResult)
             {
                 field1 = MetaDataType.TrackTitle;
-                value1 = result.Values.TrackTitle;
+                value1 = songResult.TrackTitle;
                 field2 = action.UseSortArtist ? MetaDataType.SortArtist : MetaDataType.Artist;
-                value2 = artistValue;
+                value2 = action.UseSortArtist ? songResult.SortArtist : songResult.Artist;
             }
 
             if (value2 == null)
@@ -289,31 +299,36 @@ namespace MusicBeePlugin.Services
             {
                 string query;
 
-                if (result.Type == ResultType.Artist)
+                if (result is ArtistResult artistResult)
                 {
                     query = MusicBeeHelpers.ConstructLibraryQuery(
-                        (MetaDataType.Artist, ComparisonType.Is, result.Values.Artist)
+                        (MetaDataType.Artist, ComparisonType.Is, artistResult.Artist)
                     );
                 }
-                else
+                else if (result is AlbumResult albumResult)
                 {
                     query = MusicBeeHelpers.ConstructLibraryQuery(
-                        (MetaDataType.Album, ComparisonType.Is, result.Values.Album),
-                        (MetaDataType.AlbumArtist, ComparisonType.Is, result.Values.AlbumArtist)
+                        (MetaDataType.Album, ComparisonType.Is, albumResult.Album),
+                        (MetaDataType.AlbumArtist, ComparisonType.Is, albumResult.AlbumArtist)
                     );
                 }
+                else query = "";
 
                 mbApi.Library_QueryFilesEx(query, out string[] files);
                 return files;
             }
-            else if (result.Type == ResultType.Playlist)
+            else if (result is PlaylistResult playlistResult)
             {
-                mbApi.Playlist_QueryFilesEx(result.Values.Filepath, out string[] files);
+                mbApi.Playlist_QueryFilesEx(playlistResult.PlaylistPath, out string[] files);
                 return files;
+            }
+            else if (result is SongResult songResult)
+            {
+                return new string[] { songResult.Filepath };
             }
             else
             {
-                return new string[] { result.Values.Filepath };
+                return new string[] { };
             }
         }
     }
