@@ -37,6 +37,8 @@ namespace MusicBeePlugin.UI
         private PictureBox loadingIndicator;
         private bool isLoading = true;
 
+        private CancellationTokenSource _currentSearchCts;
+
         public SearchBar(
             Control musicBeeControl,
             SynchronizationContext musicBeeContext,
@@ -336,7 +338,6 @@ namespace MusicBeePlugin.UI
                         if (loadingIndicator != null && !loadingIndicator.IsDisposed)
                         {
                             loadingIndicator.Visible = false;
-                            loadingIndicator.Dispose();
                         }
                         
                         // Only refresh results if there's a search in progress
@@ -434,27 +435,19 @@ namespace MusicBeePlugin.UI
             {
                 case SearchUIConfig.DefaultResultsChoice.Playing:
                     var playingItems = searchService.GetPlayingItems();
-                    if (playingItems != null)
-                    {
-                        UpdateResultsList(playingItems);
-                        return;
-                    }
+                    UpdateResultsList(playingItems);
                     break;
                 case SearchUIConfig.DefaultResultsChoice.Selected:
                     var selectedItems = searchService.GetSelectedTracks();
-                    if (selectedItems.Count > 0)
-                    {
-                        UpdateResultsList(selectedItems);
-                        return;
-                    }
+                    UpdateResultsList(selectedItems);
                     break;
                 default:
                     UpdateResultsList(null);
-                    return;
+                    break;
             }
         }
 
-        private void SearchBox_TextChanged(object sender, EventArgs e)
+        private async void SearchBox_TextChanged(object sender, EventArgs e)
         {
             string query = searchBox.Text.Trim();
 
@@ -470,31 +463,60 @@ namespace MusicBeePlugin.UI
                 return;
             }
 
-            var filter = ResultType.All;
+            // Cancel any ongoing search
+            _currentSearchCts?.Cancel();
+            _currentSearchCts = new CancellationTokenSource();
 
-            if (query.StartsWith("a:", StringComparison.OrdinalIgnoreCase))
+            try
             {
-                filter = ResultType.Artist;
-                query = query.Substring(2).TrimStart();
-            }
-            else if (query.StartsWith("l:", StringComparison.OrdinalIgnoreCase))
-            {
-                filter = ResultType.Album;
-                query = query.Substring(2).TrimStart();
-            }
-            else if (query.StartsWith("t:", StringComparison.OrdinalIgnoreCase) || query.StartsWith("s:", StringComparison.OrdinalIgnoreCase))
-            {
-                filter = ResultType.Song;
-                query = query.Substring(2).TrimStart();
-            }
-            else if (query.StartsWith("p:", StringComparison.OrdinalIgnoreCase))
-            {
-                filter = ResultType.Playlist;
-                query = query.Substring(2).TrimStart();
-            }
+                // Show loading indicator
+                if (loadingIndicator != null && !loadingIndicator.IsDisposed)
+                {
+                    loadingIndicator.Visible = true;
+                }
 
-            var searchResults = searchService.Search(query, filter);
-            UpdateResultsList(searchResults);
+                var filter = ResultType.All;
+
+                if (query.StartsWith("a:", StringComparison.OrdinalIgnoreCase))
+                {
+                    filter = ResultType.Artist;
+                    query = query.Substring(2).TrimStart();
+                }
+                else if (query.StartsWith("l:", StringComparison.OrdinalIgnoreCase))
+                {
+                    filter = ResultType.Album;
+                    query = query.Substring(2).TrimStart();
+                }
+                else if (query.StartsWith("t:", StringComparison.OrdinalIgnoreCase) || query.StartsWith("s:", StringComparison.OrdinalIgnoreCase))
+                {
+                    filter = ResultType.Song;
+                    query = query.Substring(2).TrimStart();
+                }
+                else if (query.StartsWith("p:", StringComparison.OrdinalIgnoreCase))
+                {
+                    filter = ResultType.Playlist;
+                    query = query.Substring(2).TrimStart();
+                }
+
+                var searchResults = await searchService.SearchAsync(query, filter, _currentSearchCts.Token);
+                
+                // Update results first
+                UpdateResultsList(searchResults);
+
+                // Then hide the loading indicator
+                if (!_currentSearchCts.Token.IsCancellationRequested && loadingIndicator != null && !loadingIndicator.IsDisposed)
+                {
+                    loadingIndicator.Visible = false;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Search was cancelled, ignore
+                if (!_currentSearchCts.Token.IsCancellationRequested && loadingIndicator != null && !loadingIndicator.IsDisposed)
+                {
+                    loadingIndicator.Visible = false;
+                }
+            }
         }
 
         private void UpdateResultsList(List<SearchResult> searchResults)

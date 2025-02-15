@@ -156,7 +156,7 @@ namespace MusicBeePlugin.Services
 
                 if (!action._actionExecuted)
                 {
-                    Thread.Sleep(100);
+                    Thread.Sleep(200);
                     WinApiHelpers.SendEnterKey(searchBox);
                 }
 

@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using static MusicBeePlugin.Plugin;
-
+using System.Threading;
 
 namespace MusicBeePlugin.Services
 {
@@ -182,42 +182,51 @@ namespace MusicBeePlugin.Services
             });
         }
 
-        public List<SearchResult> Search(string query, ResultType enabledTypes)
+        public async Task<List<SearchResult>> SearchAsync(string query, ResultType enabledTypes, CancellationToken cancellationToken)
         {
             if (!IsLoaded) return new List<SearchResult>();
-            var results = new List<SearchResult>();
-            string normalizedQuery = NormalizeString(query);
-            string[] queryWords = normalizedQuery.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-
-            if ((enabledTypes & ResultType.Artist) == ResultType.Artist)
+            
+            return await Task.Run(() =>
             {
-                var artistResults = SearchArtists(queryWords, normalizedQuery);
-                results.AddRange(artistResults);
-            }
+                var results = new List<SearchResult>();
+                string normalizedQuery = NormalizeString(query);
+                string[] queryWords = normalizedQuery.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
-            if ((enabledTypes & ResultType.Album) == ResultType.Album)
-            {
-                var albumResults = SearchAlbums(queryWords, normalizedQuery);
-                results.AddRange(albumResults);
-            }
+                if ((enabledTypes & ResultType.Artist) == ResultType.Artist)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var artistResults = SearchArtists(queryWords, normalizedQuery);
+                    results.AddRange(artistResults);
+                }
 
-            if ((enabledTypes & ResultType.Song) == ResultType.Song)
-            {
-                var songResults = SearchSongs(queryWords, normalizedQuery);
-                results.AddRange(songResults);
-            }
+                if ((enabledTypes & ResultType.Album) == ResultType.Album)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var albumResults = SearchAlbums(queryWords, normalizedQuery);
+                    results.AddRange(albumResults);
+                }
 
-            if ((enabledTypes & ResultType.Playlist) == ResultType.Playlist)
-            {
-                var playlistResults = SearchPlaylists(queryWords, normalizedQuery);
-                results.AddRange(playlistResults);
-            }
+                if ((enabledTypes & ResultType.Song) == ResultType.Song)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var songResults = SearchSongs(queryWords, normalizedQuery);
+                    results.AddRange(songResults);
+                }
 
-            var res = results.OrderByDescending(r => GetResultTypePriority(r.Type))
-                .ThenByDescending(r => CalculateOverallScore(r, normalizedQuery))
-                .ToList();
+                if ((enabledTypes & ResultType.Playlist) == ResultType.Playlist)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var playlistResults = SearchPlaylists(queryWords, normalizedQuery);
+                    results.AddRange(playlistResults);
+                }
 
-            return res;
+                cancellationToken.ThrowIfCancellationRequested();
+                var res = results.OrderByDescending(r => GetResultTypePriority(r.Type))
+                    .ThenByDescending(r => CalculateOverallScore(r, normalizedQuery))
+                    .ToList();
+
+                return res;
+            }, cancellationToken);
         }
 
         private List<ArtistResult> SearchArtists(string[] queryWords, string normalizedQuery)
