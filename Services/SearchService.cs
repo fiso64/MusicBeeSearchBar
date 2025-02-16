@@ -189,7 +189,7 @@ namespace MusicBeePlugin.Services
         public async Task LoadTracksAsync()
         {
             await Task.Run(() => {
-                database = Tests.SyntheticDataTests.GenerateSyntheticDatabase(100000).Result;
+                database = Tests.SyntheticDataTests.GenerateSyntheticDatabase(1000000).Result;
                 IsLoaded = true;
      
                 //mbApi.Library_QueryFilesEx("", out string[] files);

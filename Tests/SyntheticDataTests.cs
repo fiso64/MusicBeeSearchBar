@@ -29,7 +29,7 @@ namespace MusicBeePlugin.Tests
             "city", "town", "village", "hamlet", "castle", "tower", "fortress", "temple", "shrine",
             "altar", "sanctuary", "haven", "refuge", "asylum", "paradise", "utopia", "dystopia", "hell",
             "heaven", "purgatory", "limbo", "nirvana", "valhalla", "elysium", "arcadia", "eden", "zion",
-            "mother", "father", "brother", "sister"
+            "mother", "father", "brother", "sister", "friend"
         };
 
         private static readonly string[] NamePatterns = new[]

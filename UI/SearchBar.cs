@@ -500,22 +500,20 @@ namespace MusicBeePlugin.UI
 
                 var searchResults = await searchService.SearchAsync(query, filter, _currentSearchCts.Token);
                 
-                // Update results first
-                UpdateResultsList(searchResults);
-
-                // Then hide the loading indicator
-                if (!_currentSearchCts.Token.IsCancellationRequested && loadingIndicator != null && !loadingIndicator.IsDisposed)
+                // Only update results and hide loading indicator if this is still the current search
+                if (!_currentSearchCts.Token.IsCancellationRequested)
                 {
-                    loadingIndicator.Visible = false;
+                    UpdateResultsList(searchResults);
+                    
+                    if (loadingIndicator != null && !loadingIndicator.IsDisposed)
+                    {
+                        loadingIndicator.Visible = false;
+                    }
                 }
             }
             catch (OperationCanceledException)
             {
                 // Search was cancelled, ignore
-                if (!_currentSearchCts.Token.IsCancellationRequested && loadingIndicator != null && !loadingIndicator.IsDisposed)
-                {
-                    loadingIndicator.Visible = false;
-                }
             }
         }
 
