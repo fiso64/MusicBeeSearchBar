@@ -88,6 +88,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Config\ActionDataJsonConverter.cs" />
+    <Compile Include="Tests\SyntheticDataTests.cs" Condition="'$(Configuration)' == 'Debug'" />
     <Compile Include="Config\Config.cs" />
     <Compile Include="Config\ConfigAttributes.cs" />
     <Compile Include="Services\ActionService.cs" />

@@ -41,6 +41,17 @@ namespace MusicBeePlugin.Services
             MetaDataType.SortArtist,
         };
 
+        public SongResult(string trackTitle, string artist, string sortArtist, string filepath)
+        {
+            TrackTitle = trackTitle;
+            Artist = artist;
+            SortArtist = sortArtist;
+            Filepath = filepath;
+            DisplayTitle = TrackTitle;
+            DisplayDetail = Artist;
+            Type = ResultType.Song;
+        }
+
         public SongResult(string filepath)
         {
             Filepath = filepath;
@@ -130,6 +141,8 @@ namespace MusicBeePlugin.Services
             MetaDataType.SortAlbumArtist,
         };
 
+        public Track() { }
+
         public Track(string filepath)
         {
             Filepath = filepath;
@@ -176,9 +189,12 @@ namespace MusicBeePlugin.Services
         public async Task LoadTracksAsync()
         {
             await Task.Run(() => {
-                mbApi.Library_QueryFilesEx("", out string[] files);
-                database = files.Select(filepath => new Track(filepath)).ToList();
+                database = Tests.SyntheticDataTests.GenerateSyntheticDatabase(100000).Result;
                 IsLoaded = true;
+     
+                //mbApi.Library_QueryFilesEx("", out string[] files);
+                //database = files.Select(filepath => new Track(filepath)).ToList();
+                //IsLoaded = true;
             });
         }
 
@@ -268,7 +284,7 @@ namespace MusicBeePlugin.Services
                 )
                 .OrderByDescending(track => CalculateSongScore(track.Artist, track.TrackTitle, normalizedQuery, queryWords))
                 .Take(config.SongResultLimit)
-                .Select(track => new SongResult(track.Filepath))
+                .Select(track => new SongResult(track.TrackTitle, track.Artist, track.SortArtist, track.Filepath))
                 .ToList();
         }
 
