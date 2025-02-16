@@ -12,6 +12,7 @@ using MusicBeePlugin.UI;
 using MusicBeePlugin.Utils;
 using MusicBeePlugin.Config;
 using MusicBeePlugin.Services;
+using System.Text;
 
 namespace MusicBeePlugin
 {

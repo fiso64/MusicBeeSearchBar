@@ -330,6 +330,7 @@ namespace MusicBeePlugin.Services
             return titleScore + artistScore * 0.5;
         }
 
+        // TODO: Precompute text ngrams?
         private double CalculateFuzzyScore(string text, string query, string[] queryWords)
         {
             if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(query)) return 0;
@@ -387,19 +388,55 @@ namespace MusicBeePlugin.Services
             return score;
         }
 
-        private string NormalizeString(string input)
+        static readonly HashSet<char> punctuation = new HashSet<char>
         {
-            if (string.IsNullOrEmpty(input)) return "";
-            return string.Join(" ", input.ToLower()
-                .Replace("'", "")
-                .Replace("`", "")
-                .Replace("\"", "")
-                .Split(new[] { '!', '?', '(', ')', '.', ',', '-', ':', ';', '[', ']', 
-                    '{', '}', '/', '\\', '+', '=', '*', '&', '#', '@',
-                    '$', '%', '^', '|', '~', '<', '>' }, 
-                StringSplitOptions.RemoveEmptyEntries));
+            '!', '?', '(', ')', '.', ',', '-', ':', ';', '[', ']',
+            '{', '}', '/', '\\', '+', '=', '*', '&', '#', '@', '$',
+            '%', '^', '|', '~', '<', '>', '`', '"'
+        };
+
+        // TODO: Precompute normalized text?
+        // Convert to lower, remove ' , replace punctuation chars with space, remove consecutive spaces and trim. 
+        static string NormalizeString(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return string.Empty;
+
+            char[] inputChars = input.ToCharArray();
+            char[] outputChars = new char[input.Length];
+            int outputIndex = 0;
+            bool previousIsSpace = true;
+
+            for (int i = 0; i < inputChars.Length; i++)
+            {
+                char c = inputChars[i];
+
+                if (c == '\'')
+                    continue;
+
+                char current = char.ToLower(c);
+
+                if (punctuation.Contains(current) || current == ' ')
+                {
+                    if (!previousIsSpace)
+                    {
+                        outputChars[outputIndex++] = ' ';
+                        previousIsSpace = true;
+                    }
+                }
+                else
+                {
+                    outputChars[outputIndex++] = current;
+                    previousIsSpace = false;
+                }
+            }
+
+            if (outputIndex > 0 && outputChars[outputIndex - 1] == ' ')
+                outputIndex--;
+
+            return new string(outputChars, 0, outputIndex);
         }
-    
+
         public List<SearchResult> GetPlayingItems()
         {
             string path = mbApi.NowPlaying_GetFileUrl();
