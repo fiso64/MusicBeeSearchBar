@@ -114,6 +114,22 @@ namespace MusicBeePlugin.Services
 
         private void Search(string searchBoxText, SearchResult result, SearchInTabActionData action)
         {
+            string getSortArtistIfNotHonorific(string artist, string sortArtist)
+            {
+                if (string.IsNullOrEmpty(sortArtist))
+                    return artist;
+
+                var parts = sortArtist.Split(new string[] { ", " }, StringSplitOptions.None);
+                if (parts.Length < 2)
+                    return sortArtist;
+
+                var potentialHonorific = parts[parts.Length - 1];
+                var name = string.Join(", ", parts.Take(parts.Length - 1));
+
+                var reconstructed = $"{potentialHonorific} {name}";
+                return reconstructed.Equals(artist, StringComparison.OrdinalIgnoreCase) ? artist : sortArtist;
+            }
+
             RestoreOrFocus();
             GotoTab(action.TabChoice);
 
@@ -129,16 +145,18 @@ namespace MusicBeePlugin.Services
             {
                 if (result is ArtistResult artistResult)
                 {
-                    string artist = action.UseSortArtist && !string.IsNullOrEmpty(artistResult.SortArtist) ? artistResult.SortArtist : artistResult.Artist;
+                    string artist = action.UseSortArtist ? getSortArtistIfNotHonorific(artistResult.Artist, artistResult.SortArtist) : artistResult.Artist;
                     query = (action.SearchAddPrefix ? "A:" : "") + artist;
                 }
                 else if (result is AlbumResult albumResult)
                 {
-                    query = (action.SearchAddPrefix ? "AL:" : "") + albumResult.Album;
+                    string albumArtist = action.UseSortArtist ? getSortArtistIfNotHonorific(albumResult.AlbumArtist, albumResult.SortAlbumArtist) : albumResult.AlbumArtist;
+                    albumArtist = action.SearchAddPrefix ? $"AA:{albumArtist}" : albumArtist;
+                    query = albumArtist + " " + (action.SearchAddPrefix ? "AL:" : "") + albumResult.Album;
                 }
                 else if (result is SongResult songResult)
                 {
-                    string artist = action.UseSortArtist && !string.IsNullOrEmpty(songResult.SortArtist) ? songResult.SortArtist : songResult.Artist;
+                    string artist = action.UseSortArtist ? getSortArtistIfNotHonorific(songResult.Artist, songResult.SortArtist) : songResult.Artist;
                     artist = action.SearchAddPrefix ? $"A:{artist}" : artist;
                     query = artist + " " + (action.SearchAddPrefix ? "T:" : "") + songResult.TrackTitle;
                 }
