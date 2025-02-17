@@ -38,6 +38,7 @@ namespace MusicBeePlugin.UI
         private bool isLoading = true;
 
         private CancellationTokenSource _currentSearchCts;
+        private long _currentSearchSequence = 0;
 
         public SearchBar(
             Control musicBeeControl,
@@ -485,6 +486,9 @@ namespace MusicBeePlugin.UI
             _currentSearchCts?.Cancel();
             _currentSearchCts = new CancellationTokenSource();
 
+            // Increment sequence number for this search
+            long searchSequence = Interlocked.Increment(ref _currentSearchSequence);
+
             try
             {
                 loadingIndicator.Visible = true;
@@ -514,15 +518,31 @@ namespace MusicBeePlugin.UI
 
                 Debug.WriteLine($"Query: {query}");
                 var stopwatch = Stopwatch.StartNew();
-                var searchResults = await searchService.SearchAsync(query, filter, _currentSearchCts.Token);
+
+                await searchService.SearchIncrementalAsync(
+                    query, 
+                    filter, 
+                    _currentSearchCts.Token,
+                    results => {
+                        if (!_currentSearchCts.Token.IsCancellationRequested)
+                        {
+                            BeginInvoke((Action)(() => {
+                                // Only update if this is still the most recent search
+                                if (searchSequence == _currentSearchSequence)
+                                {
+                                    UpdateResultsList(results);
+                                }
+                            }));
+                        }
+                    }
+                );
+
                 stopwatch.Stop();
                 Debug.WriteLine($"Search took {stopwatch.ElapsedMilliseconds} ms.");
 
-                // Only update results and hide loading indicator if this is still the current search
-                if (!_currentSearchCts.Token.IsCancellationRequested)
+                // Hide loading indicator if this is still the current search
+                if (!_currentSearchCts.Token.IsCancellationRequested && searchSequence == _currentSearchSequence)
                 {
-                    UpdateResultsList(searchResults);
-                    
                     loadingIndicator.Visible = false;
                 }
             }
