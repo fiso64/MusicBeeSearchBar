@@ -399,7 +399,7 @@ namespace MusicBeePlugin.Services
                 query = NormalizeString(query);
             }
 
-            return CalculateFuzzyScore(item, query, queryWords);
+            return FuzzySearch.FuzzyScoreNgram(item, query, queryWords);
         }
 
         private double CalculateArtistAndTitleScore(string artist, string title, string query, string[] queryWords, bool normalizeStrings = true)
@@ -413,68 +413,10 @@ namespace MusicBeePlugin.Services
                 query = NormalizeString(query);
             }
 
-            titleScore = string.IsNullOrEmpty(title) ? 0 : CalculateFuzzyScore(title, query, queryWords);
-            artistScore = string.IsNullOrEmpty(artist) ? 0 : CalculateFuzzyScore(artist, query, queryWords);
+            titleScore = string.IsNullOrEmpty(title) ? 0 : FuzzySearch.FuzzyScoreNgram(title, query, queryWords);
+            artistScore = string.IsNullOrEmpty(artist) ? 0 : FuzzySearch.FuzzyScoreNgram(artist, query, queryWords);
 
             return titleScore + artistScore * 0.5;
-        }
-
-        // TODO: Precompute text ngrams?
-        private double CalculateFuzzyScore(string text, string query, string[] queryWords)
-        {
-            if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(query)) return 0;
-
-            const int NGRAM_SIZE = 2; // Use bigrams
-            double score = 0;
-            
-            // Create n-grams for the text
-            var textNgrams = new HashSet<string>();
-            for (int i = 0; i < text.Length - NGRAM_SIZE + 1; i++)
-            {
-                textNgrams.Add(text.Substring(i, NGRAM_SIZE));
-            }
-
-            foreach (string word in queryWords)
-            {
-                if (word.Length < NGRAM_SIZE) 
-                {
-                    // Handle short words with direct containment check
-                    if (text.Contains(word))
-                    {
-                        score += 1.0;
-                    }
-                    continue;
-                }
-
-                // Create n-grams for the query word
-                var wordNgrams = new HashSet<string>();
-                for (int i = 0; i < word.Length - NGRAM_SIZE + 1; i++)
-                {
-                    wordNgrams.Add(word.Substring(i, NGRAM_SIZE));
-                }
-
-                // Calculate Dice coefficient
-                var intersectionCount = textNgrams.Intersect(wordNgrams).Count();
-                if (intersectionCount > 0)
-                {
-                    var diceCoefficient = (2.0 * intersectionCount) / (textNgrams.Count + wordNgrams.Count);
-                    score += diceCoefficient;
-
-                    // Bonus for prefix matches (helps with partial word matches)
-                    if (text.StartsWith(word))
-                    {
-                        score += 0.5;
-                    }
-                }
-            }
-
-            // Bonus for exact matches
-            if (text == query)
-            {
-                score *= 2;
-            }
-
-            return score;
         }
 
         static readonly HashSet<char> punctuation = new HashSet<char>

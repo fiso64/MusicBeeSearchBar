@@ -97,6 +97,7 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Utils\ApplicationCommand.cs" />
+    <Compile Include="Utils\FuzzySearch.cs" />
     <Compile Include="Utils\MusicBeeHelpers.cs" />
     <Compile Include="MusicBeeInterface.cs" />
     <Compile Include="Plugin.cs" />
