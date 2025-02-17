@@ -56,7 +56,6 @@ namespace MusicBeePlugin.UI
             searchService = new SearchService(musicBeeApi, searchUIConfig);
             InitializeUI();
             InitializeHotkeys();
-            InitializeLoadingIndicator();
 
             // Start loading tracks asynchronously
             LoadTracksAsync();
@@ -171,6 +170,8 @@ namespace MusicBeePlugin.UI
             Controls.Add(mainPanel);
 
             searchBox.Focus(); // Set focus to searchBox initially
+
+            InitializeLoadingIndicator();
         }
 
         private int preservedIndex = -1;
@@ -282,15 +283,41 @@ namespace MusicBeePlugin.UI
 
         private void InitializeLoadingIndicator()
         {
+            const int ROTATION_INTERVAL = 20;
+            const int ROTATION_ANGLE = 20;
+            var COLOR = Color.FromArgb((int)(255 * 0.3), searchUIConfig.TextColor);
+
+            Bitmap CreateLoadingSpinner(int size, Color color)
+            {
+                Bitmap bmp = new Bitmap(size, size);
+                using (Graphics g = Graphics.FromImage(bmp))
+                using (Pen pen = new Pen(color, 2))
+                {
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    g.DrawArc(pen, 2, 2, size - 4, size - 4, 0, 300);
+                }
+                return bmp;
+            }
+
+            void UpdateLoadingIndicatorPosition()
+            {
+                if (loadingIndicator != null && !loadingIndicator.IsDisposed && loadingIndicator.Visible)
+                {
+                    loadingIndicator.Location = new Point(
+                        searchBox.Right - loadingIndicator.Width - 10,
+                        searchBox.Top + (searchBox.Height - loadingIndicator.Height) / 2
+                    );
+                }
+            }
+
             loadingIndicator = new PictureBox
             {
                 Size = new Size(24, 24),
                 BackColor = Color.Transparent,
-                Image = CreateLoadingSpinner(24, searchUIConfig.TextColor),
+                Image = CreateLoadingSpinner(24, COLOR),
                 Visible = true
             };
-            
-            // Position the loading indicator in the search box
+
             searchBox.TextChanged += (s, e) => UpdateLoadingIndicatorPosition();
             searchBox.SizeChanged += (s, e) => UpdateLoadingIndicatorPosition();
             UpdateLoadingIndicatorPosition();
@@ -298,27 +325,33 @@ namespace MusicBeePlugin.UI
             Controls.Add(loadingIndicator);
             loadingIndicator.BringToFront();
 
-            // Start the spinner animation
-            var spinTimer = new System.Windows.Forms.Timer { Interval = 50 };
+            var spinTimer = new System.Windows.Forms.Timer { Interval = ROTATION_INTERVAL };
+            float rotationAngle = 0;
             spinTimer.Tick += (s, e) => {
-                if (loadingIndicator.Image != null && !loadingIndicator.IsDisposed)
+                if (loadingIndicator != null && !loadingIndicator.IsDisposed && loadingIndicator.Visible)
                 {
-                    loadingIndicator.Image.RotateFlip(RotateFlipType.Rotate90FlipNone);
+                    Bitmap rotatedBmp = new Bitmap(24, 24);
+                    using (Graphics g = Graphics.FromImage(rotatedBmp))
+                    using (Pen pen = new Pen(COLOR, 2))
+                    {
+                        g.SmoothingMode = SmoothingMode.AntiAlias;
+                        g.TranslateTransform(12, 12);
+                        g.RotateTransform(rotationAngle);
+                        g.TranslateTransform(-12, -12);
+                        g.DrawArc(pen, 2, 2, 24 - 4, 24 - 4, 0, 300);
+                    }
+                    loadingIndicator.Image?.Dispose();
+                    loadingIndicator.Image = rotatedBmp;
                     loadingIndicator.Refresh();
+
+                    rotationAngle += ROTATION_ANGLE;
+                    if (rotationAngle >= 360)
+                    {
+                        rotationAngle -= 360;
+                    }
                 }
             };
             spinTimer.Start();
-        }
-
-        private void UpdateLoadingIndicatorPosition()
-        {
-            if (loadingIndicator != null && !loadingIndicator.IsDisposed)
-            {
-                loadingIndicator.Location = new Point(
-                    searchBox.Right - loadingIndicator.Width - 10,
-                    searchBox.Top + (searchBox.Height - loadingIndicator.Height) / 2
-                );
-            }
         }
 
         private async Task LoadTracksAsync()
@@ -335,10 +368,7 @@ namespace MusicBeePlugin.UI
                 if (!IsDisposed)
                 {
                     BeginInvoke((Action)(() => {
-                        if (loadingIndicator != null && !loadingIndicator.IsDisposed)
-                        {
-                            loadingIndicator.Visible = false;
-                        }
+                        loadingIndicator.Visible = false;
                         
                         // Only refresh results if there's a search in progress
                         if (!string.IsNullOrWhiteSpace(searchBox.Text))
@@ -352,18 +382,6 @@ namespace MusicBeePlugin.UI
             {
                 Debug.WriteLine($"Error loading tracks: {ex}");
             }
-        }
-
-        private Bitmap CreateLoadingSpinner(int size, Color color)
-        {
-            Bitmap bmp = new Bitmap(size, size);
-            using (Graphics g = Graphics.FromImage(bmp))
-            using (Pen pen = new Pen(color, 2))
-            {
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                g.DrawArc(pen, 2, 2, size - 4, size - 4, 0, 300);
-            }
-            return bmp;
         }
 
         private Bitmap CreateIcon(Color color, int width, int height, ResultType type, int lineWidth = 1)
@@ -469,11 +487,7 @@ namespace MusicBeePlugin.UI
 
             try
             {
-                // Show loading indicator
-                if (loadingIndicator != null && !loadingIndicator.IsDisposed)
-                {
-                    loadingIndicator.Visible = true;
-                }
+                loadingIndicator.Visible = true;
 
                 var filter = ResultType.All;
 
@@ -509,10 +523,7 @@ namespace MusicBeePlugin.UI
                 {
                     UpdateResultsList(searchResults);
                     
-                    if (loadingIndicator != null && !loadingIndicator.IsDisposed)
-                    {
-                        loadingIndicator.Visible = false;
-                    }
+                    loadingIndicator.Visible = false;
                 }
             }
             catch (OperationCanceledException)

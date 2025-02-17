@@ -1,16 +1,11 @@
 
-- fix artists (all kinds)
+finish implementing Database class to move splitting/normalizing logic out of the Search functions
 
 - improve performance 
-	- performance options tab
-		- load index on startup
-		- store index on disk
-
-- F5 to refresh index
-
-- search for A:Artist T:title instead of just T:title
-
-- fix loading indicator jank
+	- check: why is it slow?
+	- precompute ngrams or find a faster fuzzy matching algorithm (how does fzf do it?)
+	- add option to disable fuzzy matching if it's slow
+	- return artist, album, song results as soon as they are done (separately)
 
 - rounded corners
 
