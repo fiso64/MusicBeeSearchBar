@@ -2,8 +2,8 @@
 - improve performance 
 	- return artist, album, song results as soon as they are done (separately)
 	- check: why is it slow?
-	- precompute ngrams or find a faster fuzzy matching algorithm (how does fzf do it?)
-	- add option to disable fuzzy matching if it's slow
+	- find a faster fuzzy matching algorithm (how does fzf do it?)
+	- add option to disable fuzzy matching if it's slow. Option to disable for each individual result type
 	
 - fix first music explorer search misbehaving
 

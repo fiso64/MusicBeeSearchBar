@@ -250,9 +250,9 @@ namespace MusicBeePlugin.Services
         public async Task LoadTracksAsync()
         {
             await Task.Run(() => {
-                //var tracks = Tests.SyntheticDataTests.GenerateSyntheticDatabase(1000000).Result;
-                mbApi.Library_QueryFilesEx("", out string[] files);
-                var tracks = files.Select(filepath => new Track(filepath));
+                var tracks = Tests.SyntheticDataTests.GenerateSyntheticDatabase(1000000).Result;
+                //mbApi.Library_QueryFilesEx("", out string[] files);
+                //var tracks = files.Select(filepath => new Track(filepath));
 
                 var sw = Stopwatch.StartNew();
                 Debug.WriteLine("Starting database load...");
@@ -326,7 +326,7 @@ namespace MusicBeePlugin.Services
         {
             return db.Albums
                 .Where(x => QueryMatchesWords(x.Key.NormalizedAlbumArtist + " " + x.Key.NormalizedAlbum, queryWords, normalizeText: false))
-                .OrderByDescending(x => CalculateGeneralItemScore(x.Key.NormalizedAlbum, normalizedQuery, queryWords, normalizeStrings: false))
+                .OrderByDescending(x => CalculateArtistAndTitleScore(x.Key.NormalizedAlbumArtist, x.Key.NormalizedAlbum, normalizedQuery, queryWords, normalizeStrings: false))
                 .Take(config.AlbumResultLimit)
                 .Select(x => new AlbumResult(x.Value.Album, x.Value.AlbumArtist, x.Value.SortAlbumArtist))
                 .ToList();
@@ -336,7 +336,7 @@ namespace MusicBeePlugin.Services
         {
             return db.Songs
                 .Where(x => QueryMatchesWords(x.Value.NormalizedArtists + " " + x.Value.NormalizedTitle, queryWords, normalizeText: false))
-                .OrderByDescending(x => CalculateSongScore(x.Value.NormalizedArtists, x.Value.NormalizedTitle, normalizedQuery, queryWords, normalizeStrings: false))
+                .OrderByDescending(x => CalculateArtistAndTitleScore(x.Value.NormalizedArtists, x.Value.NormalizedTitle, normalizedQuery, queryWords, normalizeStrings: false))
                 .Take(config.SongResultLimit)
                 .Select(x => new SongResult(x.Key.TrackTitle, x.Key.Artist, x.Key.SortArtist, x.Key.Filepath))
                 .ToList();
@@ -383,8 +383,8 @@ namespace MusicBeePlugin.Services
             switch (result.Type)
             {
                 case ResultType.Artist: return CalculateGeneralItemScore(result.DisplayTitle, query, query.Split(' '));
-                case ResultType.Album: return CalculateGeneralItemScore(result.DisplayTitle, query, query.Split(' '));
-                case ResultType.Song: return CalculateSongScore(((SongResult)result).Artist, ((SongResult)result).TrackTitle, query, query.Split(' '));
+                case ResultType.Album: return CalculateArtistAndTitleScore(((AlbumResult)result).AlbumArtist, ((AlbumResult)result).Album, query, query.Split(' '));
+                case ResultType.Song: return CalculateArtistAndTitleScore(((SongResult)result).Artist, ((SongResult)result).TrackTitle, query, query.Split(' '));
                 default: return 0;
             }
         }
@@ -402,7 +402,7 @@ namespace MusicBeePlugin.Services
             return CalculateFuzzyScore(item, query, queryWords);
         }
 
-        private double CalculateSongScore(string artist, string title, string query, string[] queryWords, bool normalizeStrings = true)
+        private double CalculateArtistAndTitleScore(string artist, string title, string query, string[] queryWords, bool normalizeStrings = true)
         {
             double artistScore, titleScore;
 
