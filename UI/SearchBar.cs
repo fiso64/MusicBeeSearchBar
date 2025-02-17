@@ -214,31 +214,34 @@ namespace MusicBeePlugin.UI
                 {
                     if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                     {
+                        resultsListBox.BeginUpdate();
                         resultsListBox.SelectedIndex = (resultsListBox.SelectedIndex + 1) % resultsListBox.Items.Count;
-                        resultsListBox.Invalidate();
+                        resultsListBox.EndUpdate();
                     }
-                    e.Handled = true; // Prevent further processing of Down key, keep focus on searchBox
+                    e.Handled = true;
                     e.SuppressKeyPress = true;
                 }
                 else if (e.KeyCode == Keys.Up)
                 {
                     if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                     {
+                        resultsListBox.BeginUpdate();
                         if (resultsListBox.SelectedIndex > 0)
                             resultsListBox.SelectedIndex--;
                         else
                             resultsListBox.SelectedIndex = resultsListBox.Items.Count - 1;
-                        resultsListBox.Invalidate();
+                        resultsListBox.EndUpdate();
                     }
-                    e.Handled = true; // Prevent further processing of Up key, keep focus on searchBox
+                    e.Handled = true;
                     e.SuppressKeyPress = true;
                 }
                 else if (e.KeyCode == Keys.PageUp)
                 {
                     if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                     {
+                        resultsListBox.BeginUpdate();
                         resultsListBox.SelectedIndex = 0;
-                        resultsListBox.Invalidate();
+                        resultsListBox.EndUpdate();
                     }
                     e.Handled = true;
                     e.SuppressKeyPress = true;
@@ -247,8 +250,9 @@ namespace MusicBeePlugin.UI
                 {
                     if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                     {
+                        resultsListBox.BeginUpdate();
                         resultsListBox.SelectedIndex = resultsListBox.Items.Count - 1;
-                        resultsListBox.Invalidate();
+                        resultsListBox.EndUpdate();
                     }
                     e.Handled = true;
                     e.SuppressKeyPress = true;
@@ -554,24 +558,71 @@ namespace MusicBeePlugin.UI
 
         private void UpdateResultsList(List<SearchResult> searchResults)
         {
-            resultsListBox.Items.Clear();
-            if (searchResults != null && searchResults.Count > 0)
+            if (searchResults == null || searchResults.Count == 0)
             {
+                if (resultsListBox.Visible)
+                {
+                    resultsListBox.Visible = false;
+                    resultsListBox.Items.Clear();
+                    UpdateResultsListHeight(0);
+                    Height = 42;
+                }
+                return;
+            }
+
+            // Begin update to prevent flickering
+            resultsListBox.BeginUpdate();
+            try
+            {
+                // Store current selection if any
+                string currentSelection = resultsListBox.SelectedItem != null 
+                    ? ((SearchResult)resultsListBox.SelectedItem).DisplayTitle 
+                    : null;
+
+                resultsListBox.Items.Clear();
                 foreach (var result in searchResults)
                 {
                     resultsListBox.Items.Add(result);
                 }
-                resultsListBox.Visible = true;
-                resultsListBox.SelectedIndex = 0; // Select the first item by default when results appear
-                resultsListBox.TopIndex = 0;      // Reset scroll position
-                UpdateResultsListHeight(searchResults.Count);
-                Height = 42 + resultsListBox.Height;
+
+                // Only update visibility if changing
+                if (!resultsListBox.Visible)
+                {
+                    resultsListBox.Visible = true;
+                }
+
+                // Try to maintain selection if possible
+                if (currentSelection != null)
+                {
+                    int index = -1;
+                    for (int i = 0; i < resultsListBox.Items.Count; i++)
+                    {
+                        if (((SearchResult)resultsListBox.Items[i]).DisplayTitle == currentSelection)
+                        {
+                            index = i;
+                            break;
+                        }
+                    }
+                    resultsListBox.SelectedIndex = index != -1 ? index : 0;
+                }
+                else
+                {
+                    resultsListBox.SelectedIndex = 0;
+                }
+
+                resultsListBox.TopIndex = 0;  // Reset scroll position only if selection changed
+                
+                // Update heights only if necessary
+                int newHeight = Math.Min(searchResults.Count, searchUIConfig.MaxResultsVisible) * resultsListBox.ItemHeight;
+                if (resultsListBox.Height != newHeight)
+                {
+                    UpdateResultsListHeight(searchResults.Count);
+                    Height = 42 + resultsListBox.Height;
+                }
             }
-            else
+            finally
             {
-                resultsListBox.Visible = false;
-                UpdateResultsListHeight(0);
-                Height = 42;
+                resultsListBox.EndUpdate();
             }
         }
 
