@@ -129,7 +129,7 @@ namespace MusicBeePlugin.Services
             {
                 if (result is ArtistResult artistResult)
                 {
-                    string artist = action.UseSortArtist ? artistResult.SortArtist : artistResult.Artist;
+                    string artist = action.UseSortArtist && !string.IsNullOrEmpty(artistResult.SortArtist) ? artistResult.SortArtist : artistResult.Artist;
                     query = (action.SearchAddPrefix ? "A:" : "") + artist;
                 }
                 else if (result is AlbumResult albumResult)
@@ -138,7 +138,7 @@ namespace MusicBeePlugin.Services
                 }
                 else if (result is SongResult songResult)
                 {
-                    string artist = action.UseSortArtist ? songResult.SortArtist : songResult.Artist;
+                    string artist = action.UseSortArtist && !string.IsNullOrEmpty(songResult.SortArtist) ? songResult.SortArtist : songResult.Artist;
                     artist = action.SearchAddPrefix ? $"A:{artist}" : artist;
                     query = artist + " " + (action.SearchAddPrefix ? "T:" : "") + songResult.TrackTitle;
                 }
@@ -222,21 +222,21 @@ namespace MusicBeePlugin.Services
             if (result is ArtistResult artistResult)
             {
                 field1 = action.UseSortArtist ? MetaDataType.SortArtist : MetaDataType.Artist;
-                value1 = action.UseSortArtist ? artistResult.SortArtist : artistResult.Artist;
+                value1 = action.UseSortArtist && !string.IsNullOrEmpty(artistResult.SortArtist) ? artistResult.SortArtist : artistResult.Artist;
             }
             else if (result is AlbumResult albumResult)
             {
                 field1 = MetaDataType.Album;
                 value1 = albumResult.Album;
                 field2 = action.UseSortArtist ? MetaDataType.SortAlbumArtist : MetaDataType.AlbumArtist;
-                value2 = action.UseSortArtist ? albumResult.SortAlbumArtist : albumResult.AlbumArtist;
+                value2 = action.UseSortArtist && !string.IsNullOrEmpty(albumResult.SortAlbumArtist) ? albumResult.SortAlbumArtist : albumResult.AlbumArtist;
             }
             else if (result is SongResult songResult)
             {
                 field1 = MetaDataType.TrackTitle;
                 value1 = songResult.TrackTitle;
                 field2 = action.UseSortArtist ? MetaDataType.SortArtist : MetaDataType.Artist;
-                value2 = action.UseSortArtist ? songResult.SortArtist : songResult.Artist;
+                value2 = action.UseSortArtist && !string.IsNullOrEmpty(songResult.SortArtist) ? songResult.SortArtist : songResult.Artist;
             }
 
             if (value2 == null)

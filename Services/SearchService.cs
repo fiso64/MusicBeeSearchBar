@@ -99,8 +99,8 @@ namespace MusicBeePlugin.Services
             Type = ResultType.Artist;
             DisplayTitle = Artist;
 
-            if (!Artist.Equals(SortArtist, StringComparison.OrdinalIgnoreCase))
-                DisplayDetail = SortArtist;
+            //if (!Artist.Equals(SortArtist, StringComparison.OrdinalIgnoreCase))
+            //    DisplayDetail = SortArtist;
         }
     }
 
@@ -175,40 +175,37 @@ namespace MusicBeePlugin.Services
 
     public class Database
     {
-        public Dictionary<string, Track> Artists;
-        public Dictionary<(string Album, string AlbumArtist), Track> Albums;
+        public Dictionary<string, (string Artist, string SortArtist)> Artists; // NormalizedArtist: Artist
+        public Dictionary<(string NormalizedAlbum, string NormalizedAlbumArtist), Track> Albums;
         public Dictionary<Track, (string NormalizedTitle, string NormalizedArtists)> Songs;
 
         public Database(IEnumerable<Track> tracks)
         {
-            Artists = new Dictionary<string, Track>();
-            Albums = new Dictionary<(string Album, string AlbumArtist), Track>();
+            Artists = new Dictionary<string, (string, string)>();
+            Albums = new Dictionary<(string, string), Track>();
             Songs = new Dictionary<Track, (string, string)>();
 
             foreach (var track in tracks)
             {
                 if (!string.IsNullOrEmpty(track.Artists))
                 {
-                    foreach (var artist in track.Artists.Split(';'))
-                    {
-                        if (string.IsNullOrWhiteSpace(artist)) continue;
-                        string normalizedArtist = SearchService.NormalizeString(artist);
-                        if (!Artists.ContainsKey(normalizedArtist))
-                        {
-                            Artists[normalizedArtist] = track;
-                        }
-                    }
-                }
+                    var trackArtists = track.Artists.Split(';');
+                    var sortArtists = !string.IsNullOrEmpty(track.SortArtist) ? track.SortArtist.Split(';') : null;
 
-                if (!string.IsNullOrEmpty(track.SortArtist))
-                {
-                    foreach (var artist in track.SortArtist.Split(';'))
+                    for (int i = 0; i < trackArtists.Length; i++)
                     {
-                        if (string.IsNullOrWhiteSpace(artist)) continue;
+                        var artist = trackArtists[i];
+                        if (string.IsNullOrWhiteSpace(artist)) 
+                            continue;
+                        
                         string normalizedArtist = SearchService.NormalizeString(artist);
+
                         if (!Artists.ContainsKey(normalizedArtist))
                         {
-                            Artists[normalizedArtist] = track;
+                            if (sortArtists != null && i < sortArtists.Length)
+                                Artists[normalizedArtist] = (artist.Trim(), sortArtists[i].Trim());
+                            else
+                                Artists[normalizedArtist] = (artist.Trim(), null);
                         }
                     }
                 }
@@ -216,8 +213,8 @@ namespace MusicBeePlugin.Services
                 if (!string.IsNullOrEmpty(track.Album))
                 {
                     var key = (
-                        Album: SearchService.NormalizeString(track.Album),
-                        AlbumArtist: SearchService.NormalizeString(track.AlbumArtist)
+                        NormalizedAlbum: SearchService.NormalizeString(track.Album),
+                        NormalizedAlbumArtist: SearchService.NormalizeString(track.AlbumArtist)
                     );
                     if (!Albums.ContainsKey(key))
                     {
@@ -253,18 +250,15 @@ namespace MusicBeePlugin.Services
         public async Task LoadTracksAsync()
         {
             await Task.Run(() => {
-                var tracks = Tests.SyntheticDataTests.GenerateSyntheticDatabase(1000000).Result;
+                //var tracks = Tests.SyntheticDataTests.GenerateSyntheticDatabase(1000000).Result;
+                mbApi.Library_QueryFilesEx("", out string[] files);
+                var tracks = files.Select(filepath => new Track(filepath));
 
                 var sw = Stopwatch.StartNew();
                 Debug.WriteLine("Starting database load...");
 
                 db = new Database(tracks);
                 IsLoaded = true;
-
-                //mbApi.Library_QueryFilesEx("", out string[] files);
-                //var tracks = files.Select(filepath => new Track(filepath));
-                //db = new Database(tracks);
-                //IsLoaded = true;
 
                 sw.Stop();
                 Debug.WriteLine($"Database loaded in {sw.ElapsedMilliseconds}ms");
@@ -331,8 +325,8 @@ namespace MusicBeePlugin.Services
         private List<AlbumResult> SearchAlbums(string[] queryWords, string normalizedQuery)
         {
             return db.Albums
-                .Where(x => QueryMatchesWords(x.Key.AlbumArtist + " " + x.Key.Album, queryWords, normalizeText: false))
-                .OrderByDescending(x => CalculateGeneralItemScore(x.Key.Album, normalizedQuery, queryWords, normalizeStrings: false))
+                .Where(x => QueryMatchesWords(x.Key.NormalizedAlbumArtist + " " + x.Key.NormalizedAlbum, queryWords, normalizeText: false))
+                .OrderByDescending(x => CalculateGeneralItemScore(x.Key.NormalizedAlbum, normalizedQuery, queryWords, normalizeStrings: false))
                 .Take(config.AlbumResultLimit)
                 .Select(x => new AlbumResult(x.Value.Album, x.Value.AlbumArtist, x.Value.SortAlbumArtist))
                 .ToList();

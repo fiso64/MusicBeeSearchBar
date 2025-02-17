@@ -1,11 +1,13 @@
 
-finish implementing Database class to move splitting/normalizing logic out of the Search functions
-
 - improve performance 
+	- return artist, album, song results as soon as they are done (separately)
 	- check: why is it slow?
 	- precompute ngrams or find a faster fuzzy matching algorithm (how does fzf do it?)
 	- add option to disable fuzzy matching if it's slow
-	- return artist, album, song results as soon as they are done (separately)
+	
+- fix first music explorer search misbehaving
+
+- search sort artists (maybe also for songs and albums)
 
 - rounded corners
 
