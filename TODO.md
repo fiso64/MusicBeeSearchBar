@@ -1,6 +1,4 @@
 
-- fix first music explorer search misbehaving
-
 - search sort artists (maybe also for songs and albums)
 
 - rounded corners, change scrollbar color? (probably need another UI library for that)
