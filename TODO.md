@@ -1,6 +1,5 @@
 
 - improve performance 
-	- return artist, album, song results as soon as they are done (separately)
 	- add option to disable fuzzy matching if it's slow. Option to disable for each individual result type
 	
 - fix first music explorer search misbehaving

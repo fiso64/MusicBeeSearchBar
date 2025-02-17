@@ -32,10 +32,10 @@ namespace MusicBeePlugin.UI
         private Image playlistIcon;
         private OverlayForm overlay;
 
-        private SearchUIConfig searchUIConfig;
-
-        private PictureBox loadingIndicator;
+        private bool IncrementalUpdate = false;
         private bool isLoading = true;
+        private SearchUIConfig searchUIConfig;
+        private PictureBox loadingIndicator;
 
         private CancellationTokenSource _currentSearchCts;
         private long _currentSearchSequence = 0;
@@ -523,23 +523,34 @@ namespace MusicBeePlugin.UI
                 Debug.WriteLine($"Query: {query}");
                 var stopwatch = Stopwatch.StartNew();
 
-                await searchService.SearchIncrementalAsync(
-                    query, 
-                    filter, 
-                    _currentSearchCts.Token,
-                    results => {
-                        if (!_currentSearchCts.Token.IsCancellationRequested)
-                        {
-                            BeginInvoke((Action)(() => {
-                                // Only update if this is still the most recent search
-                                if (searchSequence == _currentSearchSequence)
-                                {
-                                    UpdateResultsList(results);
-                                }
-                            }));
+                if (IncrementalUpdate)
+                {
+                    await searchService.SearchIncrementalAsync(
+                        query, 
+                        filter, 
+                        _currentSearchCts.Token,
+                        results => {
+                            if (!_currentSearchCts.Token.IsCancellationRequested)
+                            {
+                                BeginInvoke((Action)(() => {
+                                    // Only update if this is still the most recent search
+                                    if (searchSequence == _currentSearchSequence)
+                                    {
+                                        UpdateResultsList(results);
+                                    }
+                                }));
+                            }
                         }
+                    );
+                }
+                else
+                {
+                    var results = await searchService.SearchIncrementalAsync(query, filter, _currentSearchCts.Token, null);
+                    if (!_currentSearchCts.Token.IsCancellationRequested && searchSequence == _currentSearchSequence)
+                    {
+                        BeginInvoke((Action)(() => UpdateResultsList(results)));
                     }
-                );
+                }
 
                 stopwatch.Stop();
                 Debug.WriteLine($"Search took {stopwatch.ElapsedMilliseconds} ms.");

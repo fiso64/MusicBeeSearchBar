@@ -265,15 +265,16 @@ namespace MusicBeePlugin.Services
             });
         }
 
-        public async Task SearchIncrementalAsync(string query, ResultType enabledTypes, CancellationToken cancellationToken, Action<List<SearchResult>> onResultsUpdate)
+        public async Task<List<SearchResult>> SearchIncrementalAsync(string query, ResultType enabledTypes, CancellationToken cancellationToken, Action<List<SearchResult>> onResultsUpdate)
         {
-            if (!IsLoaded) 
+            if (!IsLoaded)
             {
-                onResultsUpdate(new List<SearchResult>());
-                return;
+                var results = new List<SearchResult>();
+                onResultsUpdate?.Invoke(results);
+                return results;
             }
 
-            await Task.Run(async () => {
+            return await Task.Run(async () => {
                 var results = new List<SearchResult>();
                 string normalizedQuery = NormalizeString(query);
                 string[] queryWords = normalizedQuery.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
@@ -283,7 +284,7 @@ namespace MusicBeePlugin.Services
                     cancellationToken.ThrowIfCancellationRequested();
                     var artistResults = SearchArtists(queryWords, normalizedQuery);
                     results.AddRange(artistResults);
-                    onResultsUpdate(OrderResults(results, normalizedQuery));
+                    onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
 
                 if ((enabledTypes & ResultType.Album) == ResultType.Album)
@@ -291,7 +292,7 @@ namespace MusicBeePlugin.Services
                     cancellationToken.ThrowIfCancellationRequested();
                     var albumResults = SearchAlbums(queryWords, normalizedQuery);
                     results.AddRange(albumResults);
-                    onResultsUpdate(OrderResults(results, normalizedQuery));
+                    onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
 
                 if ((enabledTypes & ResultType.Song) == ResultType.Song)
@@ -299,7 +300,7 @@ namespace MusicBeePlugin.Services
                     cancellationToken.ThrowIfCancellationRequested();
                     var songResults = SearchSongs(queryWords, normalizedQuery);
                     results.AddRange(songResults);
-                    onResultsUpdate(OrderResults(results, normalizedQuery));
+                    onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
 
                 if ((enabledTypes & ResultType.Playlist) == ResultType.Playlist)
@@ -307,8 +308,10 @@ namespace MusicBeePlugin.Services
                     cancellationToken.ThrowIfCancellationRequested();
                     var playlistResults = SearchPlaylists(queryWords, normalizedQuery);
                     results.AddRange(playlistResults);
-                    onResultsUpdate(OrderResults(results, normalizedQuery));
+                    onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
+
+                return results;
             }, cancellationToken);
         }
 
