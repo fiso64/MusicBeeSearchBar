@@ -498,8 +498,12 @@ namespace MusicBeePlugin.UI
                     query = query.Substring(2).TrimStart();
                 }
 
+                Debug.WriteLine($"Query: {query}");
+                var stopwatch = Stopwatch.StartNew();
                 var searchResults = await searchService.SearchAsync(query, filter, _currentSearchCts.Token);
-                
+                stopwatch.Stop();
+                Debug.WriteLine($"Search took {stopwatch.ElapsedMilliseconds} ms.");
+
                 // Only update results and hide loading indicator if this is still the current search
                 if (!_currentSearchCts.Token.IsCancellationRequested)
                 {

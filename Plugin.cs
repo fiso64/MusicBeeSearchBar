@@ -27,6 +27,31 @@ namespace MusicBeePlugin
 
         private static readonly ManualResetEvent startupComplete = new ManualResetEvent(false);
 
+        public Plugin()
+        {
+            // taken from https://github.com/sll552/DiscordBee/blob/master/DiscordBee.cs
+            AppDomain.CurrentDomain.AssemblyResolve += (object _, ResolveEventArgs args) =>
+            {
+                string assemblyFile = args.Name.Contains(",")
+                    ? args.Name.Substring(0, args.Name.IndexOf(','))
+                    : args.Name;
+
+                assemblyFile += ".dll";
+
+                string absoluteFolder = Path.GetDirectoryName(new Uri(Assembly.GetExecutingAssembly().CodeBase).LocalPath);
+                string targetPath = Path.Combine(absoluteFolder, "SearchBar", assemblyFile);
+
+                try
+                {
+                    return Assembly.LoadFile(targetPath);
+                }
+                catch (Exception ex)
+                {
+                    return null;
+                }
+            };
+        }
+
         public PluginInfo Initialise(IntPtr apiInterfacePtr)
         {
             mbApi = new MusicBeeApiInterface();

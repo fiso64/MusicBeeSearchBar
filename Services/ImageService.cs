@@ -26,12 +26,12 @@ namespace MusicBeePlugin.Services
 
         public async Task GetAlbumImageAsync(string album) // modify to return a suitable image object
         {
-            var first = searchService.database.FirstOrDefault(x => x.Album == album);
-            if (first != null)
-            {
-                mbApi.Library_GetArtworkEx(first.Filepath, 0, true, out var pictureLocation, out _, out byte[] imageData);
-                // imageData should contain the bytes of the image if there is one (might be null)
-            }
+            //var first = searchService.database.FirstOrDefault(x => x.Album == album);
+            //if (first != null)
+            //{
+            //    mbApi.Library_GetArtworkEx(first.Filepath, 0, true, out var pictureLocation, out _, out byte[] imageData);
+            //    // imageData should contain the bytes of the image if there is one (might be null)
+            //}
         }
 
         public async Task GetFileImageAsync(string filepath) // modify to return a suitable image object

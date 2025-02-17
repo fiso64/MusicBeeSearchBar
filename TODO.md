@@ -2,12 +2,19 @@
 - fix artists (all kinds)
 
 - improve performance 
+	- performance options tab
+		- load index on startup
+		- store index on disk
+
+- F5 to refresh index
 
 - search for A:Artist T:title instead of just T:title
 
-- show images for all result types
+- fix loading indicator jank
 
 - rounded corners
+
+- show images for all result types
 
 - disallow matching a single text part multiple times. E.g query 'NAME NA' should not match 'NAME'.
 
