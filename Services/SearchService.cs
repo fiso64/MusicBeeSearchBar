@@ -250,9 +250,9 @@ namespace MusicBeePlugin.Services
         public async Task LoadTracksAsync()
         {
             await Task.Run(() => {
-                var tracks = Tests.SyntheticDataTests.GenerateSyntheticDatabase(1000000).Result;
-                //mbApi.Library_QueryFilesEx("", out string[] files);
-                //var tracks = files.Select(filepath => new Track(filepath));
+                //var tracks = Tests.SyntheticDataTests.GenerateSyntheticDatabase(1000000).Result;
+                mbApi.Library_QueryFilesEx("", out string[] files);
+                var tracks = files.Select(filepath => new Track(filepath));
 
                 var sw = Stopwatch.StartNew();
                 Debug.WriteLine("Starting database load...");

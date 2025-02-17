@@ -32,7 +32,7 @@ namespace MusicBeePlugin.UI
         private Image playlistIcon;
         private OverlayForm overlay;
 
-        private bool IncrementalUpdate = false;
+        private bool incrementalUpdate = false;
         private bool isLoading = true;
         private SearchUIConfig searchUIConfig;
         private PictureBox loadingIndicator;
@@ -523,7 +523,7 @@ namespace MusicBeePlugin.UI
                 Debug.WriteLine($"Query: {query}");
                 var stopwatch = Stopwatch.StartNew();
 
-                if (IncrementalUpdate)
+                if (incrementalUpdate)
                 {
                     await searchService.SearchIncrementalAsync(
                         query, 
@@ -581,14 +581,10 @@ namespace MusicBeePlugin.UI
                 return;
             }
 
-            // Begin update to prevent flickering
             resultsListBox.BeginUpdate();
             try
             {
-                // Store current selection if any
-                string currentSelection = resultsListBox.SelectedItem != null 
-                    ? ((SearchResult)resultsListBox.SelectedItem).DisplayTitle 
-                    : null;
+                int currentSelection = resultsListBox.SelectedIndex;
 
                 resultsListBox.Items.Clear();
                 foreach (var result in searchResults)
@@ -596,34 +592,24 @@ namespace MusicBeePlugin.UI
                     resultsListBox.Items.Add(result);
                 }
 
-                // Only update visibility if changing
                 if (!resultsListBox.Visible)
                 {
                     resultsListBox.Visible = true;
                 }
 
-                // Try to maintain selection if possible
-                if (currentSelection != null)
-                {
-                    int index = -1;
-                    for (int i = 0; i < resultsListBox.Items.Count; i++)
-                    {
-                        if (((SearchResult)resultsListBox.Items[i]).DisplayTitle == currentSelection)
-                        {
-                            index = i;
-                            break;
-                        }
-                    }
-                    resultsListBox.SelectedIndex = index != -1 ? index : 0;
-                }
-                else
-                {
-                    resultsListBox.SelectedIndex = 0;
-                }
+                //if (currentSelection < resultsListBox.Items.Count && currentSelection >= 0)
+                //{
+                //    resultsListBox.SelectedIndex = currentSelection;
+                //}
+                //else
+                //{
+                //    resultsListBox.SelectedIndex = 0;
+                //    resultsListBox.TopIndex = 0;
+                //}
 
-                resultsListBox.TopIndex = 0;  // Reset scroll position only if selection changed
-                
-                // Update heights only if necessary
+                resultsListBox.SelectedIndex = 0;
+                resultsListBox.TopIndex = 0;
+
                 int newHeight = Math.Min(searchResults.Count, searchUIConfig.MaxResultsVisible) * resultsListBox.ItemHeight;
                 if (resultsListBox.Height != newHeight)
                 {

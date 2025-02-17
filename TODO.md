@@ -1,7 +1,4 @@
 
-- improve performance 
-	- add option to disable fuzzy matching if it's slow. Option to disable for each individual result type
-	
 - fix first music explorer search misbehaving
 
 - search sort artists (maybe also for songs and albums)
