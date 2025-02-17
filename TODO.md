@@ -3,7 +3,7 @@
 
 - search sort artists (maybe also for songs and albums)
 
-- rounded corners
+- rounded corners, change scrollbar color? (probably need another UI library for that)
 
 - show images for all result types
 

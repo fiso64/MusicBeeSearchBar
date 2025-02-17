@@ -167,7 +167,7 @@ namespace MusicBeePlugin
 
             if (actionType == ResultType.Song)
             {
-                result = new SongResult(path);
+                result = new SongResult(new Track(path));
             }
             else if (actionType == ResultType.Artist)
             {

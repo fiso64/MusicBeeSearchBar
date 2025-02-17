@@ -156,14 +156,18 @@ namespace MusicBeePlugin.Services
 
                 if (!action._actionExecuted)
                 {
-                    Thread.Sleep(200);
-                    WinApiHelpers.SendEnterKey(searchBox);
+                    _ = Task.Delay(200).ContinueWith(_ => 
+                    {
+                        WinApiHelpers.SendEnterKey(searchBox);
+                    });
                 }
 
                 if (action.ClearSearchBarTextAfterSearch)
                 {
-                    Thread.Sleep(50);
-                    WinApiHelpers.SetEditText(searchBox, "");
+                    _ = Task.Delay(action._actionExecuted ? 50 : 250).ContinueWith(_ => 
+                    {
+                        WinApiHelpers.SetEditText(searchBox, "");
+                    });
                 }
             }
             else

@@ -29,41 +29,16 @@ namespace MusicBeePlugin.Services
 
     public class SongResult : SearchResult
     {
-        public string TrackTitle;
-        public string Artist;
-        public string SortArtist;
-        public string Filepath;
+        public string TrackTitle => Track.TrackTitle;
+        public string Artist => Track.Artist;
+        public string SortArtist => Track.SortArtist;
+        public string Filepath => Track.Filepath;
 
-        static MetaDataType[] fields = new MetaDataType[]
+        public Track Track;
+
+        public SongResult(Track track)
         {
-            MetaDataType.TrackTitle,
-            MetaDataType.Artist,
-            MetaDataType.SortArtist,
-        };
-
-        public SongResult(string trackTitle, string artist, string sortArtist, string filepath)
-        {
-            TrackTitle = trackTitle;
-            Artist = artist;
-            SortArtist = sortArtist;
-            Filepath = filepath;
-            DisplayTitle = TrackTitle;
-            DisplayDetail = Artist;
-            Type = ResultType.Song;
-        }
-
-        public SongResult(string filepath)
-        {
-            Filepath = filepath;
-            mbApi.Library_GetFileTags(filepath, fields, out string[] results);
-
-            if (results != null)
-            {
-                TrackTitle = results[0];
-                Artist = results[1];
-                SortArtist = results[2];
-            }
-
+            Track = track;
             DisplayTitle = TrackTitle;
             DisplayDetail = Artist;
             Type = ResultType.Song;
@@ -85,6 +60,20 @@ namespace MusicBeePlugin.Services
             SortAlbumArtist = sortAlbumArtist;
             Type = ResultType.Album;
         }
+
+        public AlbumResult(SongResult songResult) 
+            : this(songResult.Track.Album, songResult.Track.AlbumArtist, songResult.Track.SortAlbumArtist)
+        {
+        }
+
+        public static AlbumResult FromSearchResult(SearchResult result)
+        {
+            if (result is AlbumResult albumResult)
+                return albumResult;
+            if (result is SongResult songResult)
+                return new AlbumResult(songResult);
+            return null;
+        }
     }
 
     public class ArtistResult : SearchResult
@@ -101,6 +90,25 @@ namespace MusicBeePlugin.Services
 
             //if (!Artist.Equals(SortArtist, StringComparison.OrdinalIgnoreCase))
             //    DisplayDetail = SortArtist;
+        }
+
+        public ArtistResult(AlbumResult albumResult) : this(albumResult.AlbumArtist, albumResult.SortAlbumArtist)
+        {
+        }
+
+        public ArtistResult(SongResult songResult) : this(songResult.Track.AlbumArtist, songResult.Track.SortAlbumArtist)
+        {
+        }
+
+        public static ArtistResult FromSearchResult(SearchResult result)
+        {
+            if (result is ArtistResult artistResult)
+                return artistResult;
+            if (result is AlbumResult albumResult)
+                return new ArtistResult(albumResult);
+            if (result is SongResult songResult)
+                return new ArtistResult(songResult);
+            return null;
         }
     }
 
@@ -348,7 +356,7 @@ namespace MusicBeePlugin.Services
                 .Where(x => QueryMatchesWords(x.Value.NormalizedArtists + " " + x.Value.NormalizedTitle, queryWords, normalizeText: false))
                 .OrderByDescending(x => CalculateArtistAndTitleScore(x.Value.NormalizedArtists, x.Value.NormalizedTitle, normalizedQuery, queryWords, normalizeStrings: false))
                 .Take(config.SongResultLimit)
-                .Select(x => new SongResult(x.Key.TrackTitle, x.Key.Artist, x.Key.SortArtist, x.Key.Filepath))
+                .Select(x => new SongResult(x.Key))
                 .ToList();
         }
 

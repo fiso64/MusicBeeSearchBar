@@ -96,6 +96,9 @@
     <Compile Include="UI\ConfigurationForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="UI\OverlayForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Utils\ApplicationCommand.cs" />
     <Compile Include="Utils\FuzzySearch.cs" />
     <Compile Include="Utils\MusicBeeHelpers.cs" />
