@@ -273,7 +273,12 @@ namespace MusicBeePlugin.Services
             });
         }
 
-        public async Task<List<SearchResult>> SearchIncrementalAsync(string query, ResultType enabledTypes, CancellationToken cancellationToken, Action<List<SearchResult>> onResultsUpdate)
+        public async Task<List<SearchResult>> SearchIncrementalAsync(
+            string query, 
+            ResultType enabledTypes, 
+            CancellationToken cancellationToken, 
+            Action<List<SearchResult>> onResultsUpdate,
+            Dictionary<ResultType, int> resultLimits = null)
         {
             if (!IsLoaded)
             {
@@ -290,7 +295,7 @@ namespace MusicBeePlugin.Services
                 if ((enabledTypes & ResultType.Artist) == ResultType.Artist)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var artistResults = SearchArtists(queryWords, normalizedQuery);
+                    var artistResults = SearchArtists(queryWords, normalizedQuery, GetResultLimit(ResultType.Artist, resultLimits));
                     results.AddRange(artistResults);
                     onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
@@ -298,7 +303,7 @@ namespace MusicBeePlugin.Services
                 if ((enabledTypes & ResultType.Album) == ResultType.Album)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var albumResults = SearchAlbums(queryWords, normalizedQuery);
+                    var albumResults = SearchAlbums(queryWords, normalizedQuery, GetResultLimit(ResultType.Album, resultLimits));
                     results.AddRange(albumResults);
                     onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
@@ -306,7 +311,7 @@ namespace MusicBeePlugin.Services
                 if ((enabledTypes & ResultType.Song) == ResultType.Song)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var songResults = SearchSongs(queryWords, normalizedQuery);
+                    var songResults = SearchSongs(queryWords, normalizedQuery, GetResultLimit(ResultType.Song, resultLimits));
                     results.AddRange(songResults);
                     onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
@@ -314,7 +319,7 @@ namespace MusicBeePlugin.Services
                 if ((enabledTypes & ResultType.Playlist) == ResultType.Playlist)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var playlistResults = SearchPlaylists(queryWords, normalizedQuery);
+                    var playlistResults = SearchPlaylists(queryWords, normalizedQuery, GetResultLimit(ResultType.Playlist, resultLimits));
                     results.AddRange(playlistResults);
                     onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
@@ -330,42 +335,42 @@ namespace MusicBeePlugin.Services
                 .ToList();
         }
 
-        private List<ArtistResult> SearchArtists(string[] queryWords, string normalizedQuery)
+        private List<ArtistResult> SearchArtists(string[] queryWords, string normalizedQuery, int limit)
         {
             return db.Artists
                 .Where(x => QueryMatchesWords(x.Key, queryWords, normalizeText: false))
                 .OrderByDescending(x => CalculateGeneralItemScore(x.Key, normalizedQuery, queryWords, normalizeStrings: false))
-                .Take(config.ArtistResultLimit)
+                .Take(limit)
                 .Select(x => new ArtistResult(x.Value.Artist, x.Value.SortArtist))
                 .ToList();
         }
 
-        private List<AlbumResult> SearchAlbums(string[] queryWords, string normalizedQuery)
+        private List<AlbumResult> SearchAlbums(string[] queryWords, string normalizedQuery, int limit)
         {
             return db.Albums
                 .Where(x => QueryMatchesWords(x.Key.NormalizedAlbumArtist + " " + x.Key.NormalizedAlbum, queryWords, normalizeText: false))
                 .OrderByDescending(x => CalculateArtistAndTitleScore(x.Key.NormalizedAlbumArtist, x.Key.NormalizedAlbum, normalizedQuery, queryWords, normalizeStrings: false))
-                .Take(config.AlbumResultLimit)
+                .Take(limit)
                 .Select(x => new AlbumResult(x.Value.Album, x.Value.AlbumArtist, x.Value.SortAlbumArtist))
                 .ToList();
         }
 
-        private List<SongResult> SearchSongs(string[] queryWords, string normalizedQuery)
+        private List<SongResult> SearchSongs(string[] queryWords, string normalizedQuery, int limit)
         {
             return db.Songs
                 .Where(x => QueryMatchesWords(x.Value.NormalizedArtists + " " + x.Value.NormalizedTitle, queryWords, normalizeText: false))
                 .OrderByDescending(x => CalculateArtistAndTitleScore(x.Value.NormalizedArtists, x.Value.NormalizedTitle, normalizedQuery, queryWords, normalizeStrings: false))
-                .Take(config.SongResultLimit)
+                .Take(limit)
                 .Select(x => new SongResult(x.Key))
                 .ToList();
         }
 
-        private List<PlaylistResult> SearchPlaylists(string[] queryWords, string normalizedQuery)
+        private List<PlaylistResult> SearchPlaylists(string[] queryWords, string normalizedQuery, int limit)
         {
             return GetAllPlaylists()
                 .Where(p => !string.IsNullOrEmpty(p.Name) && QueryMatchesWords(p.Name, queryWords))
                 .OrderByDescending(p => CalculateGeneralItemScore(p.Name, normalizedQuery, queryWords))
-                .Take(config.PlaylistResultLimit)
+                .Take(limit)
                 .Select(p => new PlaylistResult(p.Name, p.Path))
                 .ToList();
         }
@@ -380,6 +385,26 @@ namespace MusicBeePlugin.Services
                 text = NormalizeString(text);
 
             return queryWords.All(word => text.Contains(word));
+        }
+
+        private int GetResultLimit(ResultType type, Dictionary<ResultType, int> resultLimits = null)
+        {
+            if (resultLimits != null)
+            {
+                if (resultLimits.TryGetValue(ResultType.All, out int allLimit))
+                    return allLimit;
+                if (resultLimits.TryGetValue(type, out int typeLimit))
+                    return typeLimit;
+            }
+
+            switch (type)
+            {
+                case ResultType.Artist: return config.ArtistResultLimit;
+                case ResultType.Album: return config.AlbumResultLimit;
+                case ResultType.Song: return config.SongResultLimit;
+                case ResultType.Playlist: return config.PlaylistResultLimit;
+                default: return config.SongResultLimit;
+            }
         }
 
         private int GetResultTypePriority(ResultType type)

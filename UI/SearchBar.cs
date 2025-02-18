@@ -494,6 +494,13 @@ namespace MusicBeePlugin.UI
                 loadingIndicator.Visible = true;
 
                 var filter = ResultType.All;
+                Dictionary<ResultType, int> resultLimits = null;
+
+                if (query.EndsWith(".."))
+                {
+                    query = query.Substring(0, query.Length - 2).TrimEnd();
+                    resultLimits = new Dictionary<ResultType, int> { { ResultType.All, 100 } };
+                }
 
                 if (query.StartsWith("a:", StringComparison.OrdinalIgnoreCase))
                 {
@@ -536,12 +543,13 @@ namespace MusicBeePlugin.UI
                                     }
                                 }));
                             }
-                        }
+                        },
+                        resultLimits
                     );
                 }
                 else
                 {
-                    var results = await searchService.SearchIncrementalAsync(query, filter, _currentSearchCts.Token, null);
+                    var results = await searchService.SearchIncrementalAsync(query, filter, _currentSearchCts.Token, null, resultLimits);
                     if (!_currentSearchCts.Token.IsCancellationRequested && searchSequence == _currentSearchSequence)
                     {
                         try
