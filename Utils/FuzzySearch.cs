@@ -15,6 +15,17 @@ namespace MusicBeePlugin.Utils
             const int NGRAM_SIZE = 2; // Use bigrams
             double score = 0;
 
+            // special case for short queries 
+            if (queryWords.Length == 1 && queryWords[0].Length < NGRAM_SIZE)
+            {
+                if (text.StartsWith(queryWords[0]))
+                    return 2.0;
+                else if (text.Contains(queryWords[0]))
+                    return 1.0;
+                else
+                    return 0;
+            }
+
             // Create n-grams for the text
             var textNgrams = new HashSet<string>();
             for (int i = 0; i < text.Length - NGRAM_SIZE + 1; i++)

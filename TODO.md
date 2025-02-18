@@ -1,6 +1,8 @@
 
 - search sort artists (maybe also for songs and albums)
 
+- album artist search (only show the ones that don't appear in the artists table)
+
 - rounded corners, change scrollbar color? (probably need another UI library for that)
 
 - show images for all result types

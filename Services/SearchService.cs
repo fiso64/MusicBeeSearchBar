@@ -403,7 +403,7 @@ namespace MusicBeePlugin.Services
                 case ResultType.Artist: return CalculateGeneralItemScore(result.DisplayTitle, query, query.Split(' '));
                 case ResultType.Album: return CalculateArtistAndTitleScore(((AlbumResult)result).AlbumArtist, ((AlbumResult)result).Album, query, query.Split(' '));
                 case ResultType.Song: return CalculateArtistAndTitleScore(((SongResult)result).Artist, ((SongResult)result).TrackTitle, query, query.Split(' '));
-                default: return 0;
+                default: return CalculateGeneralItemScore(result.DisplayTitle, query, query.Split(' '));
             }
         }
 
