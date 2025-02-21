@@ -43,6 +43,11 @@ namespace MusicBeePlugin.Services
             DisplayDetail = Artist;
             Type = ResultType.Song;
         }
+
+        public static SongResult FromSearchResult(SearchResult result)
+        {
+            return (SongResult)result;
+        }
     }
 
     public class AlbumResult : SearchResult

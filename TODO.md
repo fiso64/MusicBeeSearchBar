@@ -1,6 +1,9 @@
 
 - search sort artists (maybe also for songs and albums)
 
+- fix sort artists in music explorer (honorifics, dj prefixes)
+	- maybe it's possible to open an artist in music explorer programmatically?
+
 - album artist search (only show the ones that don't appear in the artists table)
 
 - rounded corners, change scrollbar color? (probably need another UI library for that)
