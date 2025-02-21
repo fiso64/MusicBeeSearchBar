@@ -582,10 +582,12 @@ namespace MusicBeePlugin.UI
                 case SearchUIConfig.DefaultResultsChoice.Playing:
                     var playingItems = searchService.GetPlayingItems();
                     UpdateResultsList(playingItems);
+                    LoadImagesForVisibleResults();
                     break;
                 case SearchUIConfig.DefaultResultsChoice.Selected:
                     var selectedItems = searchService.GetSelectedTracks();
                     UpdateResultsList(selectedItems);
+                    LoadImagesForVisibleResults();
                     break;
                 default:
                     UpdateResultsList(null);

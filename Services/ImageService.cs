@@ -73,6 +73,9 @@ namespace MusicBeePlugin.Services
                 if (string.IsNullOrEmpty(imagePath) || !File.Exists(imagePath))
                     return null;
 
+                if (new FileInfo(imagePath).Length <= 0)
+                    return null;
+
                 using (var originalImage = Image.FromFile(imagePath))
                 {
                     var thumb = CreateSquareThumb(originalImage, makeCircular: true);
