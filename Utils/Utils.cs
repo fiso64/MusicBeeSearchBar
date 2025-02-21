@@ -5,6 +5,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -70,6 +71,12 @@ namespace MusicBeePlugin.Utils
                 return value;
             }
             return defaultValue;
+        }
+
+        public static void DoubleBuffering(this Control control, bool enable)
+        {
+            var method = typeof(Control).GetMethod("SetStyle", BindingFlags.Instance | BindingFlags.NonPublic);
+            method.Invoke(control, new object[] { ControlStyles.OptimizedDoubleBuffer, enable });
         }
     }
 }

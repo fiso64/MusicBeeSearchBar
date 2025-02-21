@@ -23,6 +23,11 @@ namespace MusicBeePlugin.UI
         private SearchService searchService;
         private ImageService imageService;
         private System.Windows.Forms.Timer imageLoadDebounceTimer;
+
+        private readonly Font searchBoxFont = new Font("Arial", 14, FontStyle.Bold);
+        private readonly Font resultFont = new Font("Arial", 11, FontStyle.Bold);
+        private readonly Font resultDetailFont = new Font("Arial", 10, FontStyle.Regular);
+
         private const int IMAGE_DEBOUNCE_MS = 100;
         private const int ITEM_HEIGHT = 42;
         private const int IMAGE_SIZE = 32;
@@ -146,7 +151,7 @@ namespace MusicBeePlugin.UI
 
             searchBox = new TextBox
             {
-                Font = new Font("Arial", 14),
+                Font = searchBoxFont,
                 ForeColor = searchUIConfig.TextColor,
                 BackColor = searchUIConfig.BaseColor,
                 BorderStyle = BorderStyle.None,
@@ -166,12 +171,14 @@ namespace MusicBeePlugin.UI
                 BackColor = searchUIConfig.BaseColor,
                 ForeColor = searchUIConfig.TextColor,
                 BorderStyle = BorderStyle.None,
-                Font = new Font("Arial", 12),
+                Font = resultFont,
                 ItemHeight = (int)(ITEM_HEIGHT * (CreateGraphics().DpiX / 96.0)), // Scale based on DPI
                 Visible = false,
                 TabStop = false, // To prevent focusing on listbox with tab key.
                 Height = 0 // Initially set height to 0
             };
+
+            resultsListBox.DoubleBuffering(true);
 
             resultsListBox.DrawMode = DrawMode.OwnerDrawFixed;
             resultsListBox.DrawItem += ResultsListBox_DrawItem;
@@ -228,9 +235,9 @@ namespace MusicBeePlugin.UI
                 {
                     if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                     {
-                        resultsListBox.BeginUpdate();
+                        int cur = resultsListBox.SelectedIndex;
                         resultsListBox.SelectedIndex = (resultsListBox.SelectedIndex + 1) % resultsListBox.Items.Count;
-                        resultsListBox.EndUpdate();
+                        resultsListBox.Invalidate(resultsListBox.GetItemRectangle(cur));
                         LoadImagesForVisibleResults();
                     }
                     e.Handled = true;
@@ -240,12 +247,9 @@ namespace MusicBeePlugin.UI
                 {
                     if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                     {
-                        resultsListBox.BeginUpdate();
-                        if (resultsListBox.SelectedIndex > 0)
-                            resultsListBox.SelectedIndex--;
-                        else
-                            resultsListBox.SelectedIndex = resultsListBox.Items.Count - 1;
-                        resultsListBox.EndUpdate();
+                        int cur = resultsListBox.SelectedIndex;
+                        resultsListBox.SelectedIndex = cur > 0 ? cur - 1 : resultsListBox.Items.Count - 1;
+                        resultsListBox.Invalidate(resultsListBox.GetItemRectangle(cur));
                         LoadImagesForVisibleResults();
                     }
                     e.Handled = true;
@@ -255,9 +259,7 @@ namespace MusicBeePlugin.UI
                 {
                     if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                     {
-                        resultsListBox.BeginUpdate();
                         resultsListBox.SelectedIndex = 0;
-                        resultsListBox.EndUpdate();
                         LoadImagesForVisibleResults();
                     }
                     e.Handled = true;
@@ -267,9 +269,7 @@ namespace MusicBeePlugin.UI
                 {
                     if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                     {
-                        resultsListBox.BeginUpdate();
                         resultsListBox.SelectedIndex = resultsListBox.Items.Count - 1;
-                        resultsListBox.EndUpdate();
                         LoadImagesForVisibleResults();
                     }
                     e.Handled = true;
@@ -406,20 +406,23 @@ namespace MusicBeePlugin.UI
                     var result = (SearchResult)resultsListBox.Items[i];
 
                     var loadTask = Task.Run(async () => {
-                        var image = await imageService.GetImageAsync(result);
-                        if (image != null && !IsDisposed)
+                        if (imageService.GetCachedImage(result) == null)
                         {
-                            BeginInvoke((Action)(() => {
-                                if (!IsDisposed)
-                                {
-                                    // Find the current index of this result, if it still exists
-                                    int currentIndex = resultsListBox.Items.IndexOf(result);
-                                    if (currentIndex >= 0)
+                            var image = await imageService.GetImageAsync(result);
+                            if (image != null && !IsDisposed)
+                            {
+                                BeginInvoke((Action)(() => {
+                                    if (!IsDisposed)
                                     {
-                                        resultsListBox.Invalidate(resultsListBox.GetItemRectangle(currentIndex));
+                                        // Find the current index of this result, if it still exists
+                                        int currentIndex = resultsListBox.Items.IndexOf(result);
+                                        if (currentIndex >= 0)
+                                        {
+                                            resultsListBox.Invalidate(resultsListBox.GetItemRectangle(currentIndex));
+                                        }
                                     }
-                                }
-                            }));
+                                }));
+                            }
                         }
                     });
 
@@ -796,8 +799,6 @@ namespace MusicBeePlugin.UI
                 int leftPadding = 6 + (IMAGE_SIZE - ICON_SIZE) / 2;
                 int textStartX = bounds.X + IMAGE_SIZE + iconPaddingRight + 8;
 
-                Font titleFont = new Font(resultsListBox.Font.FontFamily, 12, FontStyle.Regular);
-                Font detailFont = new Font(resultsListBox.Font.FontFamily, 10, FontStyle.Regular);
                 Color detailColor = Color.Gray;
 
                 Image displayImage = null;
@@ -829,33 +830,33 @@ namespace MusicBeePlugin.UI
                 {
                     // Calculate maximum width available for text
                     int maxTextWidth = bounds.Width - textStartX - ICON_SIZE - 20; // 20 for right padding + icon padding
-                    string truncatedTitle = TextRenderer.MeasureText(resultItem.DisplayTitle, titleFont).Width > maxTextWidth
-                        ? TextRenderer.MeasureText(resultItem.DisplayTitle + "...", titleFont).Width <= maxTextWidth
+                    string truncatedTitle = TextRenderer.MeasureText(resultItem.DisplayTitle, resultFont).Width > maxTextWidth
+                        ? TextRenderer.MeasureText(resultItem.DisplayTitle + "...", resultFont).Width <= maxTextWidth
                             ? resultItem.DisplayTitle + "..."
-                            : resultItem.DisplayTitle.Substring(0, Math.Max(1, resultItem.DisplayTitle.Length * maxTextWidth / TextRenderer.MeasureText(resultItem.DisplayTitle, titleFont).Width - 3)) + "..."
+                            : resultItem.DisplayTitle.Substring(0, Math.Max(1, resultItem.DisplayTitle.Length * maxTextWidth / TextRenderer.MeasureText(resultItem.DisplayTitle, resultFont).Width - 3)) + "..."
                         : resultItem.DisplayTitle;
                     
-                    g.DrawString(truncatedTitle, titleFont, textBrush, textStartX, bounds.Y + offsetY + 5);
+                    g.DrawString(truncatedTitle, resultFont, textBrush, textStartX, bounds.Y + offsetY + 5);
                 }
                 else
                 {
                     // Calculate maximum width available for text
                     int maxTextWidth = bounds.Width - textStartX - ICON_SIZE - 20; // 20 for right padding + icon padding
                     
-                    string truncatedTitle = TextRenderer.MeasureText(resultItem.DisplayTitle, titleFont).Width > maxTextWidth
-                        ? TextRenderer.MeasureText(resultItem.DisplayTitle + "...", titleFont).Width <= maxTextWidth
+                    string truncatedTitle = TextRenderer.MeasureText(resultItem.DisplayTitle, resultFont).Width > maxTextWidth
+                        ? TextRenderer.MeasureText(resultItem.DisplayTitle + "...", resultFont).Width <= maxTextWidth
                             ? resultItem.DisplayTitle + "..."
-                            : resultItem.DisplayTitle.Substring(0, Math.Max(1, resultItem.DisplayTitle.Length * maxTextWidth / TextRenderer.MeasureText(resultItem.DisplayTitle, titleFont).Width - 3)) + "..."
+                            : resultItem.DisplayTitle.Substring(0, Math.Max(1, resultItem.DisplayTitle.Length * maxTextWidth / TextRenderer.MeasureText(resultItem.DisplayTitle, resultFont).Width - 3)) + "..."
                         : resultItem.DisplayTitle;
 
-                    string truncatedDetail = TextRenderer.MeasureText(resultItem.DisplayDetail, detailFont).Width > maxTextWidth
-                        ? TextRenderer.MeasureText(resultItem.DisplayDetail + "...", detailFont).Width <= maxTextWidth
+                    string truncatedDetail = TextRenderer.MeasureText(resultItem.DisplayDetail, resultDetailFont).Width > maxTextWidth
+                        ? TextRenderer.MeasureText(resultItem.DisplayDetail + "...", resultDetailFont).Width <= maxTextWidth
                             ? resultItem.DisplayDetail + "..."
-                            : resultItem.DisplayDetail.Substring(0, Math.Max(1, resultItem.DisplayDetail.Length * maxTextWidth / TextRenderer.MeasureText(resultItem.DisplayDetail, detailFont).Width - 3)) + "..."
+                            : resultItem.DisplayDetail.Substring(0, Math.Max(1, resultItem.DisplayDetail.Length * maxTextWidth / TextRenderer.MeasureText(resultItem.DisplayDetail, resultDetailFont).Width - 3)) + "..."
                         : resultItem.DisplayDetail;
 
-                    g.DrawString(truncatedTitle, titleFont, textBrush, textStartX, bounds.Y + offsetY);
-                    g.DrawString(truncatedDetail, detailFont, new SolidBrush(detailColor), textStartX, bounds.Y + offsetY + titleFont.GetHeight() + 2);
+                    g.DrawString(truncatedTitle, resultFont, textBrush, textStartX, bounds.Y + offsetY);
+                    g.DrawString(truncatedDetail, resultDetailFont, new SolidBrush(detailColor), textStartX, bounds.Y + offsetY + resultFont.GetHeight() + 2);
                 }
 
                 // Add type indicator icon on the right for albums and tracks when images are enabled
