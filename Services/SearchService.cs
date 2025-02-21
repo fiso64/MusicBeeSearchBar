@@ -200,9 +200,9 @@ namespace MusicBeePlugin.Services
 
             foreach (var track in tracks)
             {
-                if ((enabledTypes & ResultType.Artist) != 0 && !string.IsNullOrEmpty(track.Artists))
+                if ((enabledTypes & ResultType.Artist) != 0 && !string.IsNullOrEmpty(track.Artist))
                 {
-                    var trackArtists = track.Artists.Split(';');
+                    var trackArtists = track.Artist.Split(';');
                     var sortArtists = !string.IsNullOrEmpty(track.SortArtist) ? track.SortArtist.Split(';') : null;
 
                     for (int i = 0; i < trackArtists.Length; i++)

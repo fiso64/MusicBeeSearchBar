@@ -23,7 +23,7 @@ namespace MusicBeePlugin.UI
         private SearchService searchService;
         private ImageService imageService;
         private System.Windows.Forms.Timer imageLoadDebounceTimer;
-        private const int IMAGE_DEBOUNCE_MS = 200;
+        private const int IMAGE_DEBOUNCE_MS = 100;
         private const int ITEM_HEIGHT = 42;
         private const int IMAGE_SIZE = 32;
         private const int ICON_SIZE = 20;
@@ -102,10 +102,10 @@ namespace MusicBeePlugin.UI
             }
 
             int lineSize = 3;
-            songIcon = CreateIcon(Color.LightGray, ICON_SIZE, ICON_SIZE, ResultType.Song, lineSize);
+            songIcon = CreateIcon(Color.DarkGray, ICON_SIZE, ICON_SIZE, ResultType.Song, lineSize);
             albumIcon = CreateIcon(Color.DarkGray, ICON_SIZE, ICON_SIZE, ResultType.Album, lineSize - 1);
             artistIcon = CreateIcon(Color.Gray, ICON_SIZE, ICON_SIZE, ResultType.Artist, lineSize);
-            playlistIcon = CreateIcon(Color.LightGray, ICON_SIZE, ICON_SIZE, ResultType.Playlist, lineSize);
+            playlistIcon = CreateIcon(Color.DarkGray, ICON_SIZE, ICON_SIZE, ResultType.Playlist, lineSize);
 
             Size = searchUIConfig.InitialSize;
             BackColor = searchUIConfig.BaseColor;
@@ -477,18 +477,63 @@ namespace MusicBeePlugin.UI
                 switch (type)
                 {
                     case ResultType.Album:
-                        // Square with circle inside
-                        g.DrawRectangle(pen, 1, 1, width - 2, height - 2);
-                        g.DrawEllipse(pen, 4, 4, width - 8, height - 8);
+                        // Thin outer circle (record)
+                        g.DrawEllipse(pen, 2, 2, width - 4, height - 4);
+
+                        // Thick inner circle (label)
+                        using (Pen thickPen = new Pen(color, lineWidth * 2)) // Thicker pen for the inner circle
+                        {
+                            int innerCircleSize = width / 3; // Size of the inner circle
+                            g.DrawEllipse(thickPen,
+                                (width - innerCircleSize) / 2, // Center horizontally
+                                (height - innerCircleSize) / 2, // Center vertically
+                                innerCircleSize,
+                                innerCircleSize
+                            );
+                        }
                         break;
                     case ResultType.Song:
-                        // Triangle pointing right
-                        Point[] points = {
-                            new Point(2, 2),
-                            new Point(width - 4, (height - 2) / 2),
-                            new Point(2, height - 4)
-                        };
-                        g.DrawPolygon(pen, points);
+                        // Triangle pointing right with rounded corners
+                        using (GraphicsPath path = new GraphicsPath())
+                        {
+                            float cornerRadius = 2f;
+                            PointF[] points = {
+                                new PointF(4, 2),
+                                new PointF(width - 2, (height - 2) / 2),
+                                new PointF(4, height - 4)
+                            };
+
+                            // Create rounded corners using curves
+                            path.AddBezier(
+                                points[0].X, points[0].Y + cornerRadius,  // Start point
+                                points[0].X, points[0].Y,                 // Control point 1
+                                points[0].X + cornerRadius, points[0].Y,  // Control point 2
+                                points[0].X + cornerRadius, points[0].Y   // End point
+                            );
+                            path.AddLine(
+                                points[0].X + cornerRadius, points[0].Y,
+                                points[1].X - cornerRadius, points[1].Y - cornerRadius
+                            );
+                            path.AddBezier(
+                                points[1].X - cornerRadius, points[1].Y - cornerRadius,
+                                points[1].X, points[1].Y - cornerRadius,
+                                points[1].X, points[1].Y,
+                                points[1].X - cornerRadius, points[1].Y + cornerRadius
+                            );
+                            path.AddLine(
+                                points[1].X - cornerRadius, points[1].Y + cornerRadius,
+                                points[2].X + cornerRadius, points[2].Y
+                            );
+                            path.AddBezier(
+                                points[2].X + cornerRadius, points[2].Y,
+                                points[2].X, points[2].Y,
+                                points[2].X, points[2].Y - cornerRadius,
+                                points[2].X, points[2].Y - cornerRadius
+                            );
+                            path.CloseFigure();
+
+                            g.DrawPath(pen, path);
+                        }
                         break;
                     case ResultType.Artist:
                         // Head (small circle)
@@ -512,7 +557,7 @@ namespace MusicBeePlugin.UI
                         break;
                     case ResultType.Playlist:
                         // List icon (3 horizontal lines)
-                        int lineSpacing = 4;
+                        int lineSpacing = 5;
                         for (int i = 0; i < 3; i++)
                         {
                             g.DrawLine(pen,
@@ -748,8 +793,8 @@ namespace MusicBeePlugin.UI
                 int iconWidth = ICON_SIZE;
                 int iconPaddingRight = 5;
                 int offsetY = 4;
-                int leftPadding = 6;
-                int textStartX = bounds.X + ICON_SIZE + iconPaddingRight + 8;
+                int leftPadding = 6 + (IMAGE_SIZE - ICON_SIZE) / 2;
+                int textStartX = bounds.X + IMAGE_SIZE + iconPaddingRight + 8;
 
                 Font titleFont = new Font(resultsListBox.Font.FontFamily, 12, FontStyle.Regular);
                 Font detailFont = new Font(resultsListBox.Font.FontFamily, 10, FontStyle.Regular);
@@ -758,17 +803,12 @@ namespace MusicBeePlugin.UI
                 Image displayImage = null;
                 if (searchUIConfig.ShowImages)
                 {
-                    textStartX = bounds.X + IMAGE_SIZE + iconPaddingRight + 8;
-                    
                     displayImage = imageService.GetCachedImage(resultItem);
 
                     if (displayImage != null)
                     {
+                        leftPadding = 6;
                         iconWidth = IMAGE_SIZE;
-                    }
-                    else
-                    {
-                        leftPadding = 6 + (IMAGE_SIZE - ICON_SIZE) / 2; // Center the icon when no image
                     }
                 }
 
