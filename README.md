@@ -3,7 +3,7 @@
 A modern, customizable search bar plugin for MusicBee that provides unified search across your music library.
   
   
-<img src="/demo.gif" width="600" height="auto"/>
+<img src="/demo.gif" width="700" height="auto"/>
 
 
 
