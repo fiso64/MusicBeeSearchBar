@@ -328,7 +328,7 @@ namespace MusicBeePlugin.Services
                     onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
 
-                return results;
+                return OrderResults(results, normalizedQuery);
             }, cancellationToken);
         }
 

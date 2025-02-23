@@ -29,7 +29,7 @@ namespace MusicBeePlugin.UI
         private readonly Font resultDetailFont = new Font("Arial", 10, FontStyle.Regular);
 
         private const int IMAGE_DEBOUNCE_MS = 100;
-        private const int ITEM_HEIGHT = 42;
+        private const int ITEM_HEIGHT = 44;
         private const int IMAGE_SIZE = 32;
         private const int ICON_SIZE = 20;
 
@@ -797,7 +797,7 @@ namespace MusicBeePlugin.UI
             {
                 int iconWidth = ICON_SIZE;
                 int iconPaddingRight = 5;
-                int offsetY = 4;
+                int offsetY = 6;
                 int leftPadding = 6 + (IMAGE_SIZE - ICON_SIZE) / 2;
                 int textStartX = bounds.X + IMAGE_SIZE + iconPaddingRight + 8;
 

@@ -136,7 +136,7 @@ namespace MusicBeePlugin.Config
         public bool GroupResultsByType { get; set; } = true;
         public bool EnableContainsCheck { get; set; } = true;
         public bool ShowImages { get; set; } = true;
-        public double OverlayOpacity { get; set; } = 0.4;
+        public double OverlayOpacity { get; set; } = 0.6;
         public int MaxResultsVisible { get; set; } = 6;
         public int ArtistResultLimit { get; set; } = 5;
         public int AlbumResultLimit { get; set; } = 5;
