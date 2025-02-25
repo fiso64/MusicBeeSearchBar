@@ -135,8 +135,8 @@ namespace MusicBeePlugin.Services
     public class Track
     {
         public string TrackTitle;
-        public string Artist; // artist tag
-        public string Artists; // artist tag + multi-artists (performer, remixer, etc)
+        public string Artist; // artists with artist role, joined with ;
+        public string Artists; // all artists joined with ; (artist, performer, remixer, etc)
         public string SortArtist;
         public string Album;
         public string AlbumArtist;
@@ -146,12 +146,16 @@ namespace MusicBeePlugin.Services
         static MetaDataType[] fields = new MetaDataType[]
         {
             MetaDataType.TrackTitle,
-            MetaDataType.Artist,
+            MetaDataType.ArtistsWithArtistRole,
             MetaDataType.Artists,
             MetaDataType.SortArtist,
             MetaDataType.Album,
             MetaDataType.AlbumArtist,
             MetaDataType.SortAlbumArtist,
+
+            MetaDataType.ArtistsWithGuestRole,
+            MetaDataType.ArtistsWithPerformerRole,
+            MetaDataType.ArtistsWithRemixerRole,
         };
 
         public Track() { }
@@ -160,17 +164,19 @@ namespace MusicBeePlugin.Services
         {
             Filepath = filepath;
             mbApi.Library_GetFileTags(filepath, fields, out string[] results);
-            
-            if (results != null && results.Length == fields.Length)
-            {
-                TrackTitle = results[0];
-                Artist = results[1];
-                Artists = results[2];
-                SortArtist = results[3];
-                Album = results[4];
-                AlbumArtist = results[5];
-                SortAlbumArtist = results[6];
-            }
+
+            if (results == null || results.Length != fields.Length)
+                return;
+
+            TrackTitle = results[0];
+            Artist = results[1];
+            SortArtist = results[3];
+            Album = results[4];
+            AlbumArtist = results[5];
+            SortAlbumArtist = results[6];
+
+            Artists = string.Join("; ", new[] { Artist, results[7], RemoveCustomRoles(results[8]), results[9] }.Where(s => !string.IsNullOrEmpty(s)));
+
         }
 
         public Track(Track other)
@@ -183,6 +189,35 @@ namespace MusicBeePlugin.Services
             AlbumArtist = other.AlbumArtist;
             SortAlbumArtist = other.SortAlbumArtist;
             Filepath = other.Filepath;
+        }
+
+        // Removes custom roles of the form "Artist (Role)"
+        private string RemoveCustomRoles(string performers)
+        {
+            if (string.IsNullOrEmpty(performers))
+                return performers;
+
+            var performerArr = performers.Split(';');
+
+            for (int i = 0; i < performerArr.Length; i++)
+            {
+                string cleaned = performerArr[i].Trim();
+                // check string is of the form "X (Y)"
+                if (cleaned.Length >= 5 && cleaned[cleaned.Length - 1] == ')')
+                {
+                    int parenIndex = cleaned.LastIndexOf('(');
+                    if (parenIndex >= 2 && cleaned[parenIndex - 1] == ' ')
+                    {
+                        performerArr[i] = cleaned.Substring(0, parenIndex - 1);
+                    }
+                }
+                else
+                {
+                    performerArr[i] = cleaned;
+                }
+            }
+
+            return string.Join("; ", performerArr);
         }
     }
 
@@ -200,9 +235,9 @@ namespace MusicBeePlugin.Services
 
             foreach (var track in tracks)
             {
-                if ((enabledTypes & ResultType.Artist) != 0 && !string.IsNullOrEmpty(track.Artist))
+                if ((enabledTypes & ResultType.Artist) != 0 && !string.IsNullOrEmpty(track.Artists))
                 {
-                    var trackArtists = track.Artist.Split(';');
+                    var trackArtists = track.Artists.Split(';');
                     var sortArtists = !string.IsNullOrEmpty(track.SortArtist) ? track.SortArtist.Split(';') : null;
 
                     for (int i = 0; i < trackArtists.Length; i++)
