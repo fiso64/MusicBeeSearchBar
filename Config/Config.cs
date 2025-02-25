@@ -98,33 +98,33 @@ namespace MusicBeePlugin.Config
             config.ArtistAction = new ActionConfig
             {
                 Default = new PlayActionData { ShufflePlay = true },
-                Ctrl = new PlayActionData { ShufflePlay = true },
+                Ctrl = new QueueLastActionData { ShufflePlay = true },
                 Shift = new QueueNextActionData { ShufflePlay = true },
-                CtrlShift = new QueueLastActionData { ShufflePlay = true }
+                CtrlShift = new QueueNextActionData { ShufflePlay = true }
             };
 
             config.AlbumAction = new ActionConfig
             {
                 Default = new PlayActionData(),
-                Ctrl = new PlayActionData(),
+                Ctrl = new QueueLastActionData(),
                 Shift = new QueueNextActionData(),
-                CtrlShift = new QueueLastActionData()
+                CtrlShift = new QueueNextActionData()
             };
 
             config.SongAction = new ActionConfig
             {
                 Default = new PlayActionData(),
-                Ctrl = new PlayActionData(),
+                Ctrl = new QueueLastActionData(),
                 Shift = new QueueNextActionData(),
-                CtrlShift = new QueueLastActionData()
+                CtrlShift = new QueueNextActionData()
             };
 
             config.PlaylistAction = new ActionConfig
             {
                 Default = new PlayActionData(),
-                Ctrl = new PlayActionData(),
-                Shift = new QueueNextActionData(),
-                CtrlShift = new PlayActionData { ShufflePlay = true }
+                Ctrl = new QueueLastActionData(),
+                Shift = new QueueNextActionData { ShufflePlay = true },
+                CtrlShift = new QueueNextActionData()
             };
 
             return config;
