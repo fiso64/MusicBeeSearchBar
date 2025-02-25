@@ -1,10 +1,14 @@
 
+- fix artist search: currently searching DISPLAY ARTIST instead of ARTISTS
+
 - search sort artists (maybe also for songs and albums)
 
 - fix sort artists in music explorer (honorifics, dj prefixes)
 	- maybe it's possible to open an artist in music explorer programmatically?
 
 - album artist search (only show the ones that don't appear in the artists table)
+
+- improve result ordering when group by type is off: If artist=Foo and song or album name is FooBar, searching for Fo should display the artist first (naturally, without special cases)
 
 - rounded corners, change scrollbar color? (probably need another UI library for that)
 

@@ -80,22 +80,25 @@ namespace MusicBeePlugin.Utils
 
         public static void FocusMainPanel()
         {
-            FocusSearchBox();
+            InvokeCommand(ApplicationCommand.GeneralGotoSearch);
 
-            var hwnd = mbApi.MB_GetWindowHandle();
-            var windowRect = WinApiHelpers.GetWindowRect(hwnd);
-            int windowWidth = windowRect.Width;
+            if (WinApiHelpers.IsEditFocused())
+                InvokeCommand(ApplicationCommand.GeneralGotoSearch);
 
-            WinApiHelpers.SendShiftTab();
-            Thread.Sleep(10);
+            //var hwnd = mbApi.MB_GetWindowHandle();
+            //var windowRect = WinApiHelpers.GetWindowRect(hwnd);
+            //int windowWidth = windowRect.Width;
 
-            var focusedControl = WinApiHelpers.GetFocus();
-            var controlRect = WinApiHelpers.GetWindowRect(focusedControl);
+            //WinApiHelpers.SendShiftTab();
+            //Thread.Sleep(10);
 
-            if (controlRect.X > windowWidth / 2)
-            {
-                WinApiHelpers.SendShiftTab();
-            }
+            //var focusedControl = WinApiHelpers.GetFocus();
+            //var controlRect = WinApiHelpers.GetWindowRect(focusedControl);
+
+            //if (controlRect.X > windowWidth / 2)
+            //{
+            //    WinApiHelpers.SendShiftTab();
+            //}
         }
 
         public static void FocusLeftSidebar()
