@@ -171,7 +171,7 @@ namespace MusicBeePlugin
             }
             else if (actionType == ResultType.Artist)
             {
-                result = new ArtistResult(track.Artist.Split(';')[0], track.SortArtist);
+                result = new ArtistResult(track.Artist.Split(';')[0].Trim(), track.SortArtist);
             }
             else if (actionType == ResultType.Album)
             {

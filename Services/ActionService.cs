@@ -114,20 +114,27 @@ namespace MusicBeePlugin.Services
 
         private void Search(string searchBoxText, SearchResult result, SearchInTabActionData action)
         {
-            string getSortArtistIfNotHonorific(string artist, string sortArtist)
+            //string getSortArtistIfNotHonorific(string artist, string sortArtist)
+            //{
+            //    if (string.IsNullOrEmpty(sortArtist))
+            //        return artist;
+
+            //    var parts = sortArtist.Split(new string[] { ", " }, StringSplitOptions.None);
+            //    if (parts.Length < 2)
+            //        return sortArtist;
+
+            //    var potentialHonorific = parts[parts.Length - 1];
+            //    var name = string.Join(", ", parts.Take(parts.Length - 1));
+
+            //    var reconstructed = $"{potentialHonorific} {name}";
+            //    return reconstructed.Equals(artist, StringComparison.OrdinalIgnoreCase) ? artist : sortArtist;
+            //}
+
+            string getSearchArtist(string artist, string sortArtist)
             {
                 if (string.IsNullOrEmpty(sortArtist))
                     return artist;
-
-                var parts = sortArtist.Split(new string[] { ", " }, StringSplitOptions.None);
-                if (parts.Length < 2)
-                    return sortArtist;
-
-                var potentialHonorific = parts[parts.Length - 1];
-                var name = string.Join(", ", parts.Take(parts.Length - 1));
-
-                var reconstructed = $"{potentialHonorific} {name}";
-                return reconstructed.Equals(artist, StringComparison.OrdinalIgnoreCase) ? artist : sortArtist;
+                return action.UseSortArtist ? sortArtist : artist;
             }
 
             RestoreOrFocus();
@@ -145,18 +152,18 @@ namespace MusicBeePlugin.Services
             {
                 if (result is ArtistResult artistResult)
                 {
-                    string artist = action.UseSortArtist ? getSortArtistIfNotHonorific(artistResult.Artist, artistResult.SortArtist) : artistResult.Artist;
+                    string artist = getSearchArtist(artistResult.Artist, artistResult.SortArtist);
                     query = (action.SearchAddPrefix ? "A:" : "") + artist;
                 }
                 else if (result is AlbumResult albumResult)
                 {
-                    string albumArtist = action.UseSortArtist ? getSortArtistIfNotHonorific(albumResult.AlbumArtist, albumResult.SortAlbumArtist) : albumResult.AlbumArtist;
+                    string albumArtist = getSearchArtist(albumResult.AlbumArtist, albumResult.SortAlbumArtist);
                     albumArtist = action.SearchAddPrefix ? $"AA:{albumArtist}" : albumArtist;
                     query = albumArtist + " " + (action.SearchAddPrefix ? "AL:" : "") + albumResult.Album;
                 }
                 else if (result is SongResult songResult)
                 {
-                    string artist = action.UseSortArtist ? getSortArtistIfNotHonorific(songResult.Artist, songResult.SortArtist) : songResult.Artist;
+                    string artist = getSearchArtist(songResult.Artist, songResult.SortArtist);
                     artist = action.SearchAddPrefix ? $"A:{artist}" : artist;
                     query = artist + " " + (action.SearchAddPrefix ? "T:" : "") + songResult.TrackTitle;
                 }
