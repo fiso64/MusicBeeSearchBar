@@ -31,11 +31,11 @@ namespace MusicBeePlugin.UI
             Color textColor = resultsListBox.ForeColor;
             using (SolidBrush textBrush = new SolidBrush(textColor))
             {
-                int iconWidth = ICON_SIZE;
-                int iconPaddingRight = 5;
-                int offsetY = 6;
-                int leftPadding = 6 + (IMAGE_SIZE - ICON_SIZE) / 2;
-                int textStartX = bounds.X + IMAGE_SIZE + iconPaddingRight + 8;
+                int iconWidth = iconSize;
+                int ICON_PADDING_RIGHT = 8;
+                int OFFSET_Y = 6;
+                int leftPadding = 6 + (imageSize - iconSize) / 2;
+                int textStartX = bounds.X + imageSize + ICON_PADDING_RIGHT + 8;
 
                 Color detailColor = Color.Gray;
 
@@ -47,7 +47,7 @@ namespace MusicBeePlugin.UI
                     if (displayImage != null)
                     {
                         leftPadding = 6;
-                        iconWidth = IMAGE_SIZE;
+                        iconWidth = imageSize;
                     }
                 }
 
@@ -67,19 +67,20 @@ namespace MusicBeePlugin.UI
                 if (string.IsNullOrEmpty(resultItem.DisplayDetail))
                 {
                     // Calculate maximum width available for text
-                    int maxTextWidth = bounds.Width - textStartX - ICON_SIZE - 20; // 20 for right padding + icon padding
+                    int maxTextWidth = bounds.Width - textStartX - iconSize - 20; // 20 for right padding + icon padding
                     string truncatedTitle = TextRenderer.MeasureText(resultItem.DisplayTitle, resultFont).Width > maxTextWidth
                         ? TextRenderer.MeasureText(resultItem.DisplayTitle + "...", resultFont).Width <= maxTextWidth
                             ? resultItem.DisplayTitle + "..."
                             : resultItem.DisplayTitle.Substring(0, Math.Max(1, resultItem.DisplayTitle.Length * maxTextWidth / TextRenderer.MeasureText(resultItem.DisplayTitle, resultFont).Width - 3)) + "..."
                         : resultItem.DisplayTitle;
 
-                    g.DrawString(truncatedTitle, resultFont, textBrush, textStartX, bounds.Y + offsetY + 5);
+                    int offset = Math.Max(searchUIConfig.ResultItemHeight / 2 - (int)resultFont.Size + 2, 0);
+                    g.DrawString(truncatedTitle, resultFont, textBrush, textStartX, bounds.Y + offset);
                 }
                 else
                 {
                     // Calculate maximum width available for text
-                    int maxTextWidth = bounds.Width - textStartX - ICON_SIZE - 20; // 20 for right padding + icon padding
+                    int maxTextWidth = bounds.Width - textStartX - iconSize - 20; // 20 for right padding + icon padding
 
                     string truncatedTitle = TextRenderer.MeasureText(resultItem.DisplayTitle, resultFont).Width > maxTextWidth
                         ? TextRenderer.MeasureText(resultItem.DisplayTitle + "...", resultFont).Width <= maxTextWidth
@@ -93,8 +94,8 @@ namespace MusicBeePlugin.UI
                             : resultItem.DisplayDetail.Substring(0, Math.Max(1, resultItem.DisplayDetail.Length * maxTextWidth / TextRenderer.MeasureText(resultItem.DisplayDetail, resultDetailFont).Width - 3)) + "..."
                         : resultItem.DisplayDetail;
 
-                    g.DrawString(truncatedTitle, resultFont, textBrush, textStartX, bounds.Y + offsetY);
-                    g.DrawString(truncatedDetail, resultDetailFont, new SolidBrush(detailColor), textStartX, bounds.Y + offsetY + resultFont.GetHeight() + 2);
+                    g.DrawString(truncatedTitle, resultFont, textBrush, textStartX, bounds.Y + OFFSET_Y);
+                    g.DrawString(truncatedDetail, resultDetailFont, new SolidBrush(detailColor), textStartX, bounds.Y + OFFSET_Y + resultFont.GetHeight() + 2);
                 }
 
                 // Add type indicator icon on the right for albums and tracks when images are enabled
@@ -102,8 +103,8 @@ namespace MusicBeePlugin.UI
                 {
                     var typeIcon = GetIcon(resultItem.Type);
                     int rightPadding = 10;
-                    int iconY = (int)(bounds.Y + (bounds.Height - ICON_SIZE / 1.5) / 2);
-                    g.DrawImage(typeIcon, (int)(bounds.Right - ICON_SIZE / 1.5 - rightPadding), iconY, (int)(ICON_SIZE / 1.5), (int)(ICON_SIZE / 1.5));
+                    int iconY = (int)(bounds.Y + (bounds.Height - iconSize / 1.5) / 2);
+                    g.DrawImage(typeIcon, (int)(bounds.Right - iconSize / 1.5 - rightPadding), iconY, (int)(iconSize / 1.5), (int)(iconSize / 1.5));
                 }
             }
         }

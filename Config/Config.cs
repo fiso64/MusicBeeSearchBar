@@ -141,6 +141,7 @@ namespace MusicBeePlugin.Config
         public int ArtistResultLimit { get; set; } = 5;
         public int AlbumResultLimit { get; set; } = 5;
         public int SongResultLimit { get; set; } = 10;
+        public int ResultItemHeight { get; set; } = 50;
         public int PlaylistResultLimit { get; set; } = 100;
         public enum DefaultResultsChoice { Playing, Selected, None };
         public DefaultResultsChoice DefaultResults = DefaultResultsChoice.Playing;

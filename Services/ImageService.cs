@@ -1,6 +1,7 @@
 ﻿using MusicBeePlugin.Utils;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
@@ -78,7 +79,15 @@ namespace MusicBeePlugin.Services
                 using (var originalImage = Image.FromFile(imagePath))
                 {
                     var thumb = CreateSquareThumb(originalImage, makeCircular: true);
-                    if (!disposed) { imageCache[cacheKey] = thumb; } else { thumb?.Dispose(); thumb = null; }
+                    if (!disposed)
+                    {
+                        imageCache[cacheKey] = thumb;
+                    } 
+                    else
+                    {
+                        thumb?.Dispose();
+                        thumb = null;
+                    }
                     return thumb;
                 }
             }

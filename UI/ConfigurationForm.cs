@@ -203,7 +203,7 @@ namespace MusicBeePlugin.UI
                 Dock = DockStyle.Fill,
                 Padding = new Padding(10),
                 ColumnCount = 2,
-                RowCount = 6,
+                RowCount = 7,
                 AutoSize = true
             };
 
@@ -258,12 +258,15 @@ namespace MusicBeePlugin.UI
             appearanceLayout.Controls.Add(new Label { Text = "Highlight Color:", AutoSize = true }, 0, 5);
             appearanceLayout.Controls.Add(highlightColorButton, 1, 5);
 
-            // Initial Size inputs
-            TableLayoutPanel sizePanel = new TableLayoutPanel
+            var resultItemHeightInput = new NumericUpDown
             {
-                ColumnCount = 4,
-                AutoSize = true
+                Minimum = 1,
+                Value = _config.SearchUI.ResultItemHeight,
+                Width = 70
             };
+            resultItemHeightInput.ValueChanged += (s, e) => _config.SearchUI.ResultItemHeight = (int)resultItemHeightInput.Value;
+            appearanceLayout.Controls.Add(new Label { Text = "Result Item Height:", AutoSize = true }, 0, 7);
+            appearanceLayout.Controls.Add(resultItemHeightInput, 1, 7);
 
             widthInput = new NumericUpDown
             {
@@ -274,11 +277,8 @@ namespace MusicBeePlugin.UI
             };
             widthInput.ValueChanged += (s, e) => _config.SearchUI.InitialSize = new Size((int)widthInput.Value, _config.SearchUI.InitialSize.Height);
 
-            sizePanel.Controls.Add(new Label { Text = "Width:", AutoSize = true }, 0, 0);
-            sizePanel.Controls.Add(widthInput, 1, 0);
-
-            appearanceLayout.Controls.Add(new Label { Text = "Initial Size:", AutoSize = true }, 0, 6);
-            appearanceLayout.Controls.Add(sizePanel, 1, 6);
+            appearanceLayout.Controls.Add(new Label { Text = "Width:", AutoSize = true }, 0, 6);
+            appearanceLayout.Controls.Add(widthInput, 1, 6);
 
             appearanceTab.Controls.Add(appearanceLayout);
 
@@ -683,9 +683,9 @@ namespace MusicBeePlugin.UI
             }
 
             // Validate size
-            if (widthInput.Value < 1 || widthInput.Value > 1000000)
+            if (widthInput.Value < 1)
             {
-                ShowError("Width must be between 1 and 1000000 pixels.");
+                ShowError("Width must be bigger than 0.");
                 return false;
             }
 

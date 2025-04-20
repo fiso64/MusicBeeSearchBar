@@ -29,7 +29,9 @@ namespace MusicBeePlugin.UI
         private PictureBox loadingIndicator;
 
         // Configuration
-        private SearchUIConfig searchUIConfig;
+        private readonly SearchUIConfig searchUIConfig;
+        private readonly int imageSize;
+        private readonly int iconSize;
 
         // State
         private bool isLoading = true;
@@ -53,9 +55,6 @@ namespace MusicBeePlugin.UI
 
         // Constants
         private const int IMAGE_DEBOUNCE_MS = 100;
-        private const int ITEM_HEIGHT = 44;
-        private const int IMAGE_SIZE = 32;
-        private const int ICON_SIZE = 20;
         private const bool INCREMENTAL_UPDATE = false;
 
         public SearchBar(
@@ -67,6 +66,9 @@ namespace MusicBeePlugin.UI
             string defaultText = null
         )
         {
+            imageSize = Math.Max(searchUIConfig.ResultItemHeight - 12, 5);
+            iconSize = Math.Max(searchUIConfig.ResultItemHeight - 30, 5);
+
             this.musicBeeControl = musicBeeControl;
             this.musicBeeContext = musicBeeContext;
             mbApi = musicBeeApi;
@@ -75,7 +77,7 @@ namespace MusicBeePlugin.UI
             searchService = new SearchService(musicBeeApi, searchUIConfig);
             if (searchUIConfig.ShowImages)
             {
-                imageService = new ImageService(musicBeeApi, searchService, IMAGE_SIZE);
+                imageService = new ImageService(musicBeeApi, searchService, imageSize);
                 InitializeImageLoadingTimer();
             }
             InitializeUI();

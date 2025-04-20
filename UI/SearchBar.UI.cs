@@ -37,10 +37,10 @@ namespace MusicBeePlugin.UI
             }
 
             int lineSize = 3;
-            songIcon = CreateIcon(Color.DarkGray, ICON_SIZE, ICON_SIZE, Services.ResultType.Song, lineSize);
-            albumIcon = CreateIcon(Color.DarkGray, ICON_SIZE, ICON_SIZE, Services.ResultType.Album, lineSize - 1);
-            artistIcon = CreateIcon(Color.Gray, ICON_SIZE, ICON_SIZE, Services.ResultType.Artist, lineSize);
-            playlistIcon = CreateIcon(Color.DarkGray, ICON_SIZE, ICON_SIZE, Services.ResultType.Playlist, lineSize);
+            songIcon = CreateIcon(Color.DarkGray, iconSize, iconSize, Services.ResultType.Song, lineSize);
+            albumIcon = CreateIcon(Color.DarkGray, iconSize, iconSize, Services.ResultType.Album, lineSize - 1);
+            artistIcon = CreateIcon(Color.Gray, iconSize, iconSize, Services.ResultType.Artist, lineSize);
+            playlistIcon = CreateIcon(Color.DarkGray, iconSize, iconSize, Services.ResultType.Playlist, lineSize);
 
             Size = searchUIConfig.InitialSize;
             BackColor = searchUIConfig.BaseColor;
@@ -112,7 +112,7 @@ namespace MusicBeePlugin.UI
                 ForeColor = searchUIConfig.TextColor,
                 BorderStyle = BorderStyle.None,
                 Font = resultFont,
-                ItemHeight = (int)(ITEM_HEIGHT * (CreateGraphics().DpiX / 96.0)), // Scale based on DPI
+                ItemHeight = (int)(searchUIConfig.ResultItemHeight * (CreateGraphics().DpiX / 96.0)), // Scale based on DPI
                 Visible = false,
                 TabStop = false, // To prevent focusing on listbox with tab key.
                 Height = 0 // Initially set height to 0
