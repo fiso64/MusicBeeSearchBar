@@ -1,21 +1,20 @@
 ﻿using MusicBeePlugin.Utils;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static MusicBeePlugin.Plugin;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
+using System.Threading.Tasks;
+using static MusicBeePlugin.Plugin;
 
 namespace MusicBeePlugin.Services
 {
-    public class ImageService
+    public class ImageService : IDisposable
     {
-        private MusicBeeApiInterface mbApi;
+        private readonly MusicBeeApiInterface mbApi;
         private readonly int imageSize;
         private readonly Dictionary<string, Image> imageCache = new Dictionary<string, Image>();
+        private bool disposed = false;
 
         public ImageService(MusicBeeApiInterface mbApi, SearchService searchService, int imageSize = 40)
         {
@@ -36,15 +35,15 @@ namespace MusicBeePlugin.Services
                     case ResultType.Artist:
                         var artistResult = ArtistResult.FromSearchResult(result);
                         return GetCachedImage(artistResult.Artist, ResultType.Artist);
-                        
+
                     case ResultType.Album:
                         var albumResult = AlbumResult.FromSearchResult(result);
                         return GetCachedImage($"{albumResult.AlbumArtist}:{albumResult.Album}", ResultType.Album);
-                        
+
                     case ResultType.Song:
                         var songResult = SongResult.FromSearchResult(result);
                         return GetCachedImage(songResult.Filepath, ResultType.Song);
-                        
+
                     default:
                         return null;
                 }
@@ -58,7 +57,7 @@ namespace MusicBeePlugin.Services
         private Image GetCachedImage(string identifier, ResultType type)
         {
             string cacheKey = GetCacheKey(identifier, type);
-            return imageCache.ContainsKey(cacheKey) ? imageCache[cacheKey] : null;
+            return imageCache.TryGetValue(cacheKey, out Image cachedImage) ? cachedImage : null;
         }
 
         public async Task<Image> GetArtistImageAsync(string artist)
@@ -79,7 +78,7 @@ namespace MusicBeePlugin.Services
                 using (var originalImage = Image.FromFile(imagePath))
                 {
                     var thumb = CreateSquareThumb(originalImage, makeCircular: true);
-                    imageCache[cacheKey] = thumb;
+                    if (!disposed) { imageCache[cacheKey] = thumb; } else { thumb?.Dispose(); thumb = null; }
                     return thumb;
                 }
             }
@@ -114,7 +113,7 @@ namespace MusicBeePlugin.Services
                 using (var originalImage = Image.FromStream(ms))
                 {
                     var thumb = CreateSquareThumb(originalImage);
-                    imageCache[cacheKey] = thumb;
+                    if (!disposed) { imageCache[cacheKey] = thumb; } else { thumb?.Dispose(); thumb = null; }
                     return thumb;
                 }
             }
@@ -140,7 +139,7 @@ namespace MusicBeePlugin.Services
                 using (var originalImage = Image.FromStream(ms))
                 {
                     var thumb = CreateSquareThumb(originalImage);
-                    imageCache[cacheKey] = thumb;
+                    if (!disposed) { imageCache[cacheKey] = thumb; } else { thumb?.Dispose(); thumb = null; }
                     return thumb;
                 }
             }
@@ -152,6 +151,12 @@ namespace MusicBeePlugin.Services
 
         public void ClearCache()
         {
+            if (disposed) throw new ObjectDisposedException(nameof(ImageService));
+            ClearCacheInternal();
+        }
+
+        private void ClearCacheInternal()
+        {
             foreach (var image in imageCache.Values)
             {
                 image?.Dispose();
@@ -159,14 +164,16 @@ namespace MusicBeePlugin.Services
             imageCache.Clear();
         }
 
+
         private Image CreateSquareThumb(Image original, bool makeCircular = false)
         {
+            if (original == null) return null;
             int size = Math.Min(original.Width, original.Height);
-            var bitmap = new Bitmap(imageSize, imageSize);
+            if (size <= 0) return null;
 
+            var bitmap = new Bitmap(imageSize, imageSize);
             using (var graphics = Graphics.FromImage(bitmap))
             {
-                // Configure for high quality, high performance scaling
                 graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
                 graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
                 graphics.SmoothingMode = SmoothingMode.HighQuality;
@@ -181,23 +188,37 @@ namespace MusicBeePlugin.Services
                     }
                 }
 
-                // Calculate cropping rectangle
                 int x = (original.Width - size) / 2;
                 int y = (original.Height - size) / 2;
 
-                // Draw and scale in one operation
-                graphics.DrawImage(original, 
-                    new Rectangle(0, 0, imageSize, imageSize),
-                    new Rectangle(x, y, size, size),
-                    GraphicsUnit.Pixel);
-            }
+                try
+                {
+                    graphics.DrawImage(original,
+                        new Rectangle(0, 0, imageSize, imageSize),
+                        new Rectangle(x, y, size, size),
+                        GraphicsUnit.Pixel);
+                }
+                catch (Exception)
+                {
+                    bitmap?.Dispose();
+                    return null;
+                }
 
+                if (makeCircular)
+                {
+                    graphics.ResetClip();
+                }
+            }
             return bitmap;
         }
 
         public async Task<Image> GetImageAsync(SearchResult result)
         {
+            if (disposed) throw new ObjectDisposedException(nameof(ImageService));
             if (result == null) return null;
+
+            Image cached = GetCachedImage(result);
+            if (cached != null) return cached;
 
             try
             {
@@ -206,15 +227,15 @@ namespace MusicBeePlugin.Services
                     case ResultType.Artist:
                         var artistResult = ArtistResult.FromSearchResult(result);
                         return await GetArtistImageAsync(artistResult.Artist);
-                        
+
                     case ResultType.Album:
                         var albumResult = AlbumResult.FromSearchResult(result);
                         return await GetAlbumImageAsync(albumResult.AlbumArtist, albumResult.Album);
-                        
+
                     case ResultType.Song:
                         var songResult = SongResult.FromSearchResult(result);
                         return await GetFileImageAsync(songResult.Filepath);
-                        
+
                     default:
                         return null;
                 }
@@ -223,6 +244,24 @@ namespace MusicBeePlugin.Services
             {
                 return null;
             }
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposed) return;
+
+            if (disposing)
+            {
+                ClearCacheInternal();
+            }
+
+            disposed = true;
         }
     }
 }
