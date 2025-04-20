@@ -228,6 +228,22 @@ namespace MusicBeePlugin.Services
 
         public Database(IEnumerable<Track> tracks, ResultType enabledTypes)
         {
+            // cache normalized strings, because NormalizeString is expensive.
+            var normalizationCache = new Dictionary<string, string>();
+            string getNormalized(string input)
+            {
+                if (string.IsNullOrEmpty(input))
+                {
+                    return string.Empty;
+                }
+                if (!normalizationCache.TryGetValue(input, out var normalized))
+                {
+                    normalized = SearchService.NormalizeString(input);
+                    normalizationCache[input] = normalized;
+                }
+                return normalized;
+            }
+
             Artists = new Dictionary<string, (string, string)>();
             Albums = new Dictionary<(string, string), Track>();
             Songs = new Dictionary<Track, (string, string)>();
@@ -236,15 +252,15 @@ namespace MusicBeePlugin.Services
             {
                 if ((enabledTypes & ResultType.Artist) != 0)
                 {
-                    SplitAndAddArtists(track.Artists, track.SortArtist);
-                    SplitAndAddArtists(track.AlbumArtist, track.SortAlbumArtist);
+                    SplitAndAddArtists(track.Artists, track.SortArtist, getNormalized);
+                    SplitAndAddArtists(track.AlbumArtist, track.SortAlbumArtist, getNormalized);
                 }
 
                 if ((enabledTypes & ResultType.Album) != 0 && !string.IsNullOrEmpty(track.Album))
                 {
                     var key = (
-                        NormalizedAlbum: SearchService.NormalizeString(track.Album),
-                        NormalizedAlbumArtist: SearchService.NormalizeString(track.AlbumArtist)
+                        NormalizedAlbum: getNormalized(track.Album),
+                        NormalizedAlbumArtist: getNormalized(track.AlbumArtist)
                     );
                     if (!Albums.ContainsKey(key))
                     {
@@ -255,15 +271,15 @@ namespace MusicBeePlugin.Services
                 if ((enabledTypes & ResultType.Song) != 0 && !string.IsNullOrEmpty(track.TrackTitle))
                 {
                     var value = (
-                        NormalizedTitle: SearchService.NormalizeString(track.TrackTitle),
-                        NormalizedArtists: SearchService.NormalizeString(track.Artists)
+                        NormalizedTitle: getNormalized(track.TrackTitle),
+                        NormalizedArtists: getNormalized(track.Artists)
                     );
                     Songs[track] = value;
                 }
             }
         }
 
-        void SplitAndAddArtists(string artists, string sortArtists)
+        void SplitAndAddArtists(string artists, string sortArtists, Func<string, string> getNormalizedFunc)
         {
             if (string.IsNullOrEmpty(artists))
                 return;
@@ -277,7 +293,8 @@ namespace MusicBeePlugin.Services
                 if (string.IsNullOrWhiteSpace(artist))
                     continue;
 
-                string normalizedArtist = SearchService.NormalizeString(artist);
+                string trimmedArtist = artist.Trim();
+                string normalizedArtist = getNormalizedFunc(trimmedArtist);
 
                 if (!Artists.ContainsKey(normalizedArtist))
                 {
@@ -311,6 +328,7 @@ namespace MusicBeePlugin.Services
                 var sw = Stopwatch.StartNew();
 
                 mbApi.Library_QueryFilesEx("", out string[] files);
+                if (files == null) files = Array.Empty<string>();
 
                 sw.Stop();
                 Debug.WriteLine($"Library_QueryFilesEx completed in {sw.ElapsedMilliseconds}ms");
@@ -534,7 +552,7 @@ namespace MusicBeePlugin.Services
             '%', '^', '|', '~', '<', '>', '`', '"'
         };
 
-        // Convert to lower, remove ' , replace punctuation chars with space, remove consecutive spaces and trim. 
+        // Convert to lower, remove apostrophes, replace punctuation chars with space, remove consecutive spaces, trim. 
         public static string NormalizeString(string input)
         {
             if (string.IsNullOrEmpty(input))
