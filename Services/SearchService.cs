@@ -202,7 +202,6 @@ namespace MusicBeePlugin.Services
             for (int i = 0; i < performerArr.Length; i++)
             {
                 string cleaned = performerArr[i].Trim();
-                // check string is of the form "X (Y)"
                 if (cleaned.Length >= 5 && cleaned[cleaned.Length - 1] == ')')
                 {
                     int parenIndex = cleaned.LastIndexOf('(');
@@ -235,25 +234,38 @@ namespace MusicBeePlugin.Services
 
             foreach (var track in tracks)
             {
-                if ((enabledTypes & ResultType.Artist) != 0 && !string.IsNullOrEmpty(track.Artists))
+                if ((enabledTypes & ResultType.Artist) != 0)
                 {
-                    var trackArtists = track.Artists.Split(';');
-                    var sortArtists = !string.IsNullOrEmpty(track.SortArtist) ? track.SortArtist.Split(';') : null;
-
-                    for (int i = 0; i < trackArtists.Length; i++)
+                    if (!string.IsNullOrEmpty(track.Artists))
                     {
-                        var artist = trackArtists[i];
-                        if (string.IsNullOrWhiteSpace(artist)) 
-                            continue;
-                        
-                        string normalizedArtist = SearchService.NormalizeString(artist);
+                        var trackArtists = track.Artists.Split(';');
+                        var sortArtists = !string.IsNullOrEmpty(track.SortArtist) ? track.SortArtist.Split(';') : null;
 
-                        if (!Artists.ContainsKey(normalizedArtist))
+                        for (int i = 0; i < trackArtists.Length; i++)
                         {
-                            if (sortArtists != null && i < sortArtists.Length)
-                                Artists[normalizedArtist] = (artist.Trim(), sortArtists[i].Trim());
-                            else
-                                Artists[normalizedArtist] = (artist.Trim(), null);
+                            var artist = trackArtists[i];
+                            if (string.IsNullOrWhiteSpace(artist)) 
+                                continue;
+                        
+                            string normalizedArtist = SearchService.NormalizeString(artist);
+
+                            if (!Artists.ContainsKey(normalizedArtist))
+                            {
+                                if (sortArtists != null && i < sortArtists.Length)
+                                    Artists[normalizedArtist] = (artist.Trim(), sortArtists[i].Trim());
+                                else
+                                    Artists[normalizedArtist] = (artist.Trim(), null);
+                            }
+                        }
+                    }
+                    if (!string.IsNullOrEmpty(track.AlbumArtist))
+                    {
+                        string normalizedAlbumArtist = SearchService.NormalizeString(track.AlbumArtist);
+                        if (!Artists.ContainsKey(normalizedAlbumArtist))
+                        {
+                            Artists[normalizedAlbumArtist] = (
+                                track.AlbumArtist.Trim(),
+                                !string.IsNullOrEmpty(track.SortAlbumArtist) ? track.SortAlbumArtist.Trim() : null);
                         }
                     }
                 }
