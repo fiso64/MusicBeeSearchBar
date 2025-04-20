@@ -236,38 +236,8 @@ namespace MusicBeePlugin.Services
             {
                 if ((enabledTypes & ResultType.Artist) != 0)
                 {
-                    if (!string.IsNullOrEmpty(track.Artists))
-                    {
-                        var trackArtists = track.Artists.Split(';');
-                        var sortArtists = !string.IsNullOrEmpty(track.SortArtist) ? track.SortArtist.Split(';') : null;
-
-                        for (int i = 0; i < trackArtists.Length; i++)
-                        {
-                            var artist = trackArtists[i];
-                            if (string.IsNullOrWhiteSpace(artist)) 
-                                continue;
-                        
-                            string normalizedArtist = SearchService.NormalizeString(artist);
-
-                            if (!Artists.ContainsKey(normalizedArtist))
-                            {
-                                if (sortArtists != null && i < sortArtists.Length)
-                                    Artists[normalizedArtist] = (artist.Trim(), sortArtists[i].Trim());
-                                else
-                                    Artists[normalizedArtist] = (artist.Trim(), null);
-                            }
-                        }
-                    }
-                    if (!string.IsNullOrEmpty(track.AlbumArtist))
-                    {
-                        string normalizedAlbumArtist = SearchService.NormalizeString(track.AlbumArtist);
-                        if (!Artists.ContainsKey(normalizedAlbumArtist))
-                        {
-                            Artists[normalizedAlbumArtist] = (
-                                track.AlbumArtist.Trim(),
-                                !string.IsNullOrEmpty(track.SortAlbumArtist) ? track.SortAlbumArtist.Trim() : null);
-                        }
-                    }
+                    SplitAndAddArtists(track.Artists, track.SortArtist);
+                    SplitAndAddArtists(track.AlbumArtist, track.SortAlbumArtist);
                 }
 
                 if ((enabledTypes & ResultType.Album) != 0 && !string.IsNullOrEmpty(track.Album))
@@ -289,6 +259,32 @@ namespace MusicBeePlugin.Services
                         NormalizedArtists: SearchService.NormalizeString(track.Artists)
                     );
                     Songs[track] = value;
+                }
+            }
+        }
+
+        void SplitAndAddArtists(string artists, string sortArtists)
+        {
+            if (string.IsNullOrEmpty(artists))
+                return;
+
+            var splitArtists = artists.Split(';');
+            var splitSortArtist = !string.IsNullOrEmpty(sortArtists) ? sortArtists.Split(';') : null;
+
+            for (int i = 0; i < splitArtists.Length; i++)
+            {
+                var artist = splitArtists[i];
+                if (string.IsNullOrWhiteSpace(artist))
+                    continue;
+
+                string normalizedArtist = SearchService.NormalizeString(artist);
+
+                if (!Artists.ContainsKey(normalizedArtist))
+                {
+                    if (splitSortArtist != null && i < splitSortArtist.Length)
+                        Artists[normalizedArtist] = (artist.Trim(), splitSortArtist[i].Trim());
+                    else
+                        Artists[normalizedArtist] = (artist.Trim(), null);
                 }
             }
         }
