@@ -147,7 +147,7 @@ namespace MusicBeePlugin.Config
         public Color TextColor { get; set; } = Color.White;
         public Color BaseColor { get; set; } = Color.FromArgb(30, 30, 30);
         public Color ResultHighlightColor { get; set; } = Color.FromArgb(60, 60, 60);
-        public Size InitialSize { get; set; } = new Size(500, 40);
+        public Size InitialSize { get; set; } = new Size(600, 40);
 
         public static SearchUIConfig GetDefault(MusicBeeApiInterface mbApi)
         {

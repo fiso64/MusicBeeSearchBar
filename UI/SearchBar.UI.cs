@@ -16,21 +16,17 @@ namespace MusicBeePlugin.UI
 
             if (searchUIConfig.OverlayOpacity > 0 && WinApiHelpers.IsWindowFocused(mbHandle))
             {
-                // Create the overlay on the UI thread using Post
                 musicBeeContext.Post(_ =>
                 {
-                    // Ensure musicBeeControl is valid and has a handle before creating overlay
                     if (musicBeeControl != null && musicBeeControl.IsHandleCreated)
                     {
                         overlay = new OverlayForm(musicBeeControl, searchUIConfig.OverlayOpacity, 0.08);
-                        overlay.Show(); // Show the overlay form
+                        overlay.Show();
                     }
                 }, null);
 
-                // Handle closing the overlay when the SearchBar closes
                 FormClosed += (s, e) =>
                 {
-                    // Use musicBeeContext.Post to ensure Close is called on the correct thread for the overlay
                     musicBeeContext.Post(__ => {
                         if (overlay != null && !overlay.IsDisposed)
                         {
@@ -41,7 +37,6 @@ namespace MusicBeePlugin.UI
             }
 
             int lineSize = 3;
-            // Icon creation moved to SearchBar.Drawing.cs, but called here
             songIcon = CreateIcon(Color.DarkGray, ICON_SIZE, ICON_SIZE, Services.ResultType.Song, lineSize);
             albumIcon = CreateIcon(Color.DarkGray, ICON_SIZE, ICON_SIZE, Services.ResultType.Album, lineSize - 1);
             artistIcon = CreateIcon(Color.Gray, ICON_SIZE, ICON_SIZE, Services.ResultType.Artist, lineSize);
@@ -65,7 +60,6 @@ namespace MusicBeePlugin.UI
             }
             else
             {
-                // Ensure musicBeeControl is valid before accessing Bounds
                 if (musicBeeControl != null)
                 {
                     var mbBounds = musicBeeControl.Bounds;
@@ -76,7 +70,6 @@ namespace MusicBeePlugin.UI
                 }
                 else
                 {
-                    // Fallback location if musicBeeControl is somehow null
                      Location = new Point(
                         (Screen.PrimaryScreen.WorkingArea.Width - Size.Width) / 2,
                         (Screen.PrimaryScreen.WorkingArea.Height - Size.Height) / 2

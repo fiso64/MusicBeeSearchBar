@@ -56,7 +56,7 @@ namespace MusicBeePlugin.UI
         private const int ITEM_HEIGHT = 44;
         private const int IMAGE_SIZE = 32;
         private const int ICON_SIZE = 20;
-        private const bool INCREMENTAL_UPDATE = false; // Feature flag for incremental search updates
+        private const bool INCREMENTAL_UPDATE = false;
 
         public SearchBar(
             Control musicBeeControl,
@@ -76,13 +76,13 @@ namespace MusicBeePlugin.UI
             if (searchUIConfig.ShowImages)
             {
                 imageService = new ImageService(musicBeeApi, searchService, IMAGE_SIZE);
-                InitializeImageLoadingTimer(); // Now in SearchBar.Data.cs
+                InitializeImageLoadingTimer();
             }
-            InitializeUI(); // Now in SearchBar.UI.cs
-            InitializeHotkeys(); // Now in SearchBar.UI.cs
+            InitializeUI();
+            InitializeHotkeys();
 
             // Start loading tracks asynchronously
-            LoadTracksAsync(); // Now in SearchBar.Data.cs
+            LoadTracksAsync();
 
             if (!string.IsNullOrEmpty(defaultText))
             {

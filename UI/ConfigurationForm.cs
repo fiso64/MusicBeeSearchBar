@@ -268,7 +268,7 @@ namespace MusicBeePlugin.UI
             widthInput = new NumericUpDown
             {
                 Minimum = 200,
-                Maximum = 1000,
+                Maximum = 100000,
                 Value = _config.SearchUI.InitialSize.Width,
                 Width = 70
             };
@@ -683,9 +683,9 @@ namespace MusicBeePlugin.UI
             }
 
             // Validate size
-            if (widthInput.Value < 1 || widthInput.Value > 10000)
+            if (widthInput.Value < 1 || widthInput.Value > 1000000)
             {
-                ShowError("Width must be between 1 and 10000 pixels.");
+                ShowError("Width must be between 1 and 1000000 pixels.");
                 return false;
             }
 
