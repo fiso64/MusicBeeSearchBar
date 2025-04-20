@@ -307,10 +307,20 @@ namespace MusicBeePlugin.Services
         {
             await Task.Run(() => {
                 //var tracks = Tests.SyntheticDataTests.GenerateSyntheticDatabase(1000000).Result;
-                mbApi.Library_QueryFilesEx("", out string[] files);
-                var tracks = files.Select(filepath => new Track(filepath));
 
                 var sw = Stopwatch.StartNew();
+
+                mbApi.Library_QueryFilesEx("", out string[] files);
+
+                sw.Stop();
+                Debug.WriteLine($"Library_QueryFilesEx completed in {sw.ElapsedMilliseconds}ms");
+                sw.Restart();
+
+                var tracks = files.Select(filepath => new Track(filepath)).ToArray();
+
+                sw.Stop();
+                Debug.WriteLine($"Tracks constructed in {sw.ElapsedMilliseconds}ms");
+                sw.Restart();
 
                 db = new Database(tracks, GetEnabledTypes());
                 IsLoaded = true;
