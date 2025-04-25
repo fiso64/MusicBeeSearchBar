@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Threading.Tasks;
 using static MusicBeePlugin.Plugin;
@@ -173,52 +174,78 @@ namespace MusicBeePlugin.Services
             imageCache.Clear();
         }
 
-
-        private Image CreateSquareThumb(Image original, bool makeCircular = false)
+        public Image CreateSquareThumb(Image original, bool makeCircular = false)
         {
             if (original == null) return null;
-            int size = Math.Min(original.Width, original.Height);
-            if (size <= 0) return null;
 
-            var bitmap = new Bitmap(imageSize, imageSize);
-            using (var graphics = Graphics.FromImage(bitmap))
+            int srcSize = Math.Min(original.Width, original.Height);
+            if (srcSize <= 0) return null;
+
+            int srcX = (original.Width - srcSize) / 2;
+            int srcY = (original.Height - srcSize) / 2;
+            var sourceRect = new Rectangle(srcX, srcY, srcSize, srcSize);
+
+            var destBitmap = new Bitmap(imageSize, imageSize, PixelFormat.Format32bppArgb);
+            destBitmap.SetResolution(original.HorizontalResolution, original.VerticalResolution);
+
+            using (var graphics = Graphics.FromImage(destBitmap))
             {
                 graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
                 graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                graphics.SmoothingMode = SmoothingMode.HighQuality;
+                graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                graphics.CompositingQuality = CompositingQuality.HighQuality;
 
-                if (makeCircular)
-                {
-                    graphics.Clear(Color.Transparent);
-                    using (var path = new GraphicsPath())
-                    {
-                        path.AddEllipse(0, 0, imageSize, imageSize);
-                        graphics.SetClip(path);
-                    }
-                }
-
-                int x = (original.Width - size) / 2;
-                int y = (original.Height - size) / 2;
+                var destRect = new Rectangle(0, 0, imageSize, imageSize);
 
                 try
                 {
-                    graphics.DrawImage(original,
-                        new Rectangle(0, 0, imageSize, imageSize),
-                        new Rectangle(x, y, size, size),
-                        GraphicsUnit.Pixel);
+                    if (!makeCircular)
+                    {
+                        graphics.Clear(Color.Transparent);
+                        graphics.DrawImage(original, destRect, sourceRect, GraphicsUnit.Pixel);
+                    }
+                    else
+                    {
+                        Bitmap scaledSourceBitmap = null;
+                        try
+                        {
+                            scaledSourceBitmap = new Bitmap(imageSize, imageSize, PixelFormat.Format32bppArgb);
+                            scaledSourceBitmap.SetResolution(original.HorizontalResolution, original.VerticalResolution);
+
+                            using (var scaledGraphics = Graphics.FromImage(scaledSourceBitmap))
+                            {
+                                scaledGraphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                                scaledGraphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                                scaledGraphics.SmoothingMode = SmoothingMode.AntiAlias;
+                                scaledGraphics.CompositingQuality = CompositingQuality.HighQuality;
+
+                                var tempDestRect = new Rectangle(0, 0, imageSize, imageSize);
+
+                                scaledGraphics.DrawImage(original, tempDestRect, sourceRect, GraphicsUnit.Pixel);
+
+                            }
+
+                            using (var textureBrush = new TextureBrush(scaledSourceBitmap, WrapMode.Clamp))
+                            {
+                                graphics.Clear(Color.Transparent);
+                                graphics.FillEllipse(textureBrush, destRect);
+                            }
+
+                        }
+                        finally
+                        {
+                            scaledSourceBitmap?.Dispose();
+                        }
+                    }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    bitmap?.Dispose();
+                    destBitmap?.Dispose();
                     return null;
                 }
-
-                if (makeCircular)
-                {
-                    graphics.ResetClip();
-                }
             }
-            return bitmap;
+
+            return destBitmap;
         }
 
         public async Task<Image> GetImageAsync(SearchResult result)
