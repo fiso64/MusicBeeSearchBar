@@ -28,14 +28,7 @@ namespace MusicBeePlugin.Services
             Debug.WriteLine($"RunAction called with result={result.DisplayTitle} of type={result.Type}");
 
             if (result.Type == ResultType.Command)
-            {
-                if (result is CommandResult commandResult)
-                {
-                    MusicBeeHelpers.InvokeCommand(commandResult.Command);
-                    return true; 
-                }
-                return false;
-            }
+                return RunCommand(result);
 
             ActionConfig actionCfg;
 
@@ -89,6 +82,23 @@ namespace MusicBeePlugin.Services
                 MusicBeeHelpers.FocusMainPanel();
 
             return true;
+        }
+
+        private bool RunCommand(SearchResult result)
+        {
+            if (result is CommandResult commandResult)
+            {
+                if (commandResult.Command.HasValue)
+                {
+                    MusicBeeHelpers.InvokeCommand(commandResult.Command.Value);
+                }
+                else if (!string.IsNullOrEmpty(commandResult.PluginCommandName))
+                {
+                    MusicBeeHelpers.InvokePluginCommandByName(commandResult.PluginCommandName);
+                }
+                return true;
+            }
+            return false;
         }
 
         private void RestoreOrFocus()

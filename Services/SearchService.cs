@@ -135,13 +135,27 @@ namespace MusicBeePlugin.Services
 
     public class CommandResult : SearchResult
     {
-        public ApplicationCommand Command { get; }
+        public ApplicationCommand? Command { get; } // Nullable for plugin commands
+        public string PluginCommandName { get; } // For plugin commands
 
+        // Constructor for built-in ApplicationCommands
         public CommandResult(ApplicationCommand command)
         {
             Command = command;
+            PluginCommandName = null;
             DisplayTitle = command.GetDisplayName() ?? FormatCommandName(command.ToString());
             DisplayDetail = "Command";
+            Type = ResultType.Command;
+        }
+
+        // Constructor for plugin commands
+        public CommandResult(string pluginCommandName)
+        {
+            Command = null;
+            PluginCommandName = pluginCommandName;
+            // For plugin commands, the name is usually already user-friendly.
+            DisplayTitle = pluginCommandName; 
+            DisplayDetail = "Plugin Command";
             Type = ResultType.Command;
         }
 
@@ -345,10 +359,13 @@ namespace MusicBeePlugin.Services
 
     public class SearchService
     {
-        private static readonly Lazy<List<CommandResult>> _allCommandResultsCache = 
+        // Cache for built-in ApplicationCommands only
+        private static readonly Lazy<List<CommandResult>> _builtInCommandResultsCache =
             new Lazy<List<CommandResult>>(() =>
             {
-                var commandValues = Enum.GetValues(typeof(Utils.ApplicationCommand)).Cast<Utils.ApplicationCommand>();
+                var commandValues = Enum.GetValues(typeof(Utils.ApplicationCommand))
+                                       .Cast<Utils.ApplicationCommand>()
+                                       .Where(cmd => cmd != Utils.ApplicationCommand.None); // Optionally exclude "None"
                 var results = new List<CommandResult>();
                 foreach (var cmd in commandValues)
                 {
@@ -735,27 +752,61 @@ namespace MusicBeePlugin.Services
 
         public List<SearchResult> SearchCommands(string commandQuery, CancellationToken cancellationToken)
         {
-            var cachedCommands = _allCommandResultsCache.Value;
+            if (cancellationToken.IsCancellationRequested) return new List<SearchResult>();
+
+            // Start with cached built-in commands
+            var combinedResults = new List<CommandResult>(_builtInCommandResultsCache.Value);
+
+            // Fetch and add plugin commands (not cached, fetched each time)
+            try
+            {
+                var pluginCommands = MusicBeeHelpers.GetPluginCommands();
+                if (pluginCommands != null)
+                {
+                    foreach (var kvp in pluginCommands)
+                    {
+                        if (cancellationToken.IsCancellationRequested) break;
+                        combinedResults.Add(new CommandResult(kvp.Key));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error fetching plugin commands: {ex.Message}");
+            }
+
 
             if (cancellationToken.IsCancellationRequested) return new List<SearchResult>();
 
-            IEnumerable<CommandResult> filteredResults;
+            IEnumerable<SearchResult> finalFilteredResults;
+
             if (string.IsNullOrWhiteSpace(commandQuery))
             {
-                // If query is empty, show all commands from cache
-                filteredResults = cachedCommands;
+                finalFilteredResults = combinedResults.Cast<SearchResult>();
             }
             else
             {
-                // Filter commands based on their DisplayTitle (case-insensitive) or raw enum name
                 string normalizedCommandQuery = commandQuery.ToLowerInvariant().Trim();
-                filteredResults = cachedCommands.Where(cr => 
-                    (cr.DisplayTitle != null && cr.DisplayTitle.ToLowerInvariant().Contains(normalizedCommandQuery)) || 
-                    cr.Command.ToString().ToLowerInvariant().Contains(normalizedCommandQuery)
-                );
+                finalFilteredResults = combinedResults.Where(cr =>
+                {
+                    if (cancellationToken.IsCancellationRequested) return false;
+                    bool titleMatches = cr.DisplayTitle != null && cr.DisplayTitle.ToLowerInvariant().Contains(normalizedCommandQuery);
+                    if (titleMatches) return true;
+
+                    // For built-in commands, also check the enum name if DisplayTitle didn't match
+                    if (cr.Command.HasValue)
+                    {
+                        return cr.Command.Value.ToString().ToLowerInvariant().Contains(normalizedCommandQuery);
+                    }
+                    // For plugin commands, DisplayTitle is the primary search target (which is pluginCommandName).
+                    // If specific raw name searching for plugins is needed, it can be added.
+                    return false;
+                }).Cast<SearchResult>();
             }
 
-            return filteredResults.Cast<SearchResult>().ToList();
+            return finalFilteredResults.OrderBy(r => r.DisplayDetail == "Plugin Command" ? 1 : 0) // Group by type
+                                     .ThenBy(r => r.DisplayTitle) // Then sort by name
+                                     .ToList();
         }
     }
 }

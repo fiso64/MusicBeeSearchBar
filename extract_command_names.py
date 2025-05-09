@@ -1,6 +1,8 @@
+# This script is used to generate the user-friendly command name mappings in ApplicationCommand.cs
+
 import re
 import argparse
-import sys # For printing errors to stderr
+import sys
 
 def extract_command_mappings(file_path):
     """
