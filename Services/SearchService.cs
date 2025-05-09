@@ -791,20 +791,32 @@ namespace MusicBeePlugin.Services
             }
             else
             {
-                string normalizedCommandQuery = commandQuery.ToLowerInvariant().Trim();
-                finalFilteredResults = combinedResults.Where(cr =>
-                {
-                    if (cancellationToken.IsCancellationRequested) return false;
-                    bool titleMatches = cr.DisplayTitle != null && cr.DisplayTitle.ToLowerInvariant().Contains(normalizedCommandQuery);
-                    if (titleMatches) return true;
+                string normalizedQuery = NormalizeString(commandQuery);
+                string[] queryWords = normalizedQuery.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
-                    // For built-in commands, also check the enum name if DisplayTitle didn't match
-                    if (cr.Command.HasValue)
+                if (queryWords.Length == 0)
+                {
+                    finalFilteredResults = combinedResults.Cast<SearchResult>();
+                }
+                else
+                {
+                    finalFilteredResults = combinedResults.Where(cr =>
                     {
-                        return cr.Command.Value.ToString().ToLowerInvariant().Contains(normalizedCommandQuery);
-                    }
-                    return false;
-                }).Cast<SearchResult>();
+                        if (cancellationToken.IsCancellationRequested) return false;
+
+                        bool titleMatches = cr.DisplayTitle != null &&
+                                            QueryMatchesWords(cr.DisplayTitle, queryWords, true);
+
+                        if (titleMatches) return true;
+
+                        // For built-in commands, also check the enum name if DisplayTitle didn't match
+                        if (cr.Command.HasValue)
+                        {
+                            return QueryMatchesWords(cr.Command.Value.ToString(), queryWords, true);
+                        }
+                        return false;
+                    }).Cast<SearchResult>();
+                }
             }
 
             return finalFilteredResults.OrderBy(r => r.DisplayDetail == "Plugin Command" ? 1 : 0)
