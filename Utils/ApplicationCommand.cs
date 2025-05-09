@@ -1,4 +1,7 @@
-﻿namespace MusicBeePlugin.Utils
+﻿using System.Collections.Generic;
+using static MusicBeePlugin.Utils.ApplicationCommand;
+
+namespace MusicBeePlugin.Utils
 {
     public enum ApplicationCommand
     {
@@ -274,5 +277,87 @@
         GeneralGotoTab8,
         GeneralGotoTab9,
         ViewShowFilter = 32768
+    }
+
+    public static class ApplicationCommandHelper
+    {
+        // This is incomplete
+        public static readonly Dictionary<ApplicationCommand, string> CommandDisplayNames = new Dictionary<ApplicationCommand, string>()
+        {
+            { FileNewMusicFolder, "New Folder" },
+            { ViewShowFullSizeArtwork, "Show Artwork" },
+            { EditPasteAlbumPicture, "Paste Artwork" },
+            { GeneralReload, "Refresh" },
+            { ToolsAutoTagAlbum, "Auto-Tag by Album" },
+            { EditHighlightingRules, "Set Highlighting Rules" },
+            { PlaybackPlayAllInPanelShuffled, "Play Shuffled" },
+            { LibraryCreatePodcastSubscription, "New Subscription" },
+            { WebSearchPodcasts, "Podcast Directory" },
+            { PlaybackPlayAllShuffled, "Play Library Shuffled" },
+            { LibraryCreateRadioLink, "New Station" },
+            { DeviceSynchronise, "Synchronise Device" },
+            { ToolsRipCd, "Rip CD" },
+            { None, "New Folder" },
+            { PlaylistShuffle, "Shuffle List" },
+            { PlaylistRestoreOrder, "Restore Manual Order" },
+            { PlaylistUpdateOrder, "Update Play Order" },
+            { FileScanNewMedia, "Scan Folders for New Files..." },
+            { FileCreateLibrary, "Create New Library..." },
+            { FileNewPlaylistFolder, "New Playlist Folder" },
+            { FileNewPlaylist, "New Playlist" },
+            { FileNewAutoPlaylist, "New Auto-Playlist" },
+            { FileNewRadioPlaylist, "New Playlist Mixer" },
+            { FileOpenUrl, "Open Stream..." },
+            { GeneralExitApplication, "Exit" },
+            { EditSelectAll, "Select All" },
+            { EditCut, "Cut" },
+            { EditCopy, "Copy Tags" },
+            { EditPaste, "Paste" },
+            { EditPreferences, "Edit Preferences" },
+            { ViewToggleMiniPlayer, "Mini Player" },
+            { ViewToggleMicroPlayer, "Compact Player" },
+            { ViewToggleVisualiser, "Start Visualiser" },
+            { ViewJumpList, "Now Playing Assistant" },
+            { PlaybackPreviousTrack, "Previous Track" },
+            { PlaybackPlayPause, "Play/Pause" },
+            { PlaybackStop, "Stop" },
+            { PlaybackNextTrack, "Next Track" },
+            { PlaybackStopAfterCurrent, "Stop after Current" },
+            { GeneralToggleEqualiser, "Equaliser" },
+            { GeneralToggleDsp, "DSP Effects" },
+            { GeneralToggleRepeatMode, "Repeat" },
+            { PlaybackReplayGainSmart, "Smart Gain" },
+            { PlaybackReplayGainTrack, "Track Gain Only" },
+            { PlaybackReplayGainAlbum, "Album Gain Only" },
+            { ToolsAutoNumber, "Renumber Tracks" },
+            { ToolsAutoTagAll, "Identify Track and Update Tags" },
+            { ToolsAutoTagMissingPictures, "Update Missing Artwork" },
+            { ToolsAutoTagMissingLyrics, "Update Missing Lyrics" },
+            { ToolsAutoTagInfer, "Infer and Update Tags from Filename" },
+            { EditRemoveTags, "Remove Tags" },
+            { ToolsTagCapitalise, "Capitalise" },
+            { ToolsTagSearchAndReplace, "Search and Replace" },
+            { ToolsTagResetPlayCount, "Reset Play Count" },
+            { ToolsTagResetSkipCount, "Reset Skip Count" },
+            { ToolsSyncPlayCountLastFm, "Sync Play Count from Last.fm" },
+            { ToolsSyncLastFmLovedTracks, "Sync Last.fm Loved Tracks" },
+            { ToolsFindArtwork, "Downloader..." },
+            { ToolsAutoOrganise, "Organise Files" },
+            { ToolsLocateMissingFiles, "Locate Missing Files" },
+            { ToolsConvertFormat, "Convert Format" },
+            { ToolsManageDuplicates, "Manage Duplicates" },
+            { ToolsBurnCd, "Burn Disc" },
+            { ToolsAnalyseVolume, "Analyse Volume" },
+            { ToolsUndoLevelVolume, "Restore Original Volume" },
+        };
+
+        public static string GetDisplayName(this ApplicationCommand command)
+        {
+            if (CommandDisplayNames.TryGetValue(command, out var name))
+            {
+                return name;
+            }
+            return null;
+        }
     }
 }

@@ -128,21 +128,21 @@ namespace MusicBeePlugin.UI
 
         private async void SearchBox_TextChanged(object sender, EventArgs e)
         {
-            string query = searchBox.Text.Trim();
+            string query = searchBox.Text; // Trim later, depending on command/search path
 
-            if (string.IsNullOrWhiteSpace(query))
+            if (string.IsNullOrWhiteSpace(query.Trim()))
             {
                 SearchBoxSetDefaultResults();
                 return;
             }
 
-            if (isLoading)
+            if (isLoading && !query.TrimStart().StartsWith(">")) // Allow command search even when tracks are loading
             {
                 UpdateResultsList(null);
                 return;
             }
 
-            // Cancel any ongoing search
+            // Cancel any ongoing search/command listing
             _currentSearchCts?.Cancel();
             _currentSearchCts = new CancellationTokenSource();
 
@@ -153,6 +153,21 @@ namespace MusicBeePlugin.UI
             {
                 loadingIndicator.Visible = true;
 
+                if (query.TrimStart().StartsWith(">"))
+                {
+                    string commandQuery = query.TrimStart().Substring(1);
+                    // Call the synchronous method from SearchService
+                    var commandResults = searchService.SearchCommands(commandQuery, _currentSearchCts.Token);
+                    if (!_currentSearchCts.Token.IsCancellationRequested && searchSequence == _currentSearchSequence)
+                    {
+                        BeginInvoke((Action)(() => UpdateResultsList(commandResults)));
+                        loadingIndicator.Visible = false;
+                    }
+                    return; // Command search handled, exit here
+                }
+
+                // Existing search logic starts here
+                query = query.Trim(); // Trim for regular search
                 var filter = ResultType.All;
                 Dictionary<ResultType, int> resultLimits = null;
 
@@ -234,13 +249,15 @@ namespace MusicBeePlugin.UI
                 // Search was cancelled, ignore
             }
 
-            // Reset image loading timer
-            if (searchUIConfig.ShowImages)
+            // Reset image loading timer (only if not a command search)
+            if (searchUIConfig.ShowImages && (query.TrimStart().Length == 0 || !query.TrimStart().StartsWith(">")))
             {
                 imageLoadDebounceTimer.Stop();
                 imageLoadDebounceTimer.Start();
             }
         }
+
+        // Removed SearchCommandsAsync method from here, as it's now in SearchService
 
         private void UpdateResultsList(List<SearchResult> searchResults)
         {

@@ -17,7 +17,8 @@ namespace MusicBeePlugin.Services
         Album = 2,
         Artist = 4,
         Playlist = 8,
-        All = 15,
+        Command = 16,
+        All = 31,
     }
 
     public class SearchResult
@@ -129,6 +130,41 @@ namespace MusicBeePlugin.Services
             Type = ResultType.Playlist;
             DisplayTitle = PlaylistName;
             DisplayDetail = "Playlist";
+        }
+    }
+
+    public class CommandResult : SearchResult
+    {
+        public ApplicationCommand Command { get; }
+
+        public CommandResult(ApplicationCommand command)
+        {
+            Command = command;
+            DisplayTitle = command.GetDisplayName() ?? FormatCommandName(command.ToString());
+            DisplayDetail = "Command";
+            Type = ResultType.Command;
+        }
+
+        private string FormatCommandName(string enumName)
+        {
+            if (string.IsNullOrEmpty(enumName)) return string.Empty;
+
+            var sb = new StringBuilder();
+            sb.Append(enumName[0]);
+
+            for (int i = 1; i < enumName.Length; i++)
+            {
+                if (char.IsUpper(enumName[i]) && !char.IsUpper(enumName[i-1]))
+                {
+                    sb.Append(' ');
+                }
+                else if (char.IsUpper(enumName[i]) && i + 1 < enumName.Length && char.IsLower(enumName[i+1]) && char.IsUpper(enumName[i-1]))
+                {
+                    sb.Append(' ');
+                }
+                sb.Append(enumName[i]);
+            }
+            return sb.Replace("Goto", "Go To").ToString();
         }
     }
 
@@ -309,6 +345,18 @@ namespace MusicBeePlugin.Services
 
     public class SearchService
     {
+        private static readonly Lazy<List<CommandResult>> _allCommandResultsCache = 
+            new Lazy<List<CommandResult>>(() =>
+            {
+                var commandValues = Enum.GetValues(typeof(Utils.ApplicationCommand)).Cast<Utils.ApplicationCommand>();
+                var results = new List<CommandResult>();
+                foreach (var cmd in commandValues)
+                {
+                    results.Add(new CommandResult(cmd));
+                }
+                return results.OrderBy(r => r.DisplayTitle).ToList();
+            });
+
         private Database db;
         private MusicBeeApiInterface mbApi;
         private Config.SearchUIConfig config;
@@ -496,6 +544,7 @@ namespace MusicBeePlugin.Services
             
             switch (type)
             {
+                case ResultType.Command: return 4; // Commands listed first or high priority
                 case ResultType.Artist: return 3;
                 case ResultType.Album: return 2;
                 case ResultType.Song: return 1;
@@ -506,11 +555,14 @@ namespace MusicBeePlugin.Services
 
         private double CalculateOverallScore(SearchResult result, string query)
         {
+            // This method is primarily for ordering DB search results.
+            // Command results are typically filtered directly and may not use this complex scoring.
             switch (result.Type)
             {
                 case ResultType.Artist: return CalculateGeneralItemScore(result.DisplayTitle, query, query.Split(' '));
                 case ResultType.Album: return CalculateArtistAndTitleScore(((AlbumResult)result).AlbumArtist, ((AlbumResult)result).Album, query, query.Split(' '));
                 case ResultType.Song: return CalculateArtistAndTitleScore(((SongResult)result).Artist, ((SongResult)result).TrackTitle, query, query.Split(' '));
+                case ResultType.Command: return CalculateGeneralItemScore(result.DisplayTitle, query, query.Split(' '), normalizeStrings: false); // For commands, direct match on DisplayTitle
                 default: return CalculateGeneralItemScore(result.DisplayTitle, query, query.Split(' '));
             }
         }
@@ -679,6 +731,31 @@ namespace MusicBeePlugin.Services
                 types |= ResultType.Playlist;
         
             return types;
+        }
+
+        public List<SearchResult> SearchCommands(string commandQuery, CancellationToken cancellationToken)
+        {
+            var cachedCommands = _allCommandResultsCache.Value;
+
+            if (cancellationToken.IsCancellationRequested) return new List<SearchResult>();
+
+            IEnumerable<CommandResult> filteredResults;
+            if (string.IsNullOrWhiteSpace(commandQuery))
+            {
+                // If query is empty, show all commands from cache
+                filteredResults = cachedCommands;
+            }
+            else
+            {
+                // Filter commands based on their DisplayTitle (case-insensitive) or raw enum name
+                string normalizedCommandQuery = commandQuery.ToLowerInvariant();
+                filteredResults = cachedCommands.Where(cr => 
+                    (cr.DisplayTitle != null && cr.DisplayTitle.ToLowerInvariant().Contains(normalizedCommandQuery)) || 
+                    cr.Command.ToString().ToLowerInvariant().Contains(normalizedCommandQuery)
+                );
+            }
+
+            return filteredResults.Cast<SearchResult>().ToList();
         }
     }
 }

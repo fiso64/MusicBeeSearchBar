@@ -212,6 +212,43 @@ namespace MusicBeePlugin.UI
                                 4 + i * lineSpacing);
                         }
                         break;
+                    case ResultType.Command:
+                        // Simple Cog icon for commands
+                        int numTeeth = 8;
+                        float outerRadius = Math.Min(width, height) / 2f - 2;
+                        float innerRadius = outerRadius / 2f;
+                        float toothWidth = (float)(Math.PI * 2 * outerRadius / (numTeeth * 2)); // Approximate width
+
+                        g.TranslateTransform(width / 2f, height / 2f); // Center drawing
+
+                        for (int i = 0; i < numTeeth; i++)
+                        {
+                            float angle = (float)(i * Math.PI * 2 / numTeeth);
+                            float nextAngle = (float)((i + 1) * Math.PI * 2 / numTeeth);
+
+                            // Outer part of tooth
+                            PointF p1 = new PointF((float)(outerRadius * Math.Cos(angle)), (float)(outerRadius * Math.Sin(angle)));
+                            PointF p2 = new PointF((float)(outerRadius * Math.Cos(angle + toothWidth / outerRadius)), (float)(outerRadius * Math.Sin(angle + toothWidth / outerRadius)));
+                            g.DrawLine(pen, p1, p2);
+
+                            // Side of tooth (down)
+                            PointF p3 = new PointF((float)(innerRadius * Math.Cos(angle + toothWidth / outerRadius)), (float)(innerRadius * Math.Sin(angle + toothWidth / outerRadius)));
+                            g.DrawLine(pen, p2, p3);
+
+                            // Inner part
+                            PointF p4 = new PointF((float)(innerRadius * Math.Cos(nextAngle - toothWidth / outerRadius)), (float)(innerRadius * Math.Sin(nextAngle - toothWidth / outerRadius)));
+                            g.DrawLine(pen, p3, p4);
+
+                            // Side of tooth (up)
+                            PointF p5 = new PointF((float)(outerRadius * Math.Cos(nextAngle - toothWidth / outerRadius)), (float)(outerRadius * Math.Sin(nextAngle - toothWidth / outerRadius)));
+                            g.DrawLine(pen, p4, p5);
+                        }
+                        // Inner circle
+                        float centerCircleRadius = innerRadius / 1.5f;
+                        g.DrawEllipse(pen, -centerCircleRadius, -centerCircleRadius, centerCircleRadius * 2, centerCircleRadius * 2);
+
+                        g.ResetTransform(); // Reset to original origin
+                        break;
                 }
             }
             return icon;
@@ -227,6 +264,8 @@ namespace MusicBeePlugin.UI
                 return artistIcon;
             else if (resultType == ResultType.Playlist)
                 return playlistIcon;
+            else if (resultType == ResultType.Command)
+                return commandIcon;
             return null;
         }
     }

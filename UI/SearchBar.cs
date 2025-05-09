@@ -47,6 +47,7 @@ namespace MusicBeePlugin.UI
         private Image albumIcon;
         private Image artistIcon;
         private Image playlistIcon;
+        private Image commandIcon; // New icon for commands
 
         // Fonts
         private readonly Font searchBoxFont = new Font("Arial", 14, FontStyle.Bold);
@@ -104,6 +105,7 @@ namespace MusicBeePlugin.UI
                 albumIcon?.Dispose();
                 artistIcon?.Dispose();
                 playlistIcon?.Dispose();
+                commandIcon?.Dispose(); // Dispose the new command icon
                 loadingIndicator?.Image?.Dispose();
                 loadingIndicator?.Dispose();
                 searchBoxFont?.Dispose();

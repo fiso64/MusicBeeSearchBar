@@ -25,6 +25,18 @@ namespace MusicBeePlugin.Services
 
         public bool RunAction(string searchBoxText, SearchResult result, KeyEventArgs keyEvent)
         {
+            Debug.WriteLine($"RunAction called with result={result.DisplayTitle} of type={result.Type}");
+
+            if (result.Type == ResultType.Command)
+            {
+                if (result is CommandResult commandResult)
+                {
+                    MusicBeeHelpers.InvokeCommand(commandResult.Command);
+                    return true; 
+                }
+                return false;
+            }
+
             ActionConfig actionCfg;
 
             if (result.Type == ResultType.Artist)
@@ -35,7 +47,7 @@ namespace MusicBeePlugin.Services
                 actionCfg = actionsConfig.SongAction;
             else if (result.Type == ResultType.Playlist)
                 actionCfg = actionsConfig.PlaylistAction;
-            else return true;
+            else return true; // Or false, depending on desired behavior for unhandled types
 
             BaseActionData action;
             if (keyEvent.Control && keyEvent.Shift)
