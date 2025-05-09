@@ -766,6 +766,11 @@ namespace MusicBeePlugin.Services
                     foreach (var kvp in pluginCommands)
                     {
                         if (cancellationToken.IsCancellationRequested) break;
+                        
+                        // Exclude own commands
+                        if (kvp.Key.StartsWith("Modern Search Bar:", StringComparison.OrdinalIgnoreCase))
+                            continue;
+                        
                         combinedResults.Add(new CommandResult(kvp.Key));
                     }
                 }
@@ -798,15 +803,13 @@ namespace MusicBeePlugin.Services
                     {
                         return cr.Command.Value.ToString().ToLowerInvariant().Contains(normalizedCommandQuery);
                     }
-                    // For plugin commands, DisplayTitle is the primary search target (which is pluginCommandName).
-                    // If specific raw name searching for plugins is needed, it can be added.
                     return false;
                 }).Cast<SearchResult>();
             }
 
-            return finalFilteredResults.OrderBy(r => r.DisplayDetail == "Plugin Command" ? 1 : 0) // Group by type
-                                     .ThenBy(r => r.DisplayTitle) // Then sort by name
-                                     .ToList();
+            return finalFilteredResults.OrderBy(r => r.DisplayDetail == "Plugin Command" ? 1 : 0)
+                .ThenBy(r => r.DisplayTitle)
+                .ToList();
         }
     }
 }
