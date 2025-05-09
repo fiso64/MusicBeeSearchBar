@@ -98,13 +98,21 @@ namespace MusicBeePlugin.UI
                     g.DrawString(truncatedDetail, resultDetailFont, new SolidBrush(detailColor), textStartX, bounds.Y + OFFSET_Y + resultFont.GetHeight() + 2);
                 }
 
-                // Add type indicator icon on the right for albums and tracks when images are enabled
-                if (searchUIConfig.ShowImages)
+                // Add type indicator icon on the right, but not for Commands or if images are disabled.
+                // Primarily for distinguishing Album/Song when a generic image might be shown.
+                if (searchUIConfig.ShowImages && resultItem.Type != ResultType.Command && 
+                    (resultItem.Type == ResultType.Album || resultItem.Type == ResultType.Song || resultItem.Type == ResultType.Artist || resultItem.Type == ResultType.Playlist))
                 {
-                    var typeIcon = GetIcon(resultItem.Type);
-                    int rightPadding = 10;
-                    int iconY = (int)(bounds.Y + (bounds.Height - iconSize / 1.5) / 2);
-                    g.DrawImage(typeIcon, (int)(bounds.Right - iconSize / 1.5 - rightPadding), iconY, (int)(iconSize / 1.5), (int)(iconSize / 1.5));
+                    var typeIcon = GetIcon(resultItem.Type); // Get the specific icon for Album or Song
+                    if (typeIcon != null) // Ensure there's an icon to draw
+                    {
+                        int rightPadding = 10;
+                        // Scale the icon slightly smaller for this right-side indicator
+                        float indicatorIconScale = 0.66f; // 2/3 of the main iconSize
+                        int indicatorIconSize = (int)(iconSize * indicatorIconScale);
+                        int iconY = bounds.Y + (bounds.Height - indicatorIconSize) / 2;
+                        g.DrawImage(typeIcon, bounds.Right - indicatorIconSize - rightPadding, iconY, indicatorIconSize, indicatorIconSize);
+                    }
                 }
             }
         }
@@ -213,41 +221,23 @@ namespace MusicBeePlugin.UI
                         }
                         break;
                     case ResultType.Command:
-                        // Simple Cog icon for commands
-                        int numTeeth = 8;
-                        float outerRadius = Math.Min(width, height) / 2f - 2;
-                        float innerRadius = outerRadius / 2f;
-                        float toothWidth = (float)(Math.PI * 2 * outerRadius / (numTeeth * 2)); // Approximate width
-
-                        g.TranslateTransform(width / 2f, height / 2f); // Center drawing
-
-                        for (int i = 0; i < numTeeth; i++)
+                        // Stylized ">" for command palette
+                        using (GraphicsPath path = new GraphicsPath())
                         {
-                            float angle = (float)(i * Math.PI * 2 / numTeeth);
-                            float nextAngle = (float)((i + 1) * Math.PI * 2 / numTeeth);
+                            float hPadding = width * 0.25f; // Horizontal padding
+                            float vPadding = height * 0.25f; // Vertical padding
 
-                            // Outer part of tooth
-                            PointF p1 = new PointF((float)(outerRadius * Math.Cos(angle)), (float)(outerRadius * Math.Sin(angle)));
-                            PointF p2 = new PointF((float)(outerRadius * Math.Cos(angle + toothWidth / outerRadius)), (float)(outerRadius * Math.Sin(angle + toothWidth / outerRadius)));
-                            g.DrawLine(pen, p1, p2);
-
-                            // Side of tooth (down)
-                            PointF p3 = new PointF((float)(innerRadius * Math.Cos(angle + toothWidth / outerRadius)), (float)(innerRadius * Math.Sin(angle + toothWidth / outerRadius)));
-                            g.DrawLine(pen, p2, p3);
-
-                            // Inner part
-                            PointF p4 = new PointF((float)(innerRadius * Math.Cos(nextAngle - toothWidth / outerRadius)), (float)(innerRadius * Math.Sin(nextAngle - toothWidth / outerRadius)));
-                            g.DrawLine(pen, p3, p4);
-
-                            // Side of tooth (up)
-                            PointF p5 = new PointF((float)(outerRadius * Math.Cos(nextAngle - toothWidth / outerRadius)), (float)(outerRadius * Math.Sin(nextAngle - toothWidth / outerRadius)));
-                            g.DrawLine(pen, p4, p5);
+                            PointF p1 = new PointF(hPadding, vPadding); // Top-left of ">"
+                            PointF p2 = new PointF(width * 0.60f, height / 2f); // Tip of ">"
+                            PointF p3 = new PointF(hPadding, height - vPadding); // Bottom-left of ">"
+                            
+                            path.AddLine(p1, p2);
+                            path.AddLine(p2, p3);
+                            
+                            // Optional: Add a slight "underscore" or bounding box element
+                            // For now, just the ">"
+                            g.DrawPath(pen, path);
                         }
-                        // Inner circle
-                        float centerCircleRadius = innerRadius / 1.5f;
-                        g.DrawEllipse(pen, -centerCircleRadius, -centerCircleRadius, centerCircleRadius * 2, centerCircleRadius * 2);
-
-                        g.ResetTransform(); // Reset to original origin
                         break;
                 }
             }

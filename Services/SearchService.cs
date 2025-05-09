@@ -748,7 +748,7 @@ namespace MusicBeePlugin.Services
             else
             {
                 // Filter commands based on their DisplayTitle (case-insensitive) or raw enum name
-                string normalizedCommandQuery = commandQuery.ToLowerInvariant();
+                string normalizedCommandQuery = commandQuery.ToLowerInvariant().Trim();
                 filteredResults = cachedCommands.Where(cr => 
                     (cr.DisplayTitle != null && cr.DisplayTitle.ToLowerInvariant().Contains(normalizedCommandQuery)) || 
                     cr.Command.ToString().ToLowerInvariant().Contains(normalizedCommandQuery)

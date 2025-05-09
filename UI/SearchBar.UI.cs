@@ -41,7 +41,7 @@ namespace MusicBeePlugin.UI
             albumIcon = CreateIcon(Color.DarkGray, iconSize, iconSize, Services.ResultType.Album, lineSize - 1);
             artistIcon = CreateIcon(Color.Gray, iconSize, iconSize, Services.ResultType.Artist, lineSize);
             playlistIcon = CreateIcon(Color.DarkGray, iconSize, iconSize, Services.ResultType.Playlist, lineSize);
-            commandIcon = CreateIcon(Color.DarkSlateGray, iconSize, iconSize, Services.ResultType.Command, lineSize -1); // Initialize command icon
+            commandIcon = CreateIcon(Color.DarkGray, iconSize, iconSize, Services.ResultType.Command, lineSize -1);
 
             Size = searchUIConfig.InitialSize;
             BackColor = searchUIConfig.BaseColor;

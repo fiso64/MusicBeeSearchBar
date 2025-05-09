@@ -17,9 +17,11 @@ namespace MusicBeePlugin.Utils
     public static partial class MusicBeeHelpers
     {
         private static MethodInfo invokeApplicationCommandMethod;
-        private static bool LoadedMethods = false;
+        private static FieldInfo pluginCommandsField;
+        private static bool loadedInvokeCommandMethod = false;
+        private static bool loadedPluginCommandsField = false;
 
-        public static void LoadMethods()
+        public static void LoadInvokeCommandMethod()
         {
             var flags = BindingFlags.Public | BindingFlags.Static;
 
@@ -41,15 +43,40 @@ namespace MusicBeePlugin.Utils
                     break;
             }
 
-            LoadedMethods = true;
+            loadedInvokeCommandMethod = true;
+        }
+
+        private static void LoadPluginCommandsField()
+        {
+            var flags = BindingFlags.Public | BindingFlags.Static;
+
+            var mbAsm = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.FullName.Contains("MusicBee"));
+
+            foreach (var refType in mbAsm.GetTypes())
+            {
+                pluginCommandsField = refType.GetFields(flags).FirstOrDefault(f =>
+                    f.IsStatic && f.FieldType.IsGenericType
+                    && f.FieldType.GetGenericTypeDefinition() == typeof(List<>)
+                    && f.FieldType.GenericTypeArguments.Length == 1
+                    && f.FieldType.GenericTypeArguments[0].IsGenericType
+                    && f.FieldType.GenericTypeArguments[0].GetGenericTypeDefinition() == typeof(KeyValuePair<,>)
+                    && f.FieldType.GenericTypeArguments[0].GenericTypeArguments[0] == typeof(string)
+                    && f.FieldType.GenericTypeArguments[0].GenericTypeArguments[1] == typeof(EventHandler)
+                );
+
+                if (pluginCommandsField != null)
+                    break;
+            }
+
+            loadedPluginCommandsField = true;
         }
 
         public static void InvokeCommand(ApplicationCommand command, object parameters = null)
         {
             if (command == ApplicationCommand.None)
                 return;
-            if (!LoadedMethods)
-                LoadMethods();
+            if (!loadedInvokeCommandMethod)
+                LoadInvokeCommandMethod();
             if (invokeApplicationCommandMethod == null)
                 throw new ArgumentNullException("ApplicationCommand method not found.");
 
@@ -58,14 +85,25 @@ namespace MusicBeePlugin.Utils
 
         public static void InvokePluginCommandByName(string command)
         {
-            if (!LoadedMethods)
-                LoadMethods();
+            if (!loadedInvokeCommandMethod)
+                LoadInvokeCommandMethod();
             if (invokeApplicationCommandMethod == null)
                 throw new ArgumentNullException("ApplicationCommand method not found.");
 
             int hash = StringComparer.OrdinalIgnoreCase.GetHashCode(command);
             hash = hash < 0 ? hash : -hash;
             invokeApplicationCommandMethod.Invoke(null, new object[] { (ApplicationCommand)hash, null, null });
+        }
+
+        // The commands can be invoked by calling handler(musicBeeApiInterface, EventArgs.Empty)
+        public static List<KeyValuePair<string, EventHandler>> GetPluginCommands()
+        {
+            if (!loadedPluginCommandsField)
+                LoadPluginCommandsField();
+            if (pluginCommandsField == null)
+                throw new ArgumentNullException("Plugin Commands field not found.");
+
+            return (List<KeyValuePair<string, EventHandler>>)pluginCommandsField.GetValue(null);
         }
 
         public static IntPtr FocusSearchBox()
