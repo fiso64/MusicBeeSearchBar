@@ -135,50 +135,35 @@ namespace MusicBeePlugin.Services
 
     public class CommandResult : SearchResult
     {
-        public ApplicationCommand? Command { get; } // Nullable for plugin commands
-        public string PluginCommandName { get; } // For plugin commands
+        public ApplicationCommand? Command; // Nullable for plugin commands
+        public string PluginCommandName; // For plugin commands
 
-        // Constructor for built-in ApplicationCommands
-        public CommandResult(ApplicationCommand command)
+        private CommandResult() { }
+
+        public static CommandResult CreateBuiltinResult(ApplicationCommand command, string displayName)
         {
-            Command = command;
-            PluginCommandName = null;
-            DisplayTitle = command.GetDisplayName() ?? FormatCommandName(command.ToString());
-            DisplayDetail = "Command";
-            Type = ResultType.Command;
+            var res = new CommandResult()
+            { 
+                Command = command,
+                PluginCommandName = null,
+                DisplayTitle = displayName,
+                DisplayDetail = "Command",
+                Type = ResultType.Command,            
+            };
+            return res;
         }
 
-        // Constructor for plugin commands
-        public CommandResult(string pluginCommandName)
+        public static CommandResult CreatePluginResult(string pluginCommandName)
         {
-            Command = null;
-            PluginCommandName = pluginCommandName;
-            // For plugin commands, the name is usually already user-friendly.
-            DisplayTitle = pluginCommandName; 
-            DisplayDetail = "Plugin Command";
-            Type = ResultType.Command;
-        }
-
-        private string FormatCommandName(string enumName)
-        {
-            if (string.IsNullOrEmpty(enumName)) return string.Empty;
-
-            var sb = new StringBuilder();
-            sb.Append(enumName[0]);
-
-            for (int i = 1; i < enumName.Length; i++)
+            var res = new CommandResult()
             {
-                if (char.IsUpper(enumName[i]) && !char.IsUpper(enumName[i-1]))
-                {
-                    sb.Append(' ');
-                }
-                else if (char.IsUpper(enumName[i]) && i + 1 < enumName.Length && char.IsLower(enumName[i+1]) && char.IsUpper(enumName[i-1]))
-                {
-                    sb.Append(' ');
-                }
-                sb.Append(enumName[i]);
-            }
-            return sb.Replace("Goto", "Go To").ToString();
+                Command = null,
+                PluginCommandName = pluginCommandName,
+                DisplayTitle = pluginCommandName,
+                DisplayDetail = "Plugin Command",
+                Type = ResultType.Command,
+            };
+            return res;
         }
     }
 
@@ -359,21 +344,6 @@ namespace MusicBeePlugin.Services
 
     public class SearchService
     {
-        // Cache for built-in ApplicationCommands only
-        private static readonly Lazy<List<CommandResult>> _builtInCommandResultsCache =
-            new Lazy<List<CommandResult>>(() =>
-            {
-                var commandValues = Enum.GetValues(typeof(Utils.ApplicationCommand))
-                                       .Cast<Utils.ApplicationCommand>()
-                                       .Where(cmd => cmd != Utils.ApplicationCommand.None); // Optionally exclude "None"
-                var results = new List<CommandResult>();
-                foreach (var cmd in commandValues)
-                {
-                    results.Add(new CommandResult(cmd));
-                }
-                return results.OrderBy(r => r.DisplayTitle).ToList();
-            });
-
         private Database db;
         private MusicBeeApiInterface mbApi;
         private Config.SearchUIConfig config;
@@ -754,10 +724,11 @@ namespace MusicBeePlugin.Services
         {
             if (cancellationToken.IsCancellationRequested) return new List<SearchResult>();
 
-            // Start with cached built-in commands
-            var combinedResults = new List<CommandResult>(_builtInCommandResultsCache.Value);
+            var builtInCommands = ApplicationCommandHelper.GetValidBuiltinCommands(mbApi)
+                .OrderBy(r => r.displayName).ToList();
 
-            // Fetch and add plugin commands (not cached, fetched each time)
+            var combinedResults = builtInCommands.Select(x => CommandResult.CreateBuiltinResult(x.command, x.displayName)).ToList();
+
             try
             {
                 var pluginCommands = MusicBeeHelpers.GetPluginCommands();
@@ -768,10 +739,10 @@ namespace MusicBeePlugin.Services
                         if (cancellationToken.IsCancellationRequested) break;
                         
                         // Exclude own commands
-                        if (kvp.Key.StartsWith("Modern Search Bar:", StringComparison.OrdinalIgnoreCase))
+                        if (kvp.Key.StartsWith("Modern Search Bar:"))
                             continue;
                         
-                        combinedResults.Add(new CommandResult(kvp.Key));
+                        combinedResults.Add(CommandResult.CreatePluginResult(kvp.Key));
                     }
                 }
             }

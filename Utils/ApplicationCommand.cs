@@ -1,4 +1,12 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Xml;
+using System.Xml.Linq;
+using static MusicBeePlugin.Plugin;
 using static MusicBeePlugin.Utils.ApplicationCommand;
 
 namespace MusicBeePlugin.Utils
@@ -281,8 +289,8 @@ namespace MusicBeePlugin.Utils
 
     public static class ApplicationCommandHelper
     {
-        // This is incomplete
-        public static readonly Dictionary<ApplicationCommand, string> CommandDisplayNames = new Dictionary<ApplicationCommand, string>()
+        // This is might be incomplete
+        private static readonly Dictionary<ApplicationCommand, string> CommandDisplayNames = new Dictionary<ApplicationCommand, string>()
         {
             { FileNewMusicFolder, "New Folder" },
             { ViewShowFullSizeArtwork, "Show Artwork" },
@@ -351,13 +359,108 @@ namespace MusicBeePlugin.Utils
             { ToolsUndoLevelVolume, "Restore Original Volume" },
         };
 
-        public static string GetDisplayName(this ApplicationCommand command)
+        private static List<(ApplicationCommand, string)> BuiltinCommandsResultsCache = null;
+
+        public static IReadOnlyList<(ApplicationCommand command, string displayName)> GetValidBuiltinCommands(MusicBeeApiInterface mbApi)
         {
-            if (CommandDisplayNames.TryGetValue(command, out var name))
+            if (BuiltinCommandsResultsCache != null)
+                return BuiltinCommandsResultsCache;
+
+            BuiltinCommandsResultsCache = new List<(ApplicationCommand, string)>();
+            var commands = (ApplicationCommand[])Enum.GetValues(typeof(ApplicationCommand));
+
+            var configPath = Path.Combine(mbApi.Setting_GetPersistentStoragePath(), "MusicBee3Settings.ini");
+            string configFileContent = null;
+
+            if (File.Exists(configPath))
             {
-                return name;
+                try
+                {
+                    configFileContent = File.ReadAllText(configPath);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Failed to read MusicBee configuration file: {ex}");
+                }
             }
-            return null;
+
+            foreach (var command in commands)
+            {
+                if (GetDisplayNameIfValid(command, out string name, configFileContent))
+                {
+                    BuiltinCommandsResultsCache.Add((command, name));
+                }
+            }
+
+            return BuiltinCommandsResultsCache;
+        }
+
+        private static bool GetDisplayNameIfValid(ApplicationCommand command, out string name, string configFileContent)
+        {
+            name = null;
+            if (command == None) return false;
+
+            if (!string.IsNullOrEmpty(configFileContent))
+            {
+                if (SendToExternalService <= command && command <= SendToExternalService8)
+                {
+                    int serviceIndex = (int)command - (int)SendToExternalService + 1;
+                    string tagName = serviceIndex == 1 ? "SystemExternalToolName" : $"SystemExternalTool{serviceIndex}Name";
+                    var regex = new System.Text.RegularExpressions.Regex($"<{tagName}>(.*?)</{tagName}>");
+                    var match = regex.Match(configFileContent);
+                    if (match.Success && match.Groups.Count > 1 && !string.IsNullOrEmpty(match.Groups[1].Value))
+                    {
+                        name = $"Send To: {match.Groups[1].Value.Trim()}";
+                        return true;
+                    }
+                    return false;
+                }
+
+                if (WebOpenLink0SelectedFile <= command && command <= WebOpenLink14SelectedFile)
+                {
+                    int linkIndex = (int)command - (int)WebOpenLink0SelectedFile;
+                    string tagName = $"FormNowPlayingCustom{linkIndex}LinkName";
+                    var regex = new System.Text.RegularExpressions.Regex($"<{tagName}>(.*?)</{tagName}>");
+                    var match = regex.Match(configFileContent);
+                    if (match.Success && match.Groups.Count > 1 && !string.IsNullOrEmpty(match.Groups[1].Value))
+                    {
+                        name = $"Web Link: {match.Groups[1].Value.Trim()}";
+                        return true;
+                    }
+                    return false;
+                }
+            }
+
+            if (!CommandDisplayNames.TryGetValue(command, out name))
+            {
+                name = FormatCommandName(command.ToString());
+            }
+
+            if (string.IsNullOrEmpty(name)) return false;
+
+            return true;
+        }
+
+        private static string FormatCommandName(string enumName)
+        {
+            if (string.IsNullOrEmpty(enumName)) return string.Empty;
+
+            var sb = new StringBuilder();
+            sb.Append(enumName[0]);
+
+            for (int i = 1; i < enumName.Length; i++)
+            {
+                if (char.IsUpper(enumName[i]) && !char.IsUpper(enumName[i - 1]))
+                {
+                    sb.Append(' ');
+                }
+                else if (char.IsUpper(enumName[i]) && i + 1 < enumName.Length && char.IsLower(enumName[i + 1]) && char.IsUpper(enumName[i - 1]))
+                {
+                    sb.Append(' ');
+                }
+                sb.Append(enumName[i]);
+            }
+            return sb.Replace("Goto", "Go to").ToString();
         }
     }
 }
