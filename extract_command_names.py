@@ -3,6 +3,7 @@
 import re
 import argparse
 import sys
+import os
 
 def extract_command_mappings(file_path):
     """
@@ -44,6 +45,9 @@ def extract_command_mappings(file_path):
         print(f"Error: File not found at {file_path}", file=sys.stderr)
         return {}
     except Exception as e:
+        # Ignore errors from files that are not text-based
+        if isinstance(e, UnicodeDecodeError):
+            return {}
         print(f"Error reading file {file_path}: {e}", file=sys.stderr)
         return {}
 
@@ -71,26 +75,45 @@ def extract_command_mappings(file_path):
     return command_mappings
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Extract ApplicationCommand mappings from a C# file.")
-    parser.add_argument("filepath", help="Path to the C# file")
+    parser = argparse.ArgumentParser(description="Extract ApplicationCommand mappings from a C# file or directory.")
+    parser.add_argument("path", help="Path to the C# file or directory to scan recursively")
     args = parser.parse_args()
 
-    mappings = extract_command_mappings(args.filepath)
+    all_mappings = {}
+    input_path = args.path
 
-    if mappings:
+    if os.path.isfile(input_path):
+        # Handle the case where a single file is provided
+        all_mappings = extract_command_mappings(input_path)
+    elif os.path.isdir(input_path):
+        # Handle the case where a directory is provided
+        print(f"// Scanning directory: {input_path}", file=sys.stderr)
+        for root, _, files in os.walk(input_path):
+            for filename in files:
+                if filename.endswith(".cs"):
+                    file_path = os.path.join(root, filename)
+                    mappings_from_file = extract_command_mappings(file_path)
+                    all_mappings.update(mappings_from_file) # Merge dictionaries
+    else:
+        print(f"Error: Path '{input_path}' does not exist or is not a valid file/directory.", file=sys.stderr)
+        sys.exit(1)
+
+
+    if all_mappings:
         output_lines = []
         output_lines.append("new Dictionary<ApplicationCommand, string>()")
         output_lines.append("{")
         
-        for command_key, string_name_value in mappings.items():
+        # Sort by key for consistent output
+        for command_key, string_name_value in sorted(all_mappings.items()):
             # command_key is the command name, e.g., "MyCommand"
             # string_name_value is the C#-escaped string, e.g., "Actual \\"Name\\" for display"
             # C# output for key: MyCommand (no quotes, as it's an enum member)
             # C# output for value: "Actual \"Name\" for display" (with quotes, as it's a string literal)
-            output_lines.append(f"    {{ {command_key}, \"{string_name_value}\" }},")
+            output_lines.append(f"    {{ ApplicationCommand.{command_key}, \"{string_name_value}\" }},")
             
         output_lines.append("};")
         print("\n".join(output_lines))
     else:
-        # This message goes to stdout, errors from extract_command_mappings go to stderr.
-        print("No mappings found or an error occurred.")
+        # This message goes to stdout, errors from the script go to stderr.
+        print("// No mappings found or an error occurred.")
