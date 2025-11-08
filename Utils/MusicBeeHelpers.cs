@@ -17,30 +17,65 @@ namespace MusicBeePlugin.Utils
     public static partial class MusicBeeHelpers
     {
         private static MethodInfo invokeApplicationCommandMethod;
+        private static Type musicBeeApplicationCommandType;
+        private static Dictionary<ApplicationCommand, object> applicationCommandMap;
         private static FieldInfo pluginCommandsField;
         private static bool loadedInvokeCommandMethod = false;
         private static bool loadedPluginCommandsField = false;
 
         public static void LoadInvokeCommandMethod()
         {
+            if (loadedInvokeCommandMethod) return;
+
             var flags = BindingFlags.Public | BindingFlags.Static;
 
             var mbAsm = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.FullName.Contains("MusicBee"));
 
-            foreach (var refType in mbAsm.GetTypes())
+            if (mbAsm != null)
             {
-                invokeApplicationCommandMethod = refType.GetMethods(flags).FirstOrDefault(m =>
+                foreach (var refType in mbAsm.GetTypes())
                 {
-                    var parameters = m.GetParameters();
-                    return parameters.Length == 3
-                        && parameters[0].ParameterType.Name == "ApplicationCommand"
-                        && parameters[1].ParameterType == typeof(object)
-                        && parameters[2].ParameterType.IsGenericType
-                        && parameters[2].ParameterType.GetGenericTypeDefinition() == typeof(IList<>);
-                });
+                    invokeApplicationCommandMethod = refType.GetMethods(flags).FirstOrDefault(m =>
+                    {
+                        var parameters = m.GetParameters();
+                        return parameters.Length == 3
+                            && parameters[0].ParameterType.IsEnum
+                            && parameters[0].ParameterType.Name == "ApplicationCommand"
+                            && parameters[1].ParameterType == typeof(object)
+                            && parameters[2].ParameterType.IsGenericType
+                            && parameters[2].ParameterType.GetGenericTypeDefinition() == typeof(IList<>);
+                    });
 
-                if (invokeApplicationCommandMethod != null)
-                    break;
+                    if (invokeApplicationCommandMethod != null)
+                        break;
+                }
+            }
+
+
+            if (invokeApplicationCommandMethod == null)
+            {
+                Debug.WriteLine("Modern Search Bar: Could not find MusicBee's internal InvokeApplicationCommand method.");
+                loadedInvokeCommandMethod = true; // Mark as "tried" to prevent re-running
+                return;
+            }
+
+            musicBeeApplicationCommandType = invokeApplicationCommandMethod.GetParameters()[0].ParameterType;
+            applicationCommandMap = new Dictionary<ApplicationCommand, object>();
+
+            foreach (ApplicationCommand command in Enum.GetValues(typeof(ApplicationCommand)))
+            {
+                try
+                {
+                    object mbCommandValue = Enum.Parse(musicBeeApplicationCommandType, command.ToString());
+                    if (mbCommandValue != null)
+                    {
+                        applicationCommandMap[command] = mbCommandValue;
+                    }
+                }
+                catch (ArgumentException)
+                {
+                    Debug.WriteLine($"Modern Search Bar: Command '{command}' from plugin enum not found in this version of MusicBee. It will be unavailable.");
+                }
             }
 
             loadedInvokeCommandMethod = true;
@@ -77,10 +112,21 @@ namespace MusicBeePlugin.Utils
                 return;
             if (!loadedInvokeCommandMethod)
                 LoadInvokeCommandMethod();
+            
             if (invokeApplicationCommandMethod == null)
-                throw new ArgumentNullException("ApplicationCommand method not found.");
+            {
+                Debug.WriteLine("Modern Search Bar: Attempted to call InvokeCommand, but the method was not found.");
+                return;
+            }
 
-            invokeApplicationCommandMethod.Invoke(null, new object[] { command, parameters, null });
+            if (applicationCommandMap.TryGetValue(command, out var mappedCommand))
+            {
+                invokeApplicationCommandMethod.Invoke(null, new object[] { mappedCommand, parameters, null });
+            }
+            else
+            {
+                Debug.WriteLine($"Modern Search Bar: Command '{command}' is not available in this version of MusicBee.");
+            }
         }
 
         public static void InvokePluginCommandByName(string command)
