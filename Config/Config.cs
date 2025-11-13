@@ -137,11 +137,11 @@ namespace MusicBeePlugin.Config
         public bool EnableContainsCheck { get; set; } = true;
         public bool ShowImages { get; set; } = true;
         public double OverlayOpacity { get; set; } = 0.6;
-        public int MaxResultsVisible { get; set; } = 6;
+        public int MaxResultsVisible { get; set; } = 8;
         public int ArtistResultLimit { get; set; } = 5;
         public int AlbumResultLimit { get; set; } = 5;
         public int SongResultLimit { get; set; } = 10;
-        public int ResultItemHeight { get; set; } = 50;
+        public int ResultItemHeight { get; set; } = 56;
         public int PlaylistResultLimit { get; set; } = 100;
         public enum DefaultResultsChoice { Playing, Selected, None };
         public DefaultResultsChoice DefaultResults = DefaultResultsChoice.Playing;
