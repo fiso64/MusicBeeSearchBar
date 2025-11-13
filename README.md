@@ -49,3 +49,8 @@ The command palette feature (activated with the `>` prefix) can be used to searc
 - Some command names might differ from how they appear in MusicBee's context menus
 
 If you find inconsistent command names or broken commands, you can create an issue [here](https://github.com/fiso64/MusicBeeSearchBar/issues).
+
+
+## Performance Note
+If you experience any slowness (i.e., either the startup or the search after a character is typed does not complete instantly), then please create an issue on [github](https://github.com/fiso64/MusicBeeSearchBar/issues) (also mention your library statistics).
+There are a few easy ways to make it faster which I haven't bothered to implement because the performance on my small personal library (~11000 tracks) as well as on a synthetic library of 1000000 tracks is good.
