@@ -44,7 +44,6 @@ namespace MusicBeePlugin.UI
                 if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                 {
                     resultsListBox.SelectedIndex = (resultsListBox.SelectedIndex + 1) % resultsListBox.Items.Count;
-                    LoadImagesForVisibleResults();
                 }
                 e.Handled = true;
                 e.SuppressKeyPress = true;
@@ -55,7 +54,6 @@ namespace MusicBeePlugin.UI
                 {
                     int cur = resultsListBox.SelectedIndex;
                     resultsListBox.SelectedIndex = cur > 0 ? cur - 1 : resultsListBox.Items.Count - 1;
-                    LoadImagesForVisibleResults();
                 }
                 e.Handled = true;
                 e.SuppressKeyPress = true;
@@ -65,7 +63,6 @@ namespace MusicBeePlugin.UI
                 if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                 {
                     resultsListBox.SelectedIndex = 0;
-                    LoadImagesForVisibleResults();
                 }
                 e.Handled = true;
                 e.SuppressKeyPress = true;
@@ -75,7 +72,6 @@ namespace MusicBeePlugin.UI
                 if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                 {
                     resultsListBox.SelectedIndex = resultsListBox.Items.Count - 1;
-                    LoadImagesForVisibleResults();
                 }
                 e.Handled = true;
                 e.SuppressKeyPress = true;
@@ -152,6 +148,15 @@ namespace MusicBeePlugin.UI
         {
             Close();
             musicBeeContext.Post(_ => resultAcceptAction(searchBox.Text, selectedItem, e), null);
+        }
+
+        private void ResultsListBox_Scrolled(object sender, EventArgs e)
+        {
+            if (searchUIConfig.ShowImages && imageLoadDebounceTimer != null)
+            {
+                imageLoadDebounceTimer.Stop();
+                imageLoadDebounceTimer.Start();
+            }
         }
     }
 }

@@ -82,14 +82,19 @@ namespace MusicBeePlugin.UI
             }
 
 
-            Panel mainPanel = new Panel { Dock = DockStyle.Fill, BackColor = searchUIConfig.BaseColor };
+            var mainPanel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.Transparent, // Let the form's background show through
+                Padding = new Padding(8) // This creates the offset from the main rounded border
+            };
 
-            Panel searchBoxContainer = new Panel
+            var searchBoxContainer = new Panel
             {
                 Dock = DockStyle.Top,
-                Padding = new Padding(10),
-                BackColor = searchUIConfig.BaseColor,
-                Height = 42,
+                Padding = new Padding(12, 8, 12, 8), // Inner padding for the text box
+                BackColor = Color.Transparent, // The border will be painted by the parent form
+                Height = SEARCH_BOX_HEIGHT,
                 BorderStyle = BorderStyle.None,
             };
 
@@ -102,19 +107,36 @@ namespace MusicBeePlugin.UI
                 Dock = DockStyle.Fill,
                 TextAlign = HorizontalAlignment.Left,
                 ShortcutsEnabled = true,
-                AutoCompleteMode = AutoCompleteMode.Suggest, // this is only needed to fix ctrl+backspace
+                AutoCompleteMode = AutoCompleteMode.Suggest,
                 AutoCompleteSource = AutoCompleteSource.CustomSource,
             };
-            searchBox.TextChanged += SearchBox_TextChanged; // Event handler in SearchBar.Data.cs
+            searchBox.TextChanged += SearchBox_TextChanged;
             searchBoxContainer.Controls.Add(searchBox);
-            searchBox.TabStop = true; // Ensure searchBox can be focused
+            searchBox.TabStop = true;
+
+            spacerPanel = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 8,
+                BackColor = Color.Transparent
+            };
+
+            var baseColor = searchUIConfig.BaseColor;
+            var highlightColor = searchUIConfig.ResultHighlightColor;
+            var hoverColor = Color.FromArgb(
+                255,
+                baseColor.R + (highlightColor.R - baseColor.R) / 2,
+                baseColor.G + (highlightColor.G - baseColor.G) / 2,
+                baseColor.B + (highlightColor.B - baseColor.B) / 2
+            );
 
             resultsListBox = new CustomResultList
             {
-                Dock = DockStyle.Top,
+                Dock = DockStyle.Fill, // Use Fill to take up the remaining space
                 BackColor = searchUIConfig.BaseColor,
                 ForeColor = searchUIConfig.TextColor,
                 HighlightColor = searchUIConfig.ResultHighlightColor,
+                HoverColor = hoverColor,
                 ItemHeight = (int)(searchUIConfig.ResultItemHeight * (CreateGraphics().DpiX / 96.0)),
                 Visible = false,
                 Height = 0,
@@ -130,11 +152,13 @@ namespace MusicBeePlugin.UI
                     { ResultType.Command, commandIcon },
                 }
             };
+            resultsListBox.Click += ResultsListBox_Click;
+            resultsListBox.Scrolled += ResultsListBox_Scrolled;
 
-            resultsListBox.Click += ResultsListBox_Click; // Event handler in SearchBar.EventHandlers.cs
-
-            mainPanel.Controls.Add(resultsListBox);
-            mainPanel.Controls.Add(searchBoxContainer);
+            // Add controls to main panel in correct order for docking
+            mainPanel.Controls.Add(resultsListBox); // Fills remaining space
+            mainPanel.Controls.Add(spacerPanel);
+            mainPanel.Controls.Add(searchBoxContainer); // At the top
             Controls.Add(mainPanel);
 
             searchBox.Focus(); // Set focus to searchBox initially
@@ -157,14 +181,20 @@ namespace MusicBeePlugin.UI
             const int ROTATION_ANGLE = 20;
             var COLOR = Color.FromArgb((int)(255 * 0.3), searchUIConfig.TextColor);
 
+            var searchContainer = searchBox.Parent;
+            int availableHeight = searchContainer.ClientSize.Height - searchContainer.Padding.Vertical;
+            int indicatorSize = Math.Max(8, availableHeight - 4);
+
             Bitmap CreateLoadingSpinner(int size, Color color)
             {
                 Bitmap bmp = new Bitmap(size, size);
                 using (Graphics g = Graphics.FromImage(bmp))
-                using (Pen pen = new Pen(color, 2))
+                using (Pen pen = new Pen(color, Math.Max(1f, size / 12f)))
                 {
                     g.SmoothingMode = SmoothingMode.AntiAlias;
-                    g.DrawArc(pen, 2, 2, size - 4, size - 4, 0, 300);
+                    float pad = pen.Width / 2;
+                    if (pad == 0) pad = 0.5f;
+                    g.DrawArc(pen, pad, pad, size - (pad * 2), size - (pad * 2), 0, 300);
                 }
                 return bmp;
             }
@@ -173,12 +203,11 @@ namespace MusicBeePlugin.UI
             {
                 if (loadingIndicator != null && !loadingIndicator.IsDisposed && loadingIndicator.Visible)
                 {
-                    // Ensure searchBox handle is created before accessing properties like Right/Top/Height
-                    if (searchBox != null && searchBox.IsHandleCreated)
+                    if (searchContainer != null && searchContainer.IsHandleCreated)
                     {
-                         loadingIndicator.Location = new Point(
-                            searchBox.Right - loadingIndicator.Width - 10,
-                            searchBox.Top + (searchBox.Height - loadingIndicator.Height) / 2
+                        loadingIndicator.Location = new Point(
+                            searchContainer.ClientSize.Width - searchContainer.Padding.Right - loadingIndicator.Width - 2,
+                            searchContainer.Padding.Top + (availableHeight - loadingIndicator.Height) / 2
                         );
                     }
                 }
@@ -186,40 +215,42 @@ namespace MusicBeePlugin.UI
 
             loadingIndicator = new PictureBox
             {
-                Size = new Size(24, 24),
+                Size = new Size(indicatorSize, indicatorSize),
                 BackColor = Color.Transparent,
-                Image = CreateLoadingSpinner(24, COLOR),
+                Image = CreateLoadingSpinner(indicatorSize, COLOR),
                 Visible = true
             };
 
-            searchBox.TextChanged += (s, e) => UpdateLoadingIndicatorPosition();
-            searchBox.SizeChanged += (s, e) => UpdateLoadingIndicatorPosition();
-            // Call initial position update after the form is shown or handle is created
-             Shown += (s, e) => UpdateLoadingIndicatorPosition();
+            searchContainer.SizeChanged += (s, e) => UpdateLoadingIndicatorPosition();
+            Shown += (s, e) => UpdateLoadingIndicatorPosition();
 
 
-            Controls.Add(loadingIndicator);
+            searchContainer.Controls.Add(loadingIndicator);
             loadingIndicator.BringToFront();
 
             var spinTimer = new System.Windows.Forms.Timer { Interval = ROTATION_INTERVAL };
             float rotationAngle = 0;
-            spinTimer.Tick += (s, e) => {
+            spinTimer.Tick += (s, e) =>
+            {
                 if (loadingIndicator != null && !loadingIndicator.IsDisposed && loadingIndicator.Visible && loadingIndicator.Image != null)
                 {
                     Bitmap currentImage = (Bitmap)loadingIndicator.Image;
                     Bitmap rotatedBmp = new Bitmap(currentImage.Width, currentImage.Height);
+                    float penWidth = Math.Max(1f, rotatedBmp.Width / 12f);
+
                     using (Graphics g = Graphics.FromImage(rotatedBmp))
-                    using (Pen pen = new Pen(COLOR, 2)) // Use the defined COLOR
+                    using (Pen pen = new Pen(COLOR, penWidth))
                     {
                         g.SmoothingMode = SmoothingMode.AntiAlias;
                         g.TranslateTransform(rotatedBmp.Width / 2f, rotatedBmp.Height / 2f);
                         g.RotateTransform(rotationAngle);
                         g.TranslateTransform(-rotatedBmp.Width / 2f, -rotatedBmp.Height / 2f);
-                        // Redraw the arc in the rotated context
-                        g.DrawArc(pen, 2, 2, rotatedBmp.Width - 4, rotatedBmp.Height - 4, 0, 300);
+                        float pad = pen.Width / 2;
+                        if (pad == 0) pad = 0.5f;
+                        g.DrawArc(pen, pad, pad, rotatedBmp.Width - (pad * 2), rotatedBmp.Height - (pad * 2), 0, 300);
                     }
-                    loadingIndicator.Image = rotatedBmp; // Assign the new bitmap
-                    currentImage.Dispose(); // Dispose the old bitmap
+                    loadingIndicator.Image = rotatedBmp;
+                    currentImage.Dispose();
 
                     rotationAngle += ROTATION_ANGLE;
                     if (rotationAngle >= 360)
@@ -227,22 +258,15 @@ namespace MusicBeePlugin.UI
                         rotationAngle -= 360;
                     }
                 }
-                 else if (loadingIndicator != null && !loadingIndicator.IsDisposed && loadingIndicator.Visible && loadingIndicator.Image == null)
+                else if (loadingIndicator != null && !loadingIndicator.IsDisposed && loadingIndicator.Visible && loadingIndicator.Image == null)
                 {
-                    // Recreate spinner if image somehow got disposed
                     loadingIndicator.Image = CreateLoadingSpinner(loadingIndicator.Width, COLOR);
                 }
             };
-            // Ensure the timer is disposed when the form closes
             FormClosed += (s, e) => spinTimer?.Dispose();
             spinTimer.Start();
         }
 
-        private void UpdateResultsListHeight(int resultCount)
-        {
-            int newHeight = Math.Min(resultCount, searchUIConfig.MaxResultsVisible) * resultsListBox.ItemHeight;
-            Debug.WriteLine($"[SearchBar] UpdateResultsListHeight: Setting list height to {newHeight} for {resultCount} results.");
-            resultsListBox.Height = newHeight;
-        }
+
     }
 }

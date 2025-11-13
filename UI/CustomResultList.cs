@@ -14,8 +14,12 @@ namespace MusicBeePlugin.UI
 {
     public class CustomResultList : Control
     {
+        private const int SCROLLBAR_WIDTH = 8;
+        private const int ARTWORK_CORNER_RADIUS = 8;
+
         private List<SearchResult> _items = new List<SearchResult>();
         private int _selectedIndex = -1;
+        private int _hoveredIndex = -1;
         private int _topIndex = 0;
         private bool _isUpdating = false;
 
@@ -27,9 +31,12 @@ namespace MusicBeePlugin.UI
         private int _dragStartY;
         private int _dragStartTopIndex;
 
+        public event EventHandler Scrolled;
+
         // Styling & Resources
         public int ItemHeight { get; set; } = 56;
         public Color HighlightColor { get; set; }
+        public Color HoverColor { get; set; }
         public Font ResultFont { get; set; }
         public Font ResultDetailFont { get; set; }
         public ImageService ImageService { get; set; }
@@ -84,6 +91,20 @@ namespace MusicBeePlugin.UI
                     _topIndex = newValue;
                     UpdateScrollbar();
                     Invalidate();
+                    Scrolled?.Invoke(this, EventArgs.Empty);
+
+                    // Re-evaluate hover state since the items under the cursor have changed
+                    var relativeMousePos = PointToClient(Cursor.Position);
+                    if (ClientRectangle.Contains(relativeMousePos))
+                    {
+                        OnMouseMove(new MouseEventArgs(MouseButtons.None, 0, relativeMousePos.X, relativeMousePos.Y, 0));
+                    }
+                    else if (_hoveredIndex != -1) // Mouse is outside, so clear hover
+                    {
+                        var oldIndex = _hoveredIndex;
+                        _hoveredIndex = -1;
+                        InvalidateItem(oldIndex);
+                    }
                 }
             }
         }
@@ -143,8 +164,7 @@ namespace MusicBeePlugin.UI
             }
 
             _isThumbVisible = true;
-            const int scrollWidth = 8;
-            _scrollTrack = new Rectangle(Width - scrollWidth, 0, scrollWidth, Height);
+            _scrollTrack = new Rectangle(Width - SCROLLBAR_WIDTH, 0, SCROLLBAR_WIDTH, Height);
 
             float contentHeight = _items.Count * ItemHeight;
             float thumbHeight = Math.Max(20, Height * (Height / contentHeight));
@@ -155,7 +175,7 @@ namespace MusicBeePlugin.UI
             _scrollThumb = new Rectangle(
                 _scrollTrack.X + 1,
                 (int)thumbY,
-                scrollWidth - 2,
+                SCROLLBAR_WIDTH - 2,
                 (int)thumbHeight);
         }
 
@@ -171,6 +191,7 @@ namespace MusicBeePlugin.UI
                 return;
             }
 
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
             int visibleCount = VisibleItemCount;
@@ -184,7 +205,7 @@ namespace MusicBeePlugin.UI
                 {
                     Debug.WriteLine($"[CustomResultList] OnPaint: Drawing first visible item '{item.DisplayTitle}' at bounds {bounds}.");
                 }
-                DrawItem(e.Graphics, item, bounds, i == _selectedIndex);
+                DrawItem(e.Graphics, item, bounds, i, i == _selectedIndex);
             }
             
             if (_isThumbVisible)
@@ -193,47 +214,71 @@ namespace MusicBeePlugin.UI
             }
         }
 
-        private void DrawItem(Graphics g, SearchResult resultItem, Rectangle bounds, bool isSelected)
+        private void DrawItem(Graphics g, SearchResult resultItem, Rectangle bounds, int index, bool isSelected)
         {
             const int HORIZONTAL_PADDING = 10;
-            const int VERTICAL_PADDING = 10;
+            const int IMAGE_VERTICAL_MARGIN = 6; // Margin from top and bottom for the image
             const int IMAGE_TO_TEXT_SPACING = 10;
 
-            Color backgroundColor = this.BackColor;
-            if (isSelected)
+            int itemWidth = bounds.Width;
+            if (_isThumbVisible)
             {
-                backgroundColor = this.HighlightColor;
+                itemWidth -= SCROLLBAR_WIDTH;
             }
 
-            using (var backgroundBrush = new SolidBrush(backgroundColor))
+            // Draw background for the whole item, which is visible if the highlight is smaller
+            using (var backgroundBrush = new SolidBrush(this.BackColor))
             {
                 g.FillRectangle(backgroundBrush, bounds);
             }
 
-            // 1. Create the main content area by applying padding to the item's bounds.
-            var contentBounds = new Rectangle(
-                bounds.X + HORIZONTAL_PADDING,
-                bounds.Y + VERTICAL_PADDING,
-                bounds.Width - (HORIZONTAL_PADDING * 2),
-                bounds.Height - (VERTICAL_PADDING * 2)
-            );
-            
-            // Exit if the content area is invalid
-            if (contentBounds.Width <= 0 || contentBounds.Height <= 0) return;
+            bool isHovered = index == _hoveredIndex && !_isDraggingThumb;
+            Color? highlightBrushColor = null;
+            if (isSelected)
+            {
+                highlightBrushColor = this.HighlightColor;
+            }
+            else if (isHovered)
+            {
+                highlightBrushColor = this.HoverColor;
+            }
 
-            // 2. Define a fixed-size square area on the left for the image/icon.
-            // Its size is determined by the available content height.
+            if (highlightBrushColor.HasValue)
+            {
+                const int HIGHLIGHT_MARGIN = 2;
+                var highlightBounds = new Rectangle(
+                    bounds.X + HIGHLIGHT_MARGIN,
+                    bounds.Y + HIGHLIGHT_MARGIN,
+                    itemWidth - (HIGHLIGHT_MARGIN * 2),
+                    bounds.Height - (HIGHLIGHT_MARGIN * 2)
+                );
+                
+                if (highlightBounds.Width > 0 && highlightBounds.Height > 0)
+                {
+                    using (var path = GetRoundedRectPath(highlightBounds, 8))
+                    using (var highlightBrush = new SolidBrush(highlightBrushColor.Value))
+                    {
+                        g.FillPath(highlightBrush, path);
+                    }
+                }
+            }
+
+            // 1. Define the total available content height for images/text.
+            int availableHeight = bounds.Height - (IMAGE_VERTICAL_MARGIN * 2);
+            if (availableHeight <= 0) return;
+
+            // 2. Define the image area on the left, respecting horizontal padding.
             var imageArea = new Rectangle(
-                contentBounds.X,
-                contentBounds.Y,
-                contentBounds.Height,
-                contentBounds.Height
+                bounds.X + HORIZONTAL_PADDING,
+                bounds.Y + IMAGE_VERTICAL_MARGIN,
+                availableHeight, // Make it a square
+                availableHeight
             );
 
-            // 3. Determine which image to use and its actual size.
-            int artworkSize = imageArea.Height;
-            int iconSize = (int)(imageArea.Height * 0.6);
-            
+            // 3. Determine which image to use.
+            int artworkSize = availableHeight;
+            int iconSize = (int)(availableHeight * 0.6);
+
             Image displayImage = null;
             bool isArtwork = false;
             if (ImageService != null) { displayImage = ImageService.GetCachedImage(resultItem); }
@@ -253,15 +298,31 @@ namespace MusicBeePlugin.UI
                 int effectiveSize = isArtwork ? artworkSize : iconSize;
                 int imageX = imageArea.X + (imageArea.Width - effectiveSize) / 2;
                 int imageY = imageArea.Y + (imageArea.Height - effectiveSize) / 2;
-                g.DrawImage(displayImage, imageX, imageY, effectiveSize, effectiveSize);
+                var imageBounds = new Rectangle(imageX, imageY, effectiveSize, effectiveSize);
+
+                // Apply rounded corners to square artwork (albums, songs)
+                if (isArtwork && ARTWORK_CORNER_RADIUS > 0 && resultItem.Type != ResultType.Artist)
+                {
+                    using (var path = GetRoundedRectPath(imageBounds, ARTWORK_CORNER_RADIUS))
+                    using (var brush = new TextureBrush(displayImage, WrapMode.Clamp))
+                    {
+                        // Align brush to the destination rectangle
+                        brush.TranslateTransform(imageBounds.X, imageBounds.Y);
+                        g.FillPath(brush, path);
+                    }
+                }
+                else // Draw normally (icons or pre-rendered circular artist art)
+                {
+                    g.DrawImage(displayImage, imageBounds);
+                }
             }
 
             // 5. Define the text area, which starts after the image area.
             var textBounds = new Rectangle(
                 imageArea.Right + IMAGE_TO_TEXT_SPACING,
-                contentBounds.Y,
-                contentBounds.Right - (imageArea.Right + IMAGE_TO_TEXT_SPACING),
-                contentBounds.Height
+                bounds.Y, // Use full item bounds for vertical centering later
+                itemWidth - (imageArea.Right + IMAGE_TO_TEXT_SPACING) - HORIZONTAL_PADDING,
+                bounds.Height
             );
 
             // 6. Draw the text, centered vertically within the text area.
@@ -309,6 +370,33 @@ namespace MusicBeePlugin.UI
                 g.FillPath(thumbBrush, path);
             }
         }
+
+        private GraphicsPath GetRoundedRectPath(Rectangle bounds, int radius)
+        {
+            GraphicsPath path = new GraphicsPath();
+            if (radius <= 0)
+            {
+                path.AddRectangle(bounds);
+                return path;
+            }
+            // to prevent issues with radius larger than the rectangle
+            int diameter = radius * 2;
+            diameter = Math.Min(diameter, Math.Min(bounds.Width, bounds.Height));
+
+            if (diameter == 0)
+            {
+                path.AddRectangle(bounds);
+                return path;
+            }
+
+            path.AddArc(bounds.X, bounds.Y, diameter, diameter, 180, 90);
+            path.AddArc(bounds.Right - diameter, bounds.Y, diameter, diameter, 270, 90);
+            path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
+            path.AddArc(bounds.X, bounds.Bottom - diameter, diameter, diameter, 90, 90);
+            path.CloseFigure();
+    
+            return path;
+        }
         
         protected override void OnMouseWheel(MouseEventArgs e)
         {
@@ -353,12 +441,45 @@ namespace MusicBeePlugin.UI
                 
                 TopIndex = _dragStartTopIndex + (int)(deltaContent / ItemHeight);
             }
+            else
+            {
+                int index = TopIndex + (e.Y / ItemHeight);
+                if (index >= _items.Count)
+                {
+                    index = -1; // outside of items
+                }
+
+                if (_hoveredIndex != index)
+                {
+                    int oldHoveredIndex = _hoveredIndex;
+                    _hoveredIndex = index;
+
+                    if (oldHoveredIndex != -1) InvalidateItem(oldHoveredIndex);
+                    if (_hoveredIndex != -1) InvalidateItem(_hoveredIndex);
+                }
+            }
         }
         
         protected override void OnMouseUp(MouseEventArgs e)
         {
             base.OnMouseUp(e);
-            _isDraggingThumb = false;
+            if (_isDraggingThumb)
+            {
+                _isDraggingThumb = false;
+                // After dragging, re-evaluate which item is being hovered over
+                OnMouseMove(e);
+            }
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            if (_hoveredIndex != -1)
+            {
+                int oldHoveredIndex = _hoveredIndex;
+                _hoveredIndex = -1;
+                InvalidateItem(oldHoveredIndex);
+            }
         }
 
         protected override void OnResize(EventArgs e)

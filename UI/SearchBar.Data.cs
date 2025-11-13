@@ -265,37 +265,31 @@ namespace MusicBeePlugin.UI
             var results = searchResults ?? new List<SearchResult>();
             Debug.WriteLine($"[SearchBar] UpdateResultsList: Received {results.Count} results.");
 
-            if (results.Count == 0)
+            var mainPanel = resultsListBox.Parent as Panel;
+            if (mainPanel == null) return;
+
+            var searchContainer = searchBox.Parent as Panel;
+            if (searchContainer == null) return;
+
+            int nonListHeight = mainPanel.Padding.Vertical + searchContainer.Height;
+            int listHeight = Math.Min(results.Count, searchUIConfig.MaxResultsVisible) * resultsListBox.ItemHeight;
+
+            if (results.Count > 0)
             {
-                if (resultsListBox.Visible)
-                {
-                    resultsListBox.Visible = false;
-                    resultsListBox.Items = new List<SearchResult>();
-                    UpdateResultsListHeight(0);
-                    Height = 42;
-                }
-                return;
+                if (!spacerPanel.Visible) spacerPanel.Visible = true;
+                if (!resultsListBox.Visible) resultsListBox.Visible = true;
+                
+                Height = nonListHeight + spacerPanel.Height + listHeight;
+            }
+            else
+            {
+                if (spacerPanel.Visible) spacerPanel.Visible = false;
+                if (resultsListBox.Visible) resultsListBox.Visible = false;
+                
+                Height = nonListHeight;
             }
 
-            // --- FIX: Resize the list and form BEFORE setting the items ---
-            int newHeight = Math.Min(results.Count, searchUIConfig.MaxResultsVisible) * resultsListBox.ItemHeight;
-            Debug.WriteLine($"[SearchBar] UpdateResultsList: Calculated new list height: {newHeight}. Current list height: {resultsListBox.Height}.");
-            if (resultsListBox.Height != newHeight)
-            {
-                UpdateResultsListHeight(results.Count);
-                Debug.WriteLine($"[SearchBar] UpdateResultsList: Old form height: {Height}. New list height: {resultsListBox.Height}.");
-                Height = 42 + resultsListBox.Height;
-                Debug.WriteLine($"[SearchBar] UpdateResultsList: Set form height to: {Height}.");
-            }
-            
-            // Now that the control has its final size, we can safely assign the items.
             resultsListBox.Items = results;
-
-            if (!resultsListBox.Visible)
-            {
-                resultsListBox.Visible = true;
-                Debug.WriteLine($"[SearchBar] UpdateResultsList: Set resultsListBox.Visible = true.");
-            }
         }
     }
 }

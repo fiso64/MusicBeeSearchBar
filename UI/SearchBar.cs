@@ -29,6 +29,7 @@ namespace MusicBeePlugin.UI
         private CustomResultList resultsListBox;
         private OverlayForm overlay;
         private PictureBox loadingIndicator;
+        private Panel spacerPanel;
 
         // Configuration
         private readonly SearchUIConfig searchUIConfig;
@@ -52,13 +53,15 @@ namespace MusicBeePlugin.UI
         private Image commandIcon; // New icon for commands
 
         // Fonts
-        private readonly Font searchBoxFont = new Font("Arial", 14, FontStyle.Bold);
+        private Font searchBoxFont;
         private readonly Font resultFont = new Font("Arial", 11, FontStyle.Bold);
         private readonly Font resultDetailFont = new Font("Arial", 10, FontStyle.Regular);
 
         // Constants
+        private const int SEARCH_BOX_HEIGHT = 34;
         private const int IMAGE_DEBOUNCE_MS = 100;
         private const bool INCREMENTAL_UPDATE = false;
+
 
         public SearchBar(
             Control musicBeeControl,
@@ -69,7 +72,12 @@ namespace MusicBeePlugin.UI
             string defaultText = null
         )
         {
+            this.SetStyle(ControlStyles.ResizeRedraw, true);
             this.DoubleBuffered = true; // Enable double buffering for flicker-free drawing
+
+            // Calculate font size dynamically. The search box has 8px vertical padding on top and bottom.
+            float fontSize = (float)Math.Max(Math.Round((SEARCH_BOX_HEIGHT - 12) * 0.55f), 6f);
+            this.searchBoxFont = new Font("Arial", fontSize, FontStyle.Bold);
 
             imageSize = Math.Max(searchUIConfig.ResultItemHeight - 12, 5);
             iconSize = Math.Max(searchUIConfig.ResultItemHeight - 30, 5);
@@ -124,26 +132,39 @@ namespace MusicBeePlugin.UI
             }
         }
 
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                cp.ExStyle |= 0x02000000;  // WS_EX_COMPOSITED
+                return cp;
+            }
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-            
+
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-            // Draw the main border
-            using (var pen = new Pen(Color.Gray, 1))
+            // Draw the main form border
+            using (var pen = new Pen(Color.FromArgb(100, Color.Gray), 1))
             using (var path = GetRoundedRectPath(new Rectangle(0, 0, ClientSize.Width - 1, ClientSize.Height - 1), CORNER_RADIUS))
             {
                 e.Graphics.DrawPath(pen, path);
             }
-            
-            // Draw the separator line if the results are visible
-            if (resultsListBox.Visible)
+
+            // Draw border for the search box
+            if (searchBox != null && searchBox.Parent != null)
             {
-                using (var pen = new Pen(Color.Gray, 1))
+                var searchContainer = searchBox.Parent;
+                var rect = searchContainer.Bounds;
+                // The container already has padding, so we draw the border around it.
+                using (var pen = new Pen(Color.FromArgb(100, Color.Gray), 1))
+                using (var path = GetRoundedRectPath(new Rectangle(rect.X, rect.Y, rect.Width - 1, rect.Height - 1), 8))
                 {
-                    int lineY = searchBox.Parent.Bottom;
-                    e.Graphics.DrawLine(pen, 0, lineY, Width, lineY);
+                    e.Graphics.DrawPath(pen, path);
                 }
             }
         }
