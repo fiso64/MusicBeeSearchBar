@@ -43,10 +43,8 @@ namespace MusicBeePlugin.UI
             {
                 if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                 {
-                    int cur = resultsListBox.SelectedIndex;
                     resultsListBox.SelectedIndex = (resultsListBox.SelectedIndex + 1) % resultsListBox.Items.Count;
-                    resultsListBox.Invalidate(resultsListBox.GetItemRectangle(cur));
-                    LoadImagesForVisibleResults(); // Method in SearchBar.Data.cs
+                    LoadImagesForVisibleResults();
                 }
                 e.Handled = true;
                 e.SuppressKeyPress = true;
@@ -57,8 +55,7 @@ namespace MusicBeePlugin.UI
                 {
                     int cur = resultsListBox.SelectedIndex;
                     resultsListBox.SelectedIndex = cur > 0 ? cur - 1 : resultsListBox.Items.Count - 1;
-                    resultsListBox.Invalidate(resultsListBox.GetItemRectangle(cur));
-                    LoadImagesForVisibleResults(); // Method in SearchBar.Data.cs
+                    LoadImagesForVisibleResults();
                 }
                 e.Handled = true;
                 e.SuppressKeyPress = true;
@@ -68,7 +65,7 @@ namespace MusicBeePlugin.UI
                 if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                 {
                     resultsListBox.SelectedIndex = 0;
-                    LoadImagesForVisibleResults(); // Method in SearchBar.Data.cs
+                    LoadImagesForVisibleResults();
                 }
                 e.Handled = true;
                 e.SuppressKeyPress = true;
@@ -78,7 +75,7 @@ namespace MusicBeePlugin.UI
                 if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                 {
                     resultsListBox.SelectedIndex = resultsListBox.Items.Count - 1;
-                    LoadImagesForVisibleResults(); // Method in SearchBar.Data.cs
+                    LoadImagesForVisibleResults();
                 }
                 e.Handled = true;
                 e.SuppressKeyPress = true;
@@ -135,19 +132,15 @@ namespace MusicBeePlugin.UI
                 if (Control.ModifierKeys.HasFlag(Keys.Shift)) modifiers |= Keys.Shift;
                 var keyEventArgs = new KeyEventArgs(modifiers);
 
-                HandleResultSelection((SearchResult)resultsListBox.SelectedItem, keyEventArgs);
+                HandleResultSelection(resultsListBox.SelectedItem, keyEventArgs);
             }
         }
 
         private void HandleSearchBoxEnter(KeyEventArgs e)
         {
-            if (resultsListBox.Visible && resultsListBox.SelectedIndex != -1) // Use selected index if list is visible
+            if (resultsListBox.Visible && resultsListBox.SelectedItem != null)
             {
-                HandleResultSelection((SearchResult)resultsListBox.SelectedItem, e);
-            }
-            else if (resultsListBox.Visible && resultsListBox.Items.Count > 0) // If list is visible but no selection (shouldn't happen but for safety), take first item
-            {
-                HandleResultSelection((SearchResult)resultsListBox.Items[0], e);
+                HandleResultSelection(resultsListBox.SelectedItem, e);
             }
             else
             {

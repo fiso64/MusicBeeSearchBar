@@ -1,6 +1,9 @@
 ﻿using MusicBeePlugin.Config;
+using MusicBeePlugin.Services;
 using MusicBeePlugin.Utils;
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
@@ -87,7 +90,7 @@ namespace MusicBeePlugin.UI
                 Padding = new Padding(10),
                 BackColor = searchUIConfig.BaseColor,
                 Height = 42,
-                BorderStyle = BorderStyle.FixedSingle,
+                BorderStyle = BorderStyle.None,
             };
 
             searchBox = new TextBox
@@ -106,27 +109,29 @@ namespace MusicBeePlugin.UI
             searchBoxContainer.Controls.Add(searchBox);
             searchBox.TabStop = true; // Ensure searchBox can be focused
 
-            resultsListBox = new ListBox
+            resultsListBox = new CustomResultList
             {
-                Dock = DockStyle.Top, // Dock to top and adjust height dynamically
+                Dock = DockStyle.Top,
                 BackColor = searchUIConfig.BaseColor,
                 ForeColor = searchUIConfig.TextColor,
-                BorderStyle = BorderStyle.None,
-                Font = resultFont,
-                ItemHeight = (int)(searchUIConfig.ResultItemHeight * (CreateGraphics().DpiX / 96.0)), // Scale based on DPI
+                HighlightColor = searchUIConfig.ResultHighlightColor,
+                ItemHeight = (int)(searchUIConfig.ResultItemHeight * (CreateGraphics().DpiX / 96.0)),
                 Visible = false,
-                TabStop = false, // To prevent focusing on listbox with tab key.
-                Height = 0 // Initially set height to 0
+                Height = 0,
+                ResultFont = this.resultFont,
+                ResultDetailFont = this.resultDetailFont,
+                ImageService = this.imageService,
+                Icons = new Dictionary<ResultType, Image>
+                {
+                    { ResultType.Song, songIcon },
+                    { ResultType.Album, albumIcon },
+                    { ResultType.Artist, artistIcon },
+                    { ResultType.Playlist, playlistIcon },
+                    { ResultType.Command, commandIcon },
+                }
             };
 
-            resultsListBox.DoubleBuffering(true);
-
-            resultsListBox.DrawMode = DrawMode.OwnerDrawFixed;
-            resultsListBox.DrawItem += ResultsListBox_DrawItem; // Event handler in SearchBar.Drawing.cs
             resultsListBox.Click += ResultsListBox_Click; // Event handler in SearchBar.EventHandlers.cs
-            resultsListBox.TabStop = false; // To prevent focusing on listbox with tab key.
-
-            resultsListBox.MouseWheel += (s, e) => LoadImagesForVisibleResults(); // Event handler in SearchBar.Data.cs
 
             mainPanel.Controls.Add(resultsListBox);
             mainPanel.Controls.Add(searchBoxContainer);
@@ -236,6 +241,7 @@ namespace MusicBeePlugin.UI
         private void UpdateResultsListHeight(int resultCount)
         {
             int newHeight = Math.Min(resultCount, searchUIConfig.MaxResultsVisible) * resultsListBox.ItemHeight;
+            Debug.WriteLine($"[SearchBar] UpdateResultsListHeight: Setting list height to {newHeight} for {resultCount} results.");
             resultsListBox.Height = newHeight;
         }
     }

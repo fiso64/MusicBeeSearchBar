@@ -3,6 +3,7 @@ using MusicBeePlugin.Services;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -42,7 +43,7 @@ namespace MusicBeePlugin.UI
                     if (IsDisposed) return;
 
                     // Capture both the index and the result for validation
-                    var result = (SearchResult)resultsListBox.Items[i];
+                    var result = resultsListBox.Items[i];
 
                     var loadTask = Task.Run(async () => {
                         if (imageService.GetCachedImage(result) == null)
@@ -50,15 +51,11 @@ namespace MusicBeePlugin.UI
                             var image = await imageService.GetImageAsync(result);
                             if (image != null && !IsDisposed)
                             {
+                                // Invalidate the whole list as items might move
                                 BeginInvoke((Action)(() => {
                                     if (!IsDisposed)
                                     {
-                                        // Find the current index of this result, if it still exists
-                                        int currentIndex = resultsListBox.Items.IndexOf(result);
-                                        if (currentIndex >= 0)
-                                        {
-                                            resultsListBox.Invalidate(resultsListBox.GetItemRectangle(currentIndex));
-                                        }
+                                        resultsListBox.Invalidate();
                                     }
                                 }));
                             }
@@ -80,9 +77,6 @@ namespace MusicBeePlugin.UI
         {
             try
             {
-                // Show default results immediately
-                SearchBoxSetDefaultResults();
-
                 await searchService.LoadTracksAsync();
                 isLoading = false;
 
@@ -108,19 +102,25 @@ namespace MusicBeePlugin.UI
 
         private void SearchBoxSetDefaultResults()
         {
+            Debug.WriteLine("[SearchBar] SearchBoxSetDefaultResults: Fired.");
+            List<SearchResult> defaultItems = null;
+
             switch (searchUIConfig.DefaultResults)
             {
                 case SearchUIConfig.DefaultResultsChoice.Playing:
                     var playingItems = searchService.GetPlayingItems();
+                    Debug.WriteLine($"[SearchBar] SearchBoxSetDefaultResults: Found {playingItems?.Count ?? 0} 'Playing' items.");
                     UpdateResultsList(playingItems);
                     LoadImagesForVisibleResults();
                     break;
                 case SearchUIConfig.DefaultResultsChoice.Selected:
                     var selectedItems = searchService.GetSelectedTracks();
+                    Debug.WriteLine($"[SearchBar] SearchBoxSetDefaultResults: Found {selectedItems?.Count ?? 0} 'Selected' items.");
                     UpdateResultsList(selectedItems);
                     LoadImagesForVisibleResults();
                     break;
                 default:
+                    Debug.WriteLine("[SearchBar] SearchBoxSetDefaultResults: Default results set to 'None'.");
                     UpdateResultsList(null);
                     break;
             }
@@ -132,6 +132,7 @@ namespace MusicBeePlugin.UI
 
             if (string.IsNullOrWhiteSpace(query.Trim()))
             {
+                Debug.WriteLine("[SearchBar] SearchBox_TextChanged: Query is empty, calling SearchBoxSetDefaultResults.");
                 SearchBoxSetDefaultResults();
                 return;
             }
@@ -261,47 +262,39 @@ namespace MusicBeePlugin.UI
 
         private void UpdateResultsList(List<SearchResult> searchResults)
         {
-            if (searchResults == null || searchResults.Count == 0)
+            var results = searchResults ?? new List<SearchResult>();
+            Debug.WriteLine($"[SearchBar] UpdateResultsList: Received {results.Count} results.");
+
+            if (results.Count == 0)
             {
                 if (resultsListBox.Visible)
                 {
                     resultsListBox.Visible = false;
-                    resultsListBox.Items.Clear();
-                    UpdateResultsListHeight(0); // Method in SearchBar.UI.cs
+                    resultsListBox.Items = new List<SearchResult>();
+                    UpdateResultsListHeight(0);
                     Height = 42;
                 }
                 return;
             }
 
-            resultsListBox.BeginUpdate();
-            try
+            // --- FIX: Resize the list and form BEFORE setting the items ---
+            int newHeight = Math.Min(results.Count, searchUIConfig.MaxResultsVisible) * resultsListBox.ItemHeight;
+            Debug.WriteLine($"[SearchBar] UpdateResultsList: Calculated new list height: {newHeight}. Current list height: {resultsListBox.Height}.");
+            if (resultsListBox.Height != newHeight)
             {
-                int currentSelection = resultsListBox.SelectedIndex;
-
-                resultsListBox.Items.Clear();
-                foreach (var result in searchResults)
-                {
-                    resultsListBox.Items.Add(result);
-                }
-
-                if (!resultsListBox.Visible)
-                {
-                    resultsListBox.Visible = true;
-                }
-
-                resultsListBox.SelectedIndex = 0;
-                resultsListBox.TopIndex = 0;
-
-                int newHeight = Math.Min(searchResults.Count, searchUIConfig.MaxResultsVisible) * resultsListBox.ItemHeight;
-                if (resultsListBox.Height != newHeight)
-                {
-                    UpdateResultsListHeight(searchResults.Count); // Method in SearchBar.UI.cs
-                    Height = 42 + resultsListBox.Height;
-                }
+                UpdateResultsListHeight(results.Count);
+                Debug.WriteLine($"[SearchBar] UpdateResultsList: Old form height: {Height}. New list height: {resultsListBox.Height}.");
+                Height = 42 + resultsListBox.Height;
+                Debug.WriteLine($"[SearchBar] UpdateResultsList: Set form height to: {Height}.");
             }
-            finally
+            
+            // Now that the control has its final size, we can safely assign the items.
+            resultsListBox.Items = results;
+
+            if (!resultsListBox.Visible)
             {
-                resultsListBox.EndUpdate();
+                resultsListBox.Visible = true;
+                Debug.WriteLine($"[SearchBar] UpdateResultsList: Set resultsListBox.Visible = true.");
             }
         }
     }

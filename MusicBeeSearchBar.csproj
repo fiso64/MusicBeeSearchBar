@@ -122,6 +122,9 @@
     <Compile Include="UI\SearchBar.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="UI\CustomResultList.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Utils\Utils.cs" />
     <Compile Include="Utils\WinApiHelpers.cs" />
   </ItemGroup>
