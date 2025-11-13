@@ -18,6 +18,7 @@ namespace MusicBeePlugin.Services
         Artist = 4,
         Playlist = 8,
         Command = 16,
+        Header = 32,
         All = 31,
     }
 
@@ -164,6 +165,15 @@ namespace MusicBeePlugin.Services
                 Type = ResultType.Command,
             };
             return res;
+        }
+    }
+
+    public class HeaderResult : SearchResult
+    {
+        public HeaderResult(string title)
+        {
+            DisplayTitle = title;
+            Type = ResultType.Header;
         }
     }
 

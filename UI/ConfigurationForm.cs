@@ -98,13 +98,23 @@ namespace MusicBeePlugin.UI
                 Dock = DockStyle.Fill,
                 Padding = new Padding(10),
                 ColumnCount = 2,
-                RowCount = 8,
+                RowCount = 9,
                 AutoSize = true
             };
 
             // Set column styles for search tab
             searchLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             searchLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+            // Show Type Headers checkbox
+            var showHeadersCheckbox = new CheckBox
+            {
+                Text = "Show Type Headers",
+                Checked = _config.SearchUI.ShowTypeHeaders,
+                AutoSize = true,
+                Enabled = _config.SearchUI.GroupResultsByType
+            };
+            showHeadersCheckbox.CheckedChanged += (s, e) => _config.SearchUI.ShowTypeHeaders = showHeadersCheckbox.Checked;
 
             // Group Results checkbox
             groupResultsCheckbox = new CheckBox
@@ -113,9 +123,16 @@ namespace MusicBeePlugin.UI
                 Checked = _config.SearchUI.GroupResultsByType,
                 AutoSize = true
             };
-            groupResultsCheckbox.CheckedChanged += (s, e) => _config.SearchUI.GroupResultsByType = groupResultsCheckbox.Checked;
+            groupResultsCheckbox.CheckedChanged += (s, e) =>
+            {
+                _config.SearchUI.GroupResultsByType = groupResultsCheckbox.Checked;
+                showHeadersCheckbox.Enabled = groupResultsCheckbox.Checked;
+            };
             searchLayout.Controls.Add(new Label { Text = "Group Results:", AutoSize = true }, 0, 1);
             searchLayout.Controls.Add(groupResultsCheckbox, 1, 1);
+
+            searchLayout.Controls.Add(new Label { Text = "Show Headers:", AutoSize = true }, 0, 2);
+            searchLayout.Controls.Add(showHeadersCheckbox, 1, 2);
 
             // Enable Contains Check
             var enableContainsCheckbox = new CheckBox
@@ -125,8 +142,8 @@ namespace MusicBeePlugin.UI
                 AutoSize = true
             };
             enableContainsCheckbox.CheckedChanged += (s, e) => _config.SearchUI.EnableContainsCheck = enableContainsCheckbox.Checked;
-            searchLayout.Controls.Add(new Label { Text = "Filter Results:", AutoSize = true }, 0, 2);
-            searchLayout.Controls.Add(enableContainsCheckbox, 1, 2);
+            searchLayout.Controls.Add(new Label { Text = "Filter Results:", AutoSize = true }, 0, 3);
+            searchLayout.Controls.Add(enableContainsCheckbox, 1, 3);
 
             // Artist Result Limit
             var artistLimitInput = new NumericUpDown
@@ -137,8 +154,8 @@ namespace MusicBeePlugin.UI
                 Width = 70
             };
             artistLimitInput.ValueChanged += (s, e) => _config.SearchUI.ArtistResultLimit = (int)artistLimitInput.Value;
-            searchLayout.Controls.Add(new Label { Text = "Artist Result Limit:", AutoSize = true }, 0, 3);
-            searchLayout.Controls.Add(artistLimitInput, 1, 3);
+            searchLayout.Controls.Add(new Label { Text = "Artist Result Limit:", AutoSize = true }, 0, 4);
+            searchLayout.Controls.Add(artistLimitInput, 1, 4);
 
             // Album Result Limit
             var albumLimitInput = new NumericUpDown
@@ -149,8 +166,8 @@ namespace MusicBeePlugin.UI
                 Width = 70
             };
             albumLimitInput.ValueChanged += (s, e) => _config.SearchUI.AlbumResultLimit = (int)albumLimitInput.Value;
-            searchLayout.Controls.Add(new Label { Text = "Album Result Limit:", AutoSize = true }, 0, 4);
-            searchLayout.Controls.Add(albumLimitInput, 1, 4);
+            searchLayout.Controls.Add(new Label { Text = "Album Result Limit:", AutoSize = true }, 0, 5);
+            searchLayout.Controls.Add(albumLimitInput, 1, 5);
 
             // Song Result Limit
             var songLimitInput = new NumericUpDown
@@ -161,8 +178,8 @@ namespace MusicBeePlugin.UI
                 Width = 70
             };
             songLimitInput.ValueChanged += (s, e) => _config.SearchUI.SongResultLimit = (int)songLimitInput.Value;
-            searchLayout.Controls.Add(new Label { Text = "Song Result Limit:", AutoSize = true }, 0, 5);
-            searchLayout.Controls.Add(songLimitInput, 1, 5);
+            searchLayout.Controls.Add(new Label { Text = "Song Result Limit:", AutoSize = true }, 0, 6);
+            searchLayout.Controls.Add(songLimitInput, 1, 6);
 
             // Playlist Result Limit
             var playlistLimitInput = new NumericUpDown
@@ -173,8 +190,8 @@ namespace MusicBeePlugin.UI
                 Width = 70
             };
             playlistLimitInput.ValueChanged += (s, e) => _config.SearchUI.PlaylistResultLimit = (int)playlistLimitInput.Value;
-            searchLayout.Controls.Add(new Label { Text = "Playlist Result Limit:", AutoSize = true }, 0, 6);
-            searchLayout.Controls.Add(playlistLimitInput, 1, 6);
+            searchLayout.Controls.Add(new Label { Text = "Playlist Result Limit:", AutoSize = true }, 0, 7);
+            searchLayout.Controls.Add(playlistLimitInput, 1, 7);
 
             // Default Results Choice
             var defaultResultsComboBox = new ComboBox
@@ -192,8 +209,8 @@ namespace MusicBeePlugin.UI
                     _config.SearchUI.DefaultResults = choice;
                 }
             };
-            searchLayout.Controls.Add(new Label { Text = "Default Results:", AutoSize = true }, 0, 7);
-            searchLayout.Controls.Add(defaultResultsComboBox, 1, 7);
+            searchLayout.Controls.Add(new Label { Text = "Default Results:", AutoSize = true }, 0, 8);
+            searchLayout.Controls.Add(defaultResultsComboBox, 1, 8);
 
             searchTab.Controls.Add(searchLayout);
 

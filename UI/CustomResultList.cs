@@ -5,10 +5,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Linq;
 using System.Windows.Forms;
-
-using MusicBeePlugin.Services;
-using System.Collections.Generic;
 
 namespace MusicBeePlugin.UI
 {
@@ -16,12 +14,14 @@ namespace MusicBeePlugin.UI
     {
         private const int SCROLLBAR_WIDTH = 8;
         private const int ARTWORK_CORNER_RADIUS = 8;
+        public const int HEADER_TOP_PADDING = 8;
 
         private List<SearchResult> _items = new List<SearchResult>();
         private int _selectedIndex = -1;
         private int _hoveredIndex = -1;
         private int _topIndex = 0;
         private bool _isUpdating = false;
+        private List<int> _itemYPositions = new List<int>();
 
         // Scrollbar state
         private Rectangle _scrollTrack;
@@ -35,6 +35,7 @@ namespace MusicBeePlugin.UI
 
         // Styling & Resources
         public int ItemHeight { get; set; } = 56;
+        public int HeaderHeight { get; set; } = 24;
         public Color HighlightColor { get; set; }
         public Color HoverColor { get; set; }
         public Font ResultFont { get; set; }
@@ -48,8 +49,27 @@ namespace MusicBeePlugin.UI
             set
             {
                 _items = value ?? new List<SearchResult>();
+
+                _itemYPositions.Clear();
+                if (_items.Count > 0)
+                {
+                    int currentY = 0;
+                    for (int i = 0; i < _items.Count; i++)
+                    {
+                        _itemYPositions.Add(currentY);
+                        currentY += GetItemHeight(i);
+                    }
+                }
+
                 TopIndex = 0;
-                SelectedIndex = _items.Count > 0 ? 0 : -1;
+                
+                int firstSelectable = -1;
+                if (_items.Count > 0)
+                {
+                    firstSelectable = _items.FindIndex(i => i.Type != ResultType.Header);
+                }
+                SelectedIndex = firstSelectable;
+
                 UpdateScrollbar();
                 Invalidate();
             }
@@ -83,7 +103,36 @@ namespace MusicBeePlugin.UI
             get => _topIndex;
             set
             {
-                int maxTopIndex = Math.Max(0, _items.Count - VisibleItemCount);
+                if (_items.Count == 0 || _itemYPositions.Count == 0)
+                {
+                    if (_topIndex != 0) Invalidate();
+                    _topIndex = 0;
+                    return;
+                }
+        
+                int maxTopIndex;
+                int contentHeight = _itemYPositions.Last() + GetItemHeight(_items.Count - 1);
+                if (contentHeight <= Height)
+                {
+                    maxTopIndex = 0;
+                }
+                else
+                {
+                    int lastItemIndex = _items.Count - 1;
+                    int heightSum = 0;
+                    maxTopIndex = lastItemIndex;
+                    for (int i = lastItemIndex; i >= 0; i--)
+                    {
+                        heightSum += GetItemHeight(i);
+                        if (heightSum > Height)
+                        {
+                            maxTopIndex = i + 1;
+                            break;
+                        }
+                        maxTopIndex = i;
+                    }
+                }
+
                 var newValue = Math.Max(0, Math.Min(value, maxTopIndex));
                 if (_topIndex != newValue)
                 {
@@ -109,19 +158,39 @@ namespace MusicBeePlugin.UI
             }
         }
 
-        private int VisibleItemCount
-        {
-            get
-            {
-                var count = Height > 0 && ItemHeight > 0 ? Height / ItemHeight : 0;
-                return count;
-            }
-        }
-
         public CustomResultList()
         {
             this.DoubleBuffered = true;
             this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+        }
+
+        private int GetItemHeight(int index)
+        {
+            if (index < 0 || index >= _items.Count) return ItemHeight;
+            if (_items[index].Type == ResultType.Header)
+            {
+                // Add extra spacing before headers that are not the very first item.
+                return HeaderHeight + ((index > 0) ? HEADER_TOP_PADDING : 0);
+            }
+            return ItemHeight;
+        }
+
+        private int GetIndexFromY(int y)
+        {
+            if (_items.Count == 0 || _itemYPositions.Count == 0) return -1;
+        
+            int absoluteY = y + _itemYPositions[TopIndex];
+        
+            // This could be a binary search, but linear is fine for the number of visible items.
+            for (int i = TopIndex; i < _items.Count; i++)
+            {
+                if (absoluteY < _itemYPositions[i] + GetItemHeight(i))
+                {
+                    return i;
+                }
+            }
+            // If cursor is below the last item, it's not on any item.
+            return -1;
         }
 
         public void BeginUpdate() => _isUpdating = true;
@@ -134,30 +203,63 @@ namespace MusicBeePlugin.UI
 
         private void InvalidateItem(int index)
         {
-            if (index >= TopIndex && index < TopIndex + VisibleItemCount + 1)
+            if (index >= 0 && index < _itemYPositions.Count)
             {
-                var rect = new Rectangle(0, (index - TopIndex) * ItemHeight, Width, ItemHeight);
-                Invalidate(rect);
+                int topY = (TopIndex < _itemYPositions.Count) ? _itemYPositions[TopIndex] : 0;
+                int itemY = _itemYPositions[index] - topY;
+                var rect = new Rectangle(0, itemY, Width, GetItemHeight(index));
+                
+                if (rect.Bottom >= 0 && rect.Top <= Height)
+                {
+                    Invalidate(rect);
+                }
             }
         }
 
         private void EnsureVisible(int index)
         {
-            if (index < 0) return;
+            if (index < 0 || index >= _items.Count) return;
             
             if (index < TopIndex)
             {
                 TopIndex = index;
             }
-            else if (index >= TopIndex + VisibleItemCount)
+            else
             {
-                TopIndex = index - VisibleItemCount + 1;
+                int itemBottom = _itemYPositions[index] + GetItemHeight(index);
+                int viewTop = _itemYPositions[TopIndex];
+
+                if (itemBottom > viewTop + Height)
+                {
+                    // Item is below the view. Scroll so it becomes the last fully visible item.
+                    int heightSum = 0;
+                    int newTopIndex = index;
+                    for (int i = index; i >= 0; i--)
+                    {
+                        heightSum += GetItemHeight(i);
+                        if (heightSum > Height)
+                        {
+                            newTopIndex = i + 1;
+                            break;
+                        }
+                        newTopIndex = i;
+                    }
+                    TopIndex = newTopIndex;
+                }
             }
         }
 
         private void UpdateScrollbar()
         {
-            if (_items.Count <= VisibleItemCount)
+            if (_items.Count == 0 || _itemYPositions.Count == 0)
+            {
+                _isThumbVisible = false;
+                return;
+            }
+
+            int contentHeight = _itemYPositions.Last() + GetItemHeight(_items.Count - 1);
+
+            if (contentHeight <= Height)
             {
                 _isThumbVisible = false;
                 return;
@@ -166,11 +268,11 @@ namespace MusicBeePlugin.UI
             _isThumbVisible = true;
             _scrollTrack = new Rectangle(Width - SCROLLBAR_WIDTH, 0, SCROLLBAR_WIDTH, Height);
 
-            float contentHeight = _items.Count * ItemHeight;
-            float thumbHeight = Math.Max(20, Height * (Height / contentHeight));
-
-            float scrollableRatio = (TopIndex * ItemHeight) / (contentHeight - Height);
-            float thumbY = (Height - thumbHeight) * scrollableRatio;
+            float thumbHeight = Math.Max(20, Height * (Height / (float)contentHeight));
+            float scrollableHeight = contentHeight - Height;
+            
+            float scrollRatio = (scrollableHeight > 0) ? (_itemYPositions[TopIndex] / scrollableHeight) : 0;
+            float thumbY = (Height - thumbHeight) * scrollRatio;
 
             _scrollThumb = new Rectangle(
                 _scrollTrack.X + 1,
@@ -194,18 +296,22 @@ namespace MusicBeePlugin.UI
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
-            int visibleCount = VisibleItemCount;
-            Debug.WriteLine($"[CustomResultList] OnPaint: TopIndex={TopIndex}, VisibleItemCount={visibleCount}, TotalItems={_items.Count}.");
-            int end = Math.Min(_items.Count, TopIndex + visibleCount + 1);
-            for (int i = TopIndex; i < end; i++)
+            if (_items.Count == 0 || _itemYPositions.Count == 0) return;
+
+            int topItemY = _itemYPositions[TopIndex];
+
+            for (int i = TopIndex; i < _items.Count; i++)
             {
+                int itemY = _itemYPositions[i] - topItemY;
+                if (itemY >= Height) break; // Optimization: stop if we're past the bottom of the control
+
                 var item = _items[i];
-                var bounds = new Rectangle(0, (i - TopIndex) * ItemHeight, Width, ItemHeight);
-                if (i == TopIndex)
+                var bounds = new Rectangle(0, itemY, Width, GetItemHeight(i));
+
+                if (e.ClipRectangle.IntersectsWith(bounds))
                 {
-                    Debug.WriteLine($"[CustomResultList] OnPaint: Drawing first visible item '{item.DisplayTitle}' at bounds {bounds}.");
+                    DrawItem(e.Graphics, item, bounds, i, i == _selectedIndex);
                 }
-                DrawItem(e.Graphics, item, bounds, i, i == _selectedIndex);
             }
             
             if (_isThumbVisible)
@@ -216,6 +322,32 @@ namespace MusicBeePlugin.UI
 
         private void DrawItem(Graphics g, SearchResult resultItem, Rectangle bounds, int index, bool isSelected)
         {
+            if (resultItem.Type == ResultType.Header)
+            {
+                using (var backgroundBrush = new SolidBrush(this.BackColor))
+                {
+                    g.FillRectangle(backgroundBrush, bounds);
+                }
+
+                using (var headerFont = new Font(ResultFont.FontFamily, ResultFont.Size, FontStyle.Italic))
+                {
+                    var headerColor = Color.Gray;
+                    TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.Left;
+
+                    int currentTopPadding = (index > 0) ? HEADER_TOP_PADDING : 0;
+
+                    Rectangle textRenderBounds = new Rectangle(
+                        bounds.X + 10,
+                        bounds.Y + currentTopPadding, // Position text after the padding
+                        bounds.Width - 20,
+                        HeaderHeight // The text area has the original header height
+                    );
+
+                    TextRenderer.DrawText(g, resultItem.DisplayTitle.ToUpper(), headerFont, textRenderBounds, headerColor, flags | TextFormatFlags.VerticalCenter);
+                }
+                return;
+            }
+
             const int HORIZONTAL_PADDING = 10;
             const int IMAGE_VERTICAL_MARGIN = 6; // Margin from top and bottom for the image
             const int IMAGE_TO_TEXT_SPACING = 10;
@@ -419,10 +551,17 @@ namespace MusicBeePlugin.UI
             }
             else
             {
-                int index = TopIndex + (e.Y / ItemHeight);
-                if (index < _items.Count)
+                int index = GetIndexFromY(e.Y);
+                if (index >= 0 && index < _items.Count)
                 {
-                    SelectedIndex = index;
+                    if (_items[index].Type != ResultType.Header)
+                    {
+                        SelectedIndex = index;
+                    }
+                    else
+                    {
+                        SelectedIndex = -1; // Deselect if a header is clicked
+                    }
                 }
             }
         }
@@ -432,18 +571,27 @@ namespace MusicBeePlugin.UI
             base.OnMouseMove(e);
             if (_isDraggingThumb)
             {
-                float contentHeight = _items.Count * ItemHeight;
+                if (_items.Count == 0) return;
+                int contentHeight = _itemYPositions.Last() + GetItemHeight(_items.Count - 1);
                 float scrollableHeight = contentHeight - Height;
                 float trackHeight = Height - _scrollThumb.Height;
+
+                if (trackHeight <= 0 || scrollableHeight <= 0) return;
 
                 int deltaY = e.Y - _dragStartY;
                 float deltaContent = (deltaY / trackHeight) * scrollableHeight;
                 
-                TopIndex = _dragStartTopIndex + (int)(deltaContent / ItemHeight);
+                int startY = _itemYPositions[_dragStartTopIndex];
+                int newY = startY + (int)deltaContent;
+
+                // Find the index closest to newY
+                int newTopIndex = _itemYPositions.FindLastIndex(y => y <= newY);
+                if (newTopIndex == -1) newTopIndex = 0;
+                TopIndex = newTopIndex;
             }
             else
             {
-                int index = TopIndex + (e.Y / ItemHeight);
+                int index = GetIndexFromY(e.Y);
                 if (index >= _items.Count)
                 {
                     index = -1; // outside of items

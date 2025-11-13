@@ -265,6 +265,40 @@ namespace MusicBeePlugin.UI
             var results = searchResults ?? new List<SearchResult>();
             Debug.WriteLine($"[SearchBar] UpdateResultsList: Received {results.Count} results.");
 
+            if (searchUIConfig.GroupResultsByType && searchUIConfig.ShowTypeHeaders && results.Count > 0)
+            {
+                var newResults = new List<SearchResult>();
+                ResultType? currentType = null;
+                foreach (var result in results)
+                {
+                    if (result.Type != currentType)
+                    {
+                        currentType = result.Type;
+                        // Add header based on type
+                        switch (currentType)
+                        {
+                            case ResultType.Command:
+                                newResults.Add(new HeaderResult("Commands"));
+                                break;
+                            case ResultType.Artist:
+                                newResults.Add(new HeaderResult("Artists"));
+                                break;
+                            case ResultType.Album:
+                                newResults.Add(new HeaderResult("Albums"));
+                                break;
+                            case ResultType.Song:
+                                newResults.Add(new HeaderResult("Songs"));
+                                break;
+                            case ResultType.Playlist:
+                                newResults.Add(new HeaderResult("Playlists"));
+                                break;
+                        }
+                    }
+                    newResults.Add(result);
+                }
+                results = newResults;
+            }
+
             var mainPanel = resultsListBox.Parent as Panel;
             if (mainPanel == null) return;
 
@@ -272,7 +306,15 @@ namespace MusicBeePlugin.UI
             if (searchContainer == null) return;
 
             int nonListHeight = mainPanel.Padding.Vertical + searchContainer.Height;
-            int listHeight = Math.Min(results.Count, searchUIConfig.MaxResultsVisible) * resultsListBox.ItemHeight;
+
+            int listHeight = 0;
+            int itemsToMeasure = Math.Min(results.Count, searchUIConfig.MaxResultsVisible);
+            for (int i = 0; i < itemsToMeasure; i++)
+            {
+                listHeight += (results[i].Type == ResultType.Header)
+                    ? resultsListBox.HeaderHeight + ((i > 0) ? CustomResultList.HEADER_TOP_PADDING : 0)
+                    : resultsListBox.ItemHeight;
+            }
 
             if (results.Count > 0)
             {

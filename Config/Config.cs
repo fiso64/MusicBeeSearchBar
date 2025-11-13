@@ -134,6 +134,7 @@ namespace MusicBeePlugin.Config
     public class SearchUIConfig // should be split into two configs, one for the search UI and one for the search behavior
     {
         public bool GroupResultsByType { get; set; } = true;
+        public bool ShowTypeHeaders { get; set; } = true;
         public bool EnableContainsCheck { get; set; } = true;
         public bool ShowImages { get; set; } = true;
         public double OverlayOpacity { get; set; } = 0.6;

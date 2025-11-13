@@ -1,5 +1,6 @@
 ﻿using MusicBeePlugin.Services;
 using System;
+using System.Linq;
 using System.Windows.Forms;
 using static MusicBeePlugin.Plugin;
 
@@ -43,7 +44,17 @@ namespace MusicBeePlugin.UI
             {
                 if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                 {
-                    resultsListBox.SelectedIndex = (resultsListBox.SelectedIndex + 1) % resultsListBox.Items.Count;
+                    if (resultsListBox.Items.All(i => i.Type == ResultType.Header)) return;
+
+                    int count = resultsListBox.Items.Count;
+                    int newIndex = resultsListBox.SelectedIndex;
+                    if (newIndex == -1) newIndex = count - 1;
+
+                    do
+                    {
+                        newIndex = (newIndex + 1) % count;
+                    } while (resultsListBox.Items[newIndex].Type == ResultType.Header);
+                    resultsListBox.SelectedIndex = newIndex;
                 }
                 e.Handled = true;
                 e.SuppressKeyPress = true;
@@ -52,8 +63,17 @@ namespace MusicBeePlugin.UI
             {
                 if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                 {
-                    int cur = resultsListBox.SelectedIndex;
-                    resultsListBox.SelectedIndex = cur > 0 ? cur - 1 : resultsListBox.Items.Count - 1;
+                    if (resultsListBox.Items.All(i => i.Type == ResultType.Header)) return;
+
+                    int count = resultsListBox.Items.Count;
+                    int newIndex = resultsListBox.SelectedIndex;
+                    if (newIndex == -1) newIndex = 0;
+
+                    do
+                    {
+                        newIndex = newIndex > 0 ? newIndex - 1 : count - 1;
+                    } while (resultsListBox.Items[newIndex].Type == ResultType.Header);
+                    resultsListBox.SelectedIndex = newIndex;
                 }
                 e.Handled = true;
                 e.SuppressKeyPress = true;

@@ -1,4 +1,31 @@
 
+when I navigate down with the arrow key, I sometimes see a part of the result below the one that is currently selected. Whether or not I see that depends on whether a header is currently visible or not. 
+Concrete example:
+
+(other items)
+SONGS (header, visible)
+song 1
+song 2
+-> song 3 (selected)
+song 4 (I see the upper half of song 4)
+
+other case:
+
+SONGS (header, out of view)
+song 1
+song 2
+...
+song n-2
+song n-1
+-> song n (selected)
+(song n appears right at the bottom, song n+1 is not visible at all until I navigate down, as it should be)
+
+I think the number of visible headers matters for this as well. So when more headers are visible, I see more of the next song that I haven't yet reached.
+
+Once again: When headers are visible, the scroll offset is too large and the selected item is shy of the bottom, and it looks like by exactly the sum of the heights of the visible headers.
+
+---
+
 - search sort artists (maybe also for songs and albums)
 
 - fix sort artists in music explorer (honorifics, dj prefixes)
