@@ -1,4 +1,5 @@
 
+- fix scroll offset bug
 when I navigate down with the arrow key, I sometimes see a part of the result below the one that is currently selected. Whether or not I see that depends on whether a header is currently visible or not. 
 Concrete example:
 
@@ -25,6 +26,27 @@ I think the number of visible headers matters for this as well. So when more hea
 Once again: When headers are visible, the scroll offset is too large and the selected item is shy of the bottom, and it looks like by exactly the sum of the heights of the visible headers.
 
 ---
+
+- fix scroll offset bug
+- add top match (can be turned off): displays an enlarged top match item as first result. 
+    - this will require larger album thumbs
+    - ensure top match thumbs are created first before any other result and also cached. make subsequent album thumbs retrieval fast by resizing from the top match thumb (if it has been cached) instead of the original.
+- find a way to use musicbee's internal album cover thumb cache
+- find a way to open artists in music explorer more directly
+  - check if pure album artists can be opened like that in music explorer. if not, add a configurable action for pure album artists.
+- add an album artist section in default results (only shown when album artist not contained in artists)
+- readd icons on the right (configurable), and make icon size fixed
+- fix all dpi issues
+- lyrics search support?
+- make settings more descriptive and add tooltips
+- should the "contains check" setting really be on by default? should lyrics search have it always disabled, regardless of the value?
+- maybe relax contains check to ignore ws (xcla should match x-cla)
+- add a way to open tag editor on a selected result
+- add alt+enter actions (default to tag editor)
+- add a way to search in a specific album, artist, or playlist. e.g. inalbum:, alias ina:, example: inalbum:Album Name; Track Name. Think whether or when to use exact match for in: queries.
+- add a way to insert a result as an in: query (left arrow)
+- add a menu for each result item (right arrow or right click to open). opens a separate list of actions.
+
 
 - search sort artists (maybe also for songs and albums)
 

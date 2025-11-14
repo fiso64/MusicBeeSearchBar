@@ -147,9 +147,9 @@ namespace MusicBeePlugin.Config
         public enum DefaultResultsChoice { Playing, Selected, None };
         public DefaultResultsChoice DefaultResults = DefaultResultsChoice.Playing;
         public Color TextColor { get; set; } = Color.White;
-        public Color BaseColor { get; set; } = Color.FromArgb(30, 30, 30);
-        public Color ResultHighlightColor { get; set; } = Color.FromArgb(60, 60, 60);
-        public Size InitialSize { get; set; } = new Size(600, 40);
+        public Color BaseColor { get; set; } = Color.FromArgb(20, 20, 20);
+        public Color ResultHighlightColor { get; set; } = Color.FromArgb(45, 45, 45);
+        public Size InitialSize { get; set; } = new Size(550, 40);
 
         public static SearchUIConfig GetDefault(MusicBeeApiInterface mbApi)
         {

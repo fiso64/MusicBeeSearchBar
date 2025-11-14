@@ -412,6 +412,7 @@ namespace MusicBeePlugin
 
         public enum MetaDataType
         {
+            AlbumUniqueId = 108,
             TrackTitle = 65,
             Album = 30,
             AlbumArtist = 31,        // displayed album artist
