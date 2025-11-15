@@ -18,6 +18,7 @@ namespace MusicBeePlugin.Services
         private readonly Config.SearchUIConfig searchUIConfig;
         private readonly int imageSize;
         private readonly Dictionary<string, Image> imageCache = new Dictionary<string, Image>();
+        private readonly object _cacheLock = new object();
         private bool disposed = false;
 
         private readonly string _coverJpgHash;
@@ -70,42 +71,55 @@ namespace MusicBeePlugin.Services
         private Image GetCachedImage(string identifier, ResultType type)
         {
             string cacheKey = GetCacheKey(identifier, type);
-            return imageCache.TryGetValue(cacheKey, out Image cachedImage) ? cachedImage : null;
+            lock (_cacheLock)
+            {
+                return imageCache.TryGetValue(cacheKey, out Image cachedImage) ? cachedImage : null;
+            }
         }
 
         public async Task<Image> GetArtistImageAsync(string artist)
         {
             string cacheKey = GetCacheKey(artist, ResultType.Artist);
-            if (imageCache.ContainsKey(cacheKey))
-                return imageCache[cacheKey];
 
+            lock (_cacheLock)
+            {
+                if (imageCache.ContainsKey(cacheKey))
+                    return imageCache[cacheKey];
+            }
+
+            Image thumb = null;
             try
             {
                 string imagePath = mbApi.Library_GetArtistPictureThumb(artist);
-                if (string.IsNullOrEmpty(imagePath) || !File.Exists(imagePath))
-                    return null;
-
-                if (new FileInfo(imagePath).Length <= 0)
-                    return null;
-
-                using (var originalImage = Image.FromFile(imagePath))
+                if (!string.IsNullOrEmpty(imagePath) && File.Exists(imagePath) && new FileInfo(imagePath).Length > 0)
                 {
-                    var thumb = CreateSquareThumb(originalImage, makeCircular: true);
-                    if (!disposed && thumb != null)
+                    using (var originalImage = Image.FromFile(imagePath))
                     {
-                        imageCache[cacheKey] = thumb;
-                    } 
-                    else
-                    {
-                        thumb?.Dispose();
-                        thumb = null;
+                        thumb = CreateSquareThumb(originalImage, makeCircular: true);
                     }
-                    return thumb;
                 }
             }
             catch (Exception)
             {
+                thumb?.Dispose();
                 return null;
+            }
+
+            if (disposed || thumb == null)
+            {
+                thumb?.Dispose();
+                return null;
+            }
+
+            lock (_cacheLock)
+            {
+                if (imageCache.TryGetValue(cacheKey, out var existingImage))
+                {
+                    thumb.Dispose(); // We created a duplicate, so dispose it
+                    return existingImage;
+                }
+                imageCache[cacheKey] = thumb;
+                return thumb;
             }
         }
 
@@ -236,9 +250,13 @@ namespace MusicBeePlugin.Services
         public async Task<Image> GetAlbumImageAsync(string albumArtist, string album)
         {
             string cacheKey = GetCacheKey($"{albumArtist}:{album}", ResultType.Album);
-            if (imageCache.ContainsKey(cacheKey))
-                return imageCache[cacheKey];
+            lock (_cacheLock)
+            {
+                if (imageCache.ContainsKey(cacheKey))
+                    return imageCache[cacheKey];
+            }
 
+            Image thumb = null;
             try
             {
                 var query = MusicBeeHelpers.ConstructLibraryQuery(
@@ -247,48 +265,68 @@ namespace MusicBeePlugin.Services
                 );
                 mbApi.Library_QueryFilesEx(query, out string[] files);
 
-                if (files == null || files.Length == 0)
-                    return null;
-
-                if (searchUIConfig.UseMusicBeeCacheForCovers)
+                if (files != null && files.Length > 0)
                 {
-                    string imagePath = GetInternalCacheImagePath(files[0]);
-                    if (!string.IsNullOrEmpty(imagePath) && new FileInfo(imagePath).Length > 0)
+                    if (searchUIConfig.UseMusicBeeCacheForCovers)
                     {
-                        using (var originalImage = Image.FromFile(imagePath))
+                        string imagePath = GetInternalCacheImagePath(files[0]);
+                        if (!string.IsNullOrEmpty(imagePath) && new FileInfo(imagePath).Length > 0)
                         {
-                            var thumb = CreateSquareThumb(originalImage);
-                            if (!disposed) { imageCache[cacheKey] = thumb; } else { thumb?.Dispose(); thumb = null; }
-                            return thumb;
+                            using (var originalImage = Image.FromFile(imagePath))
+                            {
+                                thumb = CreateSquareThumb(originalImage);
+                            }
                         }
                     }
-                }
 
-                // Fallback to original method
-                mbApi.Library_GetArtworkEx(files[0], 0, true, out _, out _, out byte[] imageData);
-                if (imageData == null || imageData.Length == 0)
-                    return null;
-
-                using (var ms = new MemoryStream(imageData))
-                using (var originalImage = Image.FromStream(ms))
-                {
-                    var thumb = CreateSquareThumb(originalImage);
-                    if (!disposed) { imageCache[cacheKey] = thumb; } else { thumb?.Dispose(); thumb = null; }
-                    return thumb;
+                    if (thumb == null) // Fallback
+                    {
+                        mbApi.Library_GetArtworkEx(files[0], 0, true, out _, out _, out byte[] imageData);
+                        if (imageData != null && imageData.Length > 0)
+                        {
+                            using (var ms = new MemoryStream(imageData))
+                            using (var originalImage = Image.FromStream(ms))
+                            {
+                                thumb = CreateSquareThumb(originalImage);
+                            }
+                        }
+                    }
                 }
             }
             catch (Exception)
             {
+                thumb?.Dispose();
                 return null;
+            }
+
+            if (disposed || thumb == null)
+            {
+                thumb?.Dispose();
+                return null;
+            }
+
+            lock (_cacheLock)
+            {
+                if (imageCache.TryGetValue(cacheKey, out var existingImage))
+                {
+                    thumb.Dispose();
+                    return existingImage;
+                }
+                imageCache[cacheKey] = thumb;
+                return thumb;
             }
         }
 
         public async Task<Image> GetFileImageAsync(string filepath)
         {
             string cacheKey = GetCacheKey(filepath, ResultType.Song);
-            if (imageCache.ContainsKey(cacheKey))
-                return imageCache[cacheKey];
+            lock (_cacheLock)
+            {
+                if (imageCache.ContainsKey(cacheKey))
+                    return imageCache[cacheKey];
+            }
 
+            Image thumb = null;
             try
             {
                 if (searchUIConfig.UseMusicBeeCacheForCovers)
@@ -298,29 +336,46 @@ namespace MusicBeePlugin.Services
                     {
                         using (var originalImage = Image.FromFile(imagePath))
                         {
-                            var thumb = CreateSquareThumb(originalImage);
-                            if (!disposed) { imageCache[cacheKey] = thumb; } else { thumb?.Dispose(); thumb = null; }
-                            return thumb;
+                            thumb = CreateSquareThumb(originalImage);
                         }
                     }
                 }
 
                 // Fallback to original method
-                mbApi.Library_GetArtworkEx(filepath, 0, true, out _, out _, out byte[] imageData);
-                if (imageData == null || imageData.Length == 0)
-                    return null;
-
-                using (var ms = new MemoryStream(imageData))
-                using (var originalImage = Image.FromStream(ms))
+                if (thumb == null)
                 {
-                    var thumb = CreateSquareThumb(originalImage);
-                    if (!disposed) { imageCache[cacheKey] = thumb; } else { thumb?.Dispose(); thumb = null; }
-                    return thumb;
+                    mbApi.Library_GetArtworkEx(filepath, 0, true, out _, out _, out byte[] imageData);
+                    if (imageData != null && imageData.Length > 0)
+                    {
+                        using (var ms = new MemoryStream(imageData))
+                        using (var originalImage = Image.FromStream(ms))
+                        {
+                            thumb = CreateSquareThumb(originalImage);
+                        }
+                    }
                 }
             }
             catch (Exception)
             {
+                thumb?.Dispose();
                 return null;
+            }
+
+            if (disposed || thumb == null)
+            {
+                thumb?.Dispose();
+                return null;
+            }
+
+            lock (_cacheLock)
+            {
+                if (imageCache.TryGetValue(cacheKey, out var existingImage))
+                {
+                    thumb.Dispose();
+                    return existingImage;
+                }
+                imageCache[cacheKey] = thumb;
+                return thumb;
             }
         }
 
@@ -332,11 +387,14 @@ namespace MusicBeePlugin.Services
 
         private void ClearCacheInternal()
         {
-            foreach (var image in imageCache.Values)
+            lock (_cacheLock)
             {
-                image?.Dispose();
+                foreach (var image in imageCache.Values)
+                {
+                    image?.Dispose();
+                }
+                imageCache.Clear();
             }
-            imageCache.Clear();
         }
 
         public Image CreateSquareThumb(Image original, bool makeCircular = false)
