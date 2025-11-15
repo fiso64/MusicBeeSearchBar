@@ -60,7 +60,7 @@ namespace MusicBeePlugin.UI
 
         // Constants
         private const int SEARCH_BOX_HEIGHT = 34;
-        private const int IMAGE_DEBOUNCE_MS = 100;
+        private const int IMAGE_DEBOUNCE_MS = 10;
         private const bool INCREMENTAL_UPDATE = false;
 
 

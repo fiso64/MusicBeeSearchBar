@@ -39,7 +39,7 @@ Once again: When headers are visible, the scroll offset is too large and the sel
 - fix all dpi issues
 - lyrics search support?
 - make settings more descriptive and add tooltips
-- should the "contains check" setting really be on by default? should lyrics search have it always disabled, regardless of the value?
+- should lyrics search have contains check always disabled, regardless of config?
 - maybe relax contains check to ignore ws (xcla should match x-cla)
 - add a way to open tag editor on a selected result
 - add alt+enter actions (default to tag editor)
