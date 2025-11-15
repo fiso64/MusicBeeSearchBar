@@ -75,12 +75,9 @@ namespace MusicBeePlugin.Services
             {
                 QueueLast(result, queueLastAction);
             }
-            else if (action is OpenInMusicExplorerActionData openInExplorerAction)
+            else if (action is OpenInMusicExplorerActionData && result is ArtistResult artistResult)
             {
-                if (result is ArtistResult artistResult)
-                {
-                    MusicBeeHelpers.OpenArtistInMusicExplorer(artistResult.Artist);
-                }
+                MusicBeeHelpers.OpenArtistInMusicExplorer(artistResult.Artist);
             }
 
             action._actionExecuted = true;
@@ -143,22 +140,6 @@ namespace MusicBeePlugin.Services
 
         private void Search(string searchBoxText, SearchResult result, SearchInTabActionData action)
         {
-            //string getSortArtistIfNotHonorific(string artist, string sortArtist)
-            //{
-            //    if (string.IsNullOrEmpty(sortArtist))
-            //        return artist;
-
-            //    var parts = sortArtist.Split(new string[] { ", " }, StringSplitOptions.None);
-            //    if (parts.Length < 2)
-            //        return sortArtist;
-
-            //    var potentialHonorific = parts[parts.Length - 1];
-            //    var name = string.Join(", ", parts.Take(parts.Length - 1));
-
-            //    var reconstructed = $"{potentialHonorific} {name}";
-            //    return reconstructed.Equals(artist, StringComparison.OrdinalIgnoreCase) ? artist : sortArtist;
-            //}
-
             string getSearchArtist(string artist, string sortArtist)
             {
                 if (string.IsNullOrEmpty(sortArtist))

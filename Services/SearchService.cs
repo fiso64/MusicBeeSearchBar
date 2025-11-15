@@ -184,6 +184,22 @@ namespace MusicBeePlugin.Services
         }
     }
 
+    public class ArtistEntity
+    {
+        // A representative name for the entity, mainly for grouping.
+        public string CanonicalArtistName { get; }
+
+        // Maps a normalized alias back to the original (Artist, SortArtist) pair it came from.
+        // Key: Normalized alias (e.g., "artist mr"), Value: original ("Mr. Artist", "Artist, Mr.")
+        public Dictionary<string, (string Artist, string SortArtist)> AliasMap { get; }
+
+        public ArtistEntity(string canonicalArtistName)
+        {
+            CanonicalArtistName = canonicalArtistName;
+            AliasMap = new Dictionary<string, (string Artist, string SortArtist)>();
+        }
+    }
+
     public class Track
     {
         public string TrackTitle;
@@ -274,7 +290,7 @@ namespace MusicBeePlugin.Services
 
     public class Database
     {
-        public Dictionary<string, (string Artist, string SortArtist)> Artists; // NormalizedArtist: (Artist, SortArtist)
+        public List<ArtistEntity> Artists;
         public Dictionary<(string NormalizedAlbum, string NormalizedAlbumArtist), Track> Albums;
         public Dictionary<Track, (string NormalizedTitle, string NormalizedArtists)> Songs;
 
@@ -296,65 +312,106 @@ namespace MusicBeePlugin.Services
                 return normalized;
             }
 
-            Artists = new Dictionary<string, (string, string)>();
+            Artists = new List<ArtistEntity>();
             Albums = new Dictionary<(string, string), Track>();
             Songs = new Dictionary<Track, (string, string)>();
 
-            foreach (var track in tracks)
+            if ((enabledTypes & ResultType.Artist) != 0)
             {
-                if ((enabledTypes & ResultType.Artist) != 0)
+                var tempArtistGroups = new Dictionary<string, HashSet<(string Artist, string SortArtist)>>();
+                foreach (var track in tracks)
                 {
-                    SplitAndAddArtists(track.Artists, track.SortArtist, getNormalized);
-                    SplitAndAddArtists(track.AlbumArtist, track.SortAlbumArtist, getNormalized);
+                    PopulateArtistGroups(track.Artists, track.SortArtist, getNormalized, tempArtistGroups);
+                    PopulateArtistGroups(track.AlbumArtist, track.SortAlbumArtist, getNormalized, tempArtistGroups);
                 }
 
-                if ((enabledTypes & ResultType.Album) != 0 && !string.IsNullOrEmpty(track.Album))
+                foreach (var group in tempArtistGroups.Values)
                 {
-                    var key = (
-                        NormalizedAlbum: getNormalized(track.Album),
-                        NormalizedAlbumArtist: getNormalized(track.AlbumArtist)
-                    );
-                    if (!Albums.ContainsKey(key))
+                    if (!group.Any()) continue;
+                    
+                    var canonicalArtistName = group.First().Artist;
+                    var entity = new ArtistEntity(canonicalArtistName);
+
+                    foreach (var pair in group)
                     {
-                        Albums[key] = track;
-                    }
-                }
+                        if (!string.IsNullOrEmpty(pair.Artist))
+                        {
+                            entity.AliasMap[getNormalized(pair.Artist)] = pair;
+                        }
 
-                if ((enabledTypes & ResultType.Song) != 0 && !string.IsNullOrEmpty(track.TrackTitle))
+                        if (!string.IsNullOrEmpty(pair.SortArtist))
+                        {
+                            var normalizedArtist = getNormalized(pair.Artist);
+                            var normalizedSortArtist = getNormalized(pair.SortArtist);
+                            if (normalizedArtist != normalizedSortArtist)
+                            {
+                                entity.AliasMap[normalizedSortArtist] = pair;
+                            }
+                        }
+                    }
+                    Artists.Add(entity);
+                }
+            }
+
+            if ((enabledTypes & ResultType.Album) != 0 || (enabledTypes & ResultType.Song) != 0)
+            {
+                foreach (var track in tracks)
                 {
-                    var value = (
-                        NormalizedTitle: getNormalized(track.TrackTitle),
-                        NormalizedArtists: getNormalized(track.Artists)
-                    );
-                    Songs[track] = value;
+                    if ((enabledTypes & ResultType.Album) != 0 && !string.IsNullOrEmpty(track.Album))
+                    {
+                        var key = (
+                            NormalizedAlbum: getNormalized(track.Album),
+                            NormalizedAlbumArtist: getNormalized(track.AlbumArtist)
+                        );
+                        if (!Albums.ContainsKey(key))
+                        {
+                            Albums[key] = track;
+                        }
+                    }
+
+                    if ((enabledTypes & ResultType.Song) != 0 && !string.IsNullOrEmpty(track.TrackTitle))
+                    {
+                        var value = (
+                            NormalizedTitle: getNormalized(track.TrackTitle),
+                            NormalizedArtists: getNormalized(track.Artists)
+                        );
+                        Songs[track] = value;
+                    }
                 }
             }
         }
 
-        void SplitAndAddArtists(string artists, string sortArtists, Func<string, string> getNormalizedFunc)
+
+        private void PopulateArtistGroups(string artists, string sortArtists, Func<string, string> getNormalizedFunc, Dictionary<string, HashSet<(string Artist, string SortArtist)>> artistGroups)
         {
-            if (string.IsNullOrEmpty(artists))
-                return;
+            if (string.IsNullOrEmpty(artists)) return;
 
             var splitArtists = artists.Split(';');
-            var splitSortArtist = !string.IsNullOrEmpty(sortArtists) ? sortArtists.Split(';') : null;
+
+            var splitSortArtists = !string.IsNullOrEmpty(sortArtists) ? sortArtists.Split(';') : null;
+
+            bool assignSortArtists = splitSortArtists != null && splitSortArtists.Length == splitArtists.Length;
 
             for (int i = 0; i < splitArtists.Length; i++)
             {
-                var artist = splitArtists[i];
-                if (string.IsNullOrWhiteSpace(artist))
-                    continue;
+                string artist = splitArtists[i]?.Trim();
+                if (string.IsNullOrEmpty(artist)) continue;
 
-                string trimmedArtist = artist.Trim();
-                string normalizedArtist = getNormalizedFunc(trimmedArtist);
-
-                if (!Artists.ContainsKey(normalizedArtist))
+                string sortArtist = null;
+                if (assignSortArtists)
                 {
-                    if (splitSortArtist != null && i < splitSortArtist.Length)
-                        Artists[normalizedArtist] = (artist.Trim(), splitSortArtist[i].Trim());
-                    else
-                        Artists[normalizedArtist] = (artist.Trim(), null);
+                    sortArtist = splitSortArtists[i]?.Trim();
                 }
+
+                string normalizedArtistKey = getNormalizedFunc(artist);
+
+                if (!artistGroups.TryGetValue(normalizedArtistKey, out var group))
+                {
+                    group = new HashSet<(string Artist, string SortArtist)>();
+                    artistGroups[normalizedArtistKey] = group;
+                }
+                
+                group.Add((artist, sortArtist));
             }
         }
     }
@@ -389,14 +446,14 @@ namespace MusicBeePlugin.Services
                 var tracks = files.Select(filepath => new Track(filepath)).ToArray();
 
                 sw.Stop();
-                Debug.WriteLine($"Tracks constructed in {sw.ElapsedMilliseconds}ms");
+                Debug.WriteLine($"Tracks loaded in {sw.ElapsedMilliseconds}ms");
                 sw.Restart();
 
                 db = new Database(tracks, GetEnabledTypes());
                 IsLoaded = true;
 
                 sw.Stop();
-                Debug.WriteLine($"Database loaded in {sw.ElapsedMilliseconds}ms");
+                Debug.WriteLine($"Database created in {sw.ElapsedMilliseconds}ms");
             });
         }
 
@@ -464,11 +521,36 @@ namespace MusicBeePlugin.Services
 
         private List<ArtistResult> SearchArtists(string[] queryWords, string normalizedQuery, int limit)
         {
-            return db.Artists
-                .Where(x => QueryMatchesWords(x.Key, queryWords, normalizeText: false))
-                .OrderByDescending(x => CalculateGeneralItemScore(x.Key, normalizedQuery, queryWords, normalizeStrings: false))
+            var scoredArtists = new List<((string Artist, string SortArtist) pair, double score)>();
+
+            foreach (var entity in db.Artists)
+            {
+                double bestScore = 0;
+                string winningAlias = null;
+
+                foreach (var alias in entity.AliasMap.Keys)
+                {
+                    if (QueryMatchesWords(alias, queryWords, normalizeText: false))
+                    {
+                        double currentScore = CalculateGeneralItemScore(alias, normalizedQuery, queryWords, normalizeStrings: false);
+                        if (currentScore > bestScore)
+                        {
+                            bestScore = currentScore;
+                            winningAlias = alias;
+                        }
+                    }
+                }
+
+                if (bestScore > 0 && winningAlias != null)
+                {
+                    scoredArtists.Add((entity.AliasMap[winningAlias], bestScore));
+                }
+            }
+
+            return scoredArtists
+                .OrderByDescending(x => x.score)
                 .Take(limit)
-                .Select(x => new ArtistResult(x.Value.Artist, x.Value.SortArtist))
+                .Select(x => new ArtistResult(x.pair.Artist, x.pair.SortArtist))
                 .ToList();
         }
 
