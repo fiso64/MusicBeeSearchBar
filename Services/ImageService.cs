@@ -152,10 +152,12 @@ namespace MusicBeePlugin.Services
                 string FindSuitableFileWithExtensions(string basePath)
                 {
                     string jpgPath = basePath + ".jpg";
-                    if (IsImageSuitable(jpgPath)) return jpgPath;
+                    if (IsImageSuitable(jpgPath)) 
+                        return jpgPath;
 
                     string pngPath = basePath + ".png";
-                    if (IsImageSuitable(pngPath)) return pngPath;
+                    if (IsImageSuitable(pngPath)) 
+                        return pngPath;
 
                     return null;
                 }
@@ -167,8 +169,7 @@ namespace MusicBeePlugin.Services
                     {
                         string basePath = Path.Combine(searchDir, $"{albumHash}_{hash}");
                         string foundPath = FindSuitableFileWithExtensions(basePath);
-                        if (foundPath != null)
-                            return foundPath;
+                        if (foundPath != null) return foundPath;
                     }
                     return null;
                 }
@@ -329,7 +330,17 @@ namespace MusicBeePlugin.Services
             Image thumb = null;
             try
             {
-                if (searchUIConfig.UseMusicBeeCacheForCovers)
+                if (searchUIConfig.PreferAlbumImageForSongs)
+                {
+                    string album = mbApi.Library_GetFileTag(filepath, MetaDataType.Album);
+                    string albumArtist = mbApi.Library_GetFileTag(filepath, MetaDataType.AlbumArtist);
+                    if (!string.IsNullOrEmpty(album) && !string.IsNullOrEmpty(albumArtist))
+                    {
+                        thumb = await GetAlbumImageAsync(albumArtist, album);
+                    }
+                }
+
+                if (thumb == null && searchUIConfig.UseMusicBeeCacheForCovers)
                 {
                     string imagePath = GetInternalCacheImagePath(filepath, preferExternalCover: false);
                     if (!string.IsNullOrEmpty(imagePath) && new FileInfo(imagePath).Length > 0)
