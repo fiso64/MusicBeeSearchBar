@@ -91,7 +91,7 @@ namespace MusicBeePlugin.Services
                 using (var originalImage = Image.FromFile(imagePath))
                 {
                     var thumb = CreateSquareThumb(originalImage, makeCircular: true);
-                    if (!disposed)
+                    if (!disposed && thumb != null)
                     {
                         imageCache[cacheKey] = thumb;
                     } 
@@ -109,7 +109,7 @@ namespace MusicBeePlugin.Services
             }
         }
 
-        private string GetInternalCacheImagePath(string anyTrackFilepath)
+        private string GetInternalCacheImagePath(string anyTrackFilepath, bool preferExternalCover = true)
         {
             if (string.IsNullOrEmpty(anyTrackFilepath)) return null;
 
@@ -146,22 +146,37 @@ namespace MusicBeePlugin.Services
                     return null;
                 }
 
-                // 1. Check preferred standard cover filenames.
-                var preferredHashes = new[] { _coverJpgHash, _coverJpegHash, _coverPngHash };
-                foreach (var hash in preferredHashes)
+                string checkExternalArt()
                 {
-                    string basePath = Path.Combine(searchDir, $"{albumHash}_{hash}");
-                    string foundPath = FindSuitableFileWithExtensions(basePath);
-                    if (foundPath != null) 
-                        return foundPath;
+                    var preferredHashes = new[] { _coverJpgHash, _coverJpegHash, _coverPngHash };
+                    foreach (var hash in preferredHashes)
+                    {
+                        string basePath = Path.Combine(searchDir, $"{albumHash}_{hash}");
+                        string foundPath = FindSuitableFileWithExtensions(basePath);
+                        if (foundPath != null)
+                            return foundPath;
+                    }
+                    return null;
                 }
 
-                // 2. Check for an image matching the specific track's filename (e.g., for embedded art).
-                string trackFileHash = MusicBeeHelpers.GenerateSourceFileHash(Path.GetFileName(anyTrackFilepath));
-                string trackBasePath = Path.Combine(searchDir, $"{albumHash}_{trackFileHash}");
-                string trackFoundPath = FindSuitableFileWithExtensions(trackBasePath);
-                if (trackFoundPath != null) 
-                    return trackFoundPath;
+                string checkTrackSpecificArt()
+                {
+                    string trackFileHash = MusicBeeHelpers.GenerateSourceFileHash(Path.GetFileName(anyTrackFilepath));
+                    string trackBasePath = Path.Combine(searchDir, $"{albumHash}_{trackFileHash}");
+                    return FindSuitableFileWithExtensions(trackBasePath);
+                }
+
+                string imagePath = null;
+                if (preferExternalCover)
+                {
+                    imagePath = checkExternalArt() ?? checkTrackSpecificArt();
+                }
+                else
+                {
+                    imagePath = checkTrackSpecificArt() ?? checkExternalArt();
+                }
+
+                if (!string.IsNullOrEmpty(imagePath)) return imagePath;
 
                 // 3. Fallback: Search all cache files for the album.
                 // This is the slowest path, used if standard names don't yield a suitable image.
@@ -276,6 +291,21 @@ namespace MusicBeePlugin.Services
 
             try
             {
+                if (searchUIConfig.UseMusicBeeCacheForCovers)
+                {
+                    string imagePath = GetInternalCacheImagePath(filepath, preferExternalCover: false);
+                    if (!string.IsNullOrEmpty(imagePath) && new FileInfo(imagePath).Length > 0)
+                    {
+                        using (var originalImage = Image.FromFile(imagePath))
+                        {
+                            var thumb = CreateSquareThumb(originalImage);
+                            if (!disposed) { imageCache[cacheKey] = thumb; } else { thumb?.Dispose(); thumb = null; }
+                            return thumb;
+                        }
+                    }
+                }
+
+                // Fallback to original method
                 mbApi.Library_GetArtworkEx(filepath, 0, true, out _, out _, out byte[] imageData);
                 if (imageData == null || imageData.Length == 0)
                     return null;
