@@ -170,12 +170,19 @@ namespace MusicBeePlugin.UI
             musicBeeContext.Post(_ => resultAcceptAction(searchBox.Text, selectedItem, e), null);
         }
 
-        private void ResultsListBox_Scrolled(object sender, EventArgs e)
+        private async void ResultsListBox_Scrolled(object sender, EventArgs e)
         {
-            if (searchUIConfig.ShowImages && imageLoadDebounceTimer != null)
+            if (searchUIConfig.ShowImages && !_isImageLoading)
             {
-                imageLoadDebounceTimer.Stop();
-                imageLoadDebounceTimer.Start();
+                _isImageLoading = true;
+                try
+                {
+                    await LoadImagesForVisibleResults();
+                }
+                finally
+                {
+                    _isImageLoading = false;
+                }
             }
         }
     }

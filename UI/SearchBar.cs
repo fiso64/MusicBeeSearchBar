@@ -41,6 +41,7 @@ namespace MusicBeePlugin.UI
         private CancellationTokenSource _currentSearchCts;
         private long _currentSearchSequence = 0;
         private int preservedIndex = -1; // Used for Ctrl+Enter workaround
+        private bool _isImageLoading = false;
 
         // Timers
         private System.Windows.Forms.Timer imageLoadDebounceTimer;
