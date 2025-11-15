@@ -119,6 +119,13 @@ namespace MusicBeePlugin.Services
         }
     }
 
+    public class AlbumArtistResult : ArtistResult
+    {
+        public AlbumArtistResult(string artist, string sortArtist) : base(artist, sortArtist)
+        {
+        }
+    }
+
     public class PlaylistResult : SearchResult
     {
         public string PlaylistName;
@@ -652,19 +659,44 @@ namespace MusicBeePlugin.Services
             var track = new Track(path);
 
             var res = new List<SearchResult>();
+            var artistsInList = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             if (!string.IsNullOrWhiteSpace(track.Artists))
             {
-                var artists = track.Artists.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                var trackArtists = track.Artists.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(x => x.Trim())
                     .DistinctBy(x => x.ToLower());
 
-                foreach (var artist in artists)
+                foreach (var artist in trackArtists)
+                {
                     res.Add(new ArtistResult(artist, artist));
+                    artistsInList.Add(artist);
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(track.Album))
                 res.Add(new AlbumResult(track.Album, track.AlbumArtist, track.SortAlbumArtist));
+
+            if (!string.IsNullOrWhiteSpace(track.AlbumArtist))
+            {
+                var albumArtists = track.AlbumArtist.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                var sortAlbumArtists = !string.IsNullOrEmpty(track.SortAlbumArtist) ? track.SortAlbumArtist.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries) : null;
+
+                for (int i = 0; i < albumArtists.Length; i++)
+                {
+                    var albumArtist = albumArtists[i].Trim();
+                    if (string.Equals(albumArtist, "Various Artists", StringComparison.OrdinalIgnoreCase) || artistsInList.Contains(albumArtist))
+                        continue;
+
+                    string sortAlbumArtist = null;
+                    if (sortAlbumArtists != null && i < sortAlbumArtists.Length)
+                    {
+                        sortAlbumArtist = sortAlbumArtists[i].Trim();
+                    }
+
+                    res.Add(new AlbumArtistResult(albumArtist, sortAlbumArtist));
+                }
+            }
 
             return res;
         }
@@ -679,21 +711,53 @@ namespace MusicBeePlugin.Services
             var tracks = files.Select(filepath => new Track(filepath)).ToList();
 
             var results = new List<SearchResult>();
+            var artistsInList = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            var artists = tracks.Where(t => !string.IsNullOrWhiteSpace(t.Artists))
-                .SelectMany(t => t.Artists.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(x => new { Artist = x.Trim(), Track = t }))
+            // Add track artists
+            var trackArtists = tracks
+                .Where(t => !string.IsNullOrWhiteSpace(t.Artists))
+                .SelectMany(t => t.Artists.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Select(a => a.Trim()))
+                .DistinctBy(a => a.ToLower());
+
+            foreach (var artist in trackArtists)
+            {
+                results.Add(new ArtistResult(artist, artist));
+                artistsInList.Add(artist);
+            }
+
+            // Add albums
+            var albums = tracks
+                .Where(t => !string.IsNullOrWhiteSpace(t.Album) && !string.IsNullOrWhiteSpace(t.AlbumArtist))
+                .DistinctBy(t => $"{t.Album.ToLower()}|{t.AlbumArtist.ToLower()}");
+
+            foreach (var track in albums)
+            {
+                results.Add(new AlbumResult(track.Album, track.AlbumArtist, track.SortAlbumArtist));
+            }
+            
+            // Add album artists if they are not already in the list
+            var albumArtists = tracks
+                .Where(t => !string.IsNullOrWhiteSpace(t.AlbumArtist))
+                .SelectMany(t =>
+                {
+                    var artists = t.AlbumArtist.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                    var sortArtists = !string.IsNullOrEmpty(t.SortAlbumArtist) ? t.SortAlbumArtist.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries) : null;
+                    
+                    return artists.Select((a, i) => new {
+                        Artist = a.Trim(),
+                        SortArtist = (sortArtists != null && i < sortArtists.Length) ? sortArtists[i].Trim() : null
+                    });
+                })
                 .DistinctBy(x => x.Artist.ToLower());
 
-            foreach (var item in artists)
-                results.Add(new ArtistResult(item.Artist, item.Artist));
-
-            var albums = tracks.Where(t => !string.IsNullOrWhiteSpace(t.Album))
-                .Select(t => new { Album = t.Album.Trim(), Track = t })
-                .DistinctBy(x => x.Album.ToLower());
-
-            foreach (var item in albums)
-                results.Add(new AlbumResult(item.Track.Album, item.Track.AlbumArtist, item.Track.SortAlbumArtist));
+            foreach (var albumArtistInfo in albumArtists)
+            {
+                if (!string.Equals(albumArtistInfo.Artist, "Various Artists", StringComparison.OrdinalIgnoreCase) &&
+                    !artistsInList.Contains(albumArtistInfo.Artist))
+                {
+                    results.Add(new AlbumArtistResult(albumArtistInfo.Artist, albumArtistInfo.SortArtist));
+                }
+            }
 
             return results;
         }

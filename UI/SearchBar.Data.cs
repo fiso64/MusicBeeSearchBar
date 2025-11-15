@@ -268,33 +268,63 @@ namespace MusicBeePlugin.UI
             if (searchUIConfig.GroupResultsByType && searchUIConfig.ShowTypeHeaders && results.Count > 0)
             {
                 var newResults = new List<SearchResult>();
-                ResultType? currentType = null;
-                foreach (var result in results)
+                bool isDefaultView = string.IsNullOrWhiteSpace(searchBox.Text);
+
+                if (isDefaultView) // Default results view has custom ordering
                 {
-                    if (result.Type != currentType)
+                    Type previousResultType = null;
+                    foreach (var result in results)
                     {
-                        currentType = result.Type;
-                        // Add header based on type
-                        switch (currentType)
+                        var currentResultType = result.GetType();
+                        if (currentResultType != previousResultType)
                         {
-                            case ResultType.Command:
-                                newResults.Add(new HeaderResult("Commands"));
-                                break;
-                            case ResultType.Artist:
+                            previousResultType = currentResultType;
+
+                            if (currentResultType == typeof(ArtistResult))
                                 newResults.Add(new HeaderResult("Artists"));
-                                break;
-                            case ResultType.Album:
+                            else if (currentResultType == typeof(AlbumResult))
                                 newResults.Add(new HeaderResult("Albums"));
-                                break;
-                            case ResultType.Song:
+                            else if (currentResultType == typeof(AlbumArtistResult))
+                                newResults.Add(new HeaderResult("Album Artists"));
+                            else if (currentResultType == typeof(CommandResult))
+                                newResults.Add(new HeaderResult("Commands"));
+                            else if (currentResultType == typeof(SongResult))
                                 newResults.Add(new HeaderResult("Songs"));
-                                break;
-                            case ResultType.Playlist:
+                            else if (currentResultType == typeof(PlaylistResult))
                                 newResults.Add(new HeaderResult("Playlists"));
-                                break;
                         }
+                        newResults.Add(result);
                     }
-                    newResults.Add(result);
+                }
+                else // Search results view is ordered by ResultType enum
+                {
+                    ResultType? currentType = null;
+                    foreach (var result in results)
+                    {
+                        if (result.Type != currentType)
+                        {
+                            currentType = result.Type;
+                            switch (currentType)
+                            {
+                                case ResultType.Command:
+                                    newResults.Add(new HeaderResult("Commands"));
+                                    break;
+                                case ResultType.Artist:
+                                    newResults.Add(new HeaderResult("Artists"));
+                                    break;
+                                case ResultType.Album:
+                                    newResults.Add(new HeaderResult("Albums"));
+                                    break;
+                                case ResultType.Song:
+                                    newResults.Add(new HeaderResult("Songs"));
+                                    break;
+                                case ResultType.Playlist:
+                                    newResults.Add(new HeaderResult("Playlists"));
+                                    break;
+                            }
+                        }
+                        newResults.Add(result);
+                    }
                 }
                 results = newResults;
             }

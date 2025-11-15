@@ -1,5 +1,6 @@
 
-- fix scroll offset bug
+- fix scroll offset bug. prompt:
+```
 when I navigate down with the arrow key, I sometimes see a part of the result below the one that is currently selected. Whether or not I see that depends on whether a header is currently visible or not. 
 Concrete example:
 
@@ -24,17 +25,20 @@ song n-1
 I think the number of visible headers matters for this as well. So when more headers are visible, I see more of the next song that I haven't yet reached.
 
 Once again: When headers are visible, the scroll offset is too large and the selected item is shy of the bottom, and it looks like by exactly the sum of the heights of the visible headers.
+```
 
----
+- add a way to customize opened filter. prompt:
+```
+for the open filter in tab action settings, add a new checkbox Use Custom Filter, as well as a button "Customize Filter" at the bottom (button should be greyed out when the checkbox is off). Clicking it should bring up a new customization form, where users can customize up to two filters. Everything should be completely customizable.
 
-- fix scroll offset bug
+filter item: MetadataType, ComparisonType, value
+
+all three all dropdowns. the first two are clear. the available values in the third dropdown will depend on the result type that this action belongs to. for example, for song results, it will have TrackTitle, Artist, SortArtist, Filepath. 
+```
+
 - add top match (can be turned off): displays an enlarged top match item as first result. 
     - this will require larger album thumbs
     - ensure top match thumbs are created first before any other result and also cached. make subsequent album thumbs retrieval fast by resizing from the top match thumb (if it has been cached) instead of the original.
-- find a way to use musicbee's internal album cover thumb cache
-- find a way to open artists in music explorer more directly
-  - check if pure album artists can be opened like that in music explorer. if not, add a configurable action for pure album artists.
-- add an album artist section in default results (only shown when album artist not contained in artists)
 - readd icons on the right (configurable), and make icon size fixed
 - fix all dpi issues
 - lyrics search support?
