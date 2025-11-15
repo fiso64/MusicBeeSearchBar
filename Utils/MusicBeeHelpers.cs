@@ -11,6 +11,7 @@ using System.Windows.Forms;
 using System.Xml.Linq;
 using System.Threading.Tasks;
 using System.Threading;
+using System.IO;
 
 namespace MusicBeePlugin.Utils
 {
@@ -305,6 +306,52 @@ namespace MusicBeePlugin.Utils
             string album = mbApi.Library_GetFileTag(files[0], MetaDataType.Album);
             string albumArtist = mbApi.Library_GetFileTag(files[0], MetaDataType.AlbumArtist);
             return (artist, title, album, albumArtist, files[0]);
+        }
+
+
+        /// <summary>
+        /// Generates the album-specific part of the cache key, including the subfolder.
+        /// The format is "subfolder\albumHash".
+        /// </summary>
+        /// <param name="albumFolderPath">The absolute path to the album's folder.</param>
+        /// <returns>The album-specific cache key part (e.g., "4\EFA892B").</returns>
+        public static string GenerateAlbumCachePath(string albumFolderPath)
+        {
+            // musicbee's hashing function always has a trailing slash in the paths
+            if (!albumFolderPath.EndsWith("\\"))
+                albumFolderPath += "\\";
+
+            int firstBackslashIndex = albumFolderPath.IndexOf('\\');
+            string processedPath = albumFolderPath.Substring(firstBackslashIndex + 1);
+            int albumHashCode = StringComparer.OrdinalIgnoreCase.GetHashCode(processedPath);
+
+            string subfolder = Math.Abs(albumHashCode % 10).ToString();
+            string albumHash = albumHashCode.ToString("X");
+
+            return Path.Combine(subfolder, albumHash);
+        }
+
+        /// <summary>
+        /// Generates a hash for the source filename.
+        /// </summary>
+        /// <param name="sourceFilename">The filename the artwork was derived from (e.g., "Cover.jpg" or "01 artist - song.flac").</param>
+        /// <returns>The hexadecimal hash of the source filename (e.g., "A1B2C3D4").</returns>
+        public static string GenerateSourceFileHash(string sourceFilename)
+        {
+            return StringComparer.OrdinalIgnoreCase.GetHashCode(sourceFilename).ToString("X");
+        }
+
+        /// <summary>
+        /// Generates the full relative cache key for an album and a specific source file,
+        /// by combining the album path and source file hash.
+        /// The format is "subfolder\albumHash_sourceFileHash".
+        /// </summary>
+        /// <param name="albumFolderPath">The absolute path to the album's folder.</param>
+        /// <param name="sourceFilename">The filename the artwork was derived from (e.g., "Cover.jpg" or "01 artist - song.flac").</param>
+        /// <returns>The full cache key (e.g., "4\EFA892B_A1B2C3D4").</returns>
+        public static string GenerateFullCacheKey(string albumFolderPath, string sourceFilename)
+        {
+            return $"{GenerateAlbumCachePath(albumFolderPath)}_{GenerateSourceFileHash(sourceFilename)}";
         }
     }
 }

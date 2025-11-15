@@ -121,6 +121,8 @@ namespace MusicBeePlugin
             }
             
             startupComplete.Set();
+
+            Debug.WriteLine(mbApi.Setting_GetPersistentStoragePath());
         }
 
         public static void LoadConfig()
