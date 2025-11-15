@@ -71,6 +71,10 @@ namespace MusicBeePlugin.Config
         public bool UseSortArtist = false;
     }
 
+    public class OpenInMusicExplorerActionData : BaseActionData
+    {
+    }
+
     public class ActionConfig
     {
         [JsonConverter(typeof(ActionDataJsonConverter))]
@@ -97,10 +101,10 @@ namespace MusicBeePlugin.Config
             
             config.ArtistAction = new ActionConfig
             {
-                Default = new PlayActionData { ShufflePlay = true },
+                Default = new OpenInMusicExplorerActionData(),
                 Ctrl = new QueueLastActionData { ShufflePlay = true },
                 Shift = new QueueNextActionData { ShufflePlay = true },
-                CtrlShift = new QueueNextActionData { ShufflePlay = true }
+                CtrlShift = new PlayActionData { ShufflePlay = true }
             };
 
             config.AlbumAction = new ActionConfig

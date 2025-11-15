@@ -409,11 +409,13 @@ namespace MusicBeePlugin.UI
             layout.Controls.Add(new Label { Text = "Shift+Enter:", AutoSize = true }, 0, 2);
             layout.Controls.Add(new Label { Text = "Ctrl+Shift+Enter:", AutoSize = true }, 0, 3);
 
+            bool isArtistActions = title.StartsWith("Artist");
+
             // Add action combo boxes with their corresponding options panels
-            var (defaultCombo, defaultOptions) = CreateActionControls(actionConfig.Default, actionConfig);
-            var (ctrlCombo, ctrlOptions) = CreateActionControls(actionConfig.Ctrl, actionConfig);
-            var (shiftCombo, shiftOptions) = CreateActionControls(actionConfig.Shift, actionConfig);
-            var (ctrlShiftCombo, ctrlShiftOptions) = CreateActionControls(actionConfig.CtrlShift, actionConfig);
+            var (defaultCombo, defaultOptions) = CreateActionControls(actionConfig.Default, actionConfig, isArtistActions);
+            var (ctrlCombo, ctrlOptions) = CreateActionControls(actionConfig.Ctrl, actionConfig, isArtistActions);
+            var (shiftCombo, shiftOptions) = CreateActionControls(actionConfig.Shift, actionConfig, isArtistActions);
+            var (ctrlShiftCombo, ctrlShiftOptions) = CreateActionControls(actionConfig.CtrlShift, actionConfig, isArtistActions);
 
             layout.Controls.Add(defaultCombo, 1, 0);
             layout.Controls.Add(ctrlCombo, 1, 1);
@@ -429,7 +431,7 @@ namespace MusicBeePlugin.UI
             return groupBox;
         }
 
-        private (ComboBox, Panel) CreateActionControls(BaseActionData currentAction, ActionConfig actionConfig)
+        private (ComboBox, Panel) CreateActionControls(BaseActionData currentAction, ActionConfig actionConfig, bool isArtistActions)
         {
             ComboBox comboBox = new ComboBox
             {
@@ -444,14 +446,21 @@ namespace MusicBeePlugin.UI
                 Padding = new Padding(10, 0, 0, 0)
             };
 
-            comboBox.Items.AddRange(new string[]
+            var items = new List<string>
             {
                 "Play Now",
                 "Queue Next",
                 "Queue Last",
                 "Search In Tab",
                 "Open Filter In Tab"
-            });
+            };
+
+            if (isArtistActions)
+            {
+                items.Add("Open In Music Explorer");
+            }
+
+            comboBox.Items.AddRange(items.ToArray());
 
             // Set the current selection and create option controls
             comboBox.SelectedIndex = GetActionIndex(currentAction);
@@ -467,7 +476,7 @@ namespace MusicBeePlugin.UI
             // Add event handler to update options when selection changes
             comboBox.SelectedIndexChanged += (sender, e) => 
             {
-                var newAction = CreateActionFromIndex(comboBox.SelectedIndex);
+                var newAction = CreateActionFromComboBox(comboBox);
                 updateAction(newAction);  // Update the correct reference in the config
                 UpdateOptionsPanel(optionsPanel, newAction);
             };
@@ -483,6 +492,9 @@ namespace MusicBeePlugin.UI
             // Action-specific options
             switch (action)
             {
+                case OpenInMusicExplorerActionData _:
+                    // No specific options for this action.
+                    break;
                 case PlayActionData playAction:
                     var shufflePlayCheckBox = new CheckBox
                     {
@@ -649,20 +661,23 @@ namespace MusicBeePlugin.UI
             }
         }
 
-        private BaseActionData CreateActionFromIndex(int index)
+        private BaseActionData CreateActionFromComboBox(ComboBox comboBox)
         {
-            switch (index)
+            string selectedAction = comboBox.SelectedItem as string;
+            switch (selectedAction)
             {
-                case 0:
+                case "Play Now":
                     return new PlayActionData();
-                case 1:
+                case "Queue Next":
                     return new QueueNextActionData();
-                case 2:
+                case "Queue Last":
                     return new QueueLastActionData();
-                case 3:
+                case "Search In Tab":
                     return new SearchInTabActionData();
-                case 4:
+                case "Open Filter In Tab":
                     return new OpenFilterInTabActionData();
+                case "Open In Music Explorer":
+                    return new OpenInMusicExplorerActionData();
                 default:
                     return new PlayActionData();
             }
@@ -680,6 +695,8 @@ namespace MusicBeePlugin.UI
                 return 3;
             if (action is OpenFilterInTabActionData)
                 return 4;
+            if (action is OpenInMusicExplorerActionData)
+                return 5;
             return 0;
         }
 

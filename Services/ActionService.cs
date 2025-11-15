@@ -75,6 +75,13 @@ namespace MusicBeePlugin.Services
             {
                 QueueLast(result, queueLastAction);
             }
+            else if (action is OpenInMusicExplorerActionData openInExplorerAction)
+            {
+                if (result is ArtistResult artistResult)
+                {
+                    MusicBeeHelpers.OpenArtistInMusicExplorer(artistResult.Artist);
+                }
+            }
 
             action._actionExecuted = true;
 

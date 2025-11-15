@@ -55,7 +55,7 @@ namespace MusicBeePlugin.Utils
 
             if (invokeApplicationCommandMethod == null)
             {
-                Debug.WriteLine("Modern Search Bar: Could not find MusicBee's internal InvokeApplicationCommand method.");
+                Console.WriteLine("Modern Search Bar: Could not find MusicBee's internal InvokeApplicationCommand method.");
                 loadedInvokeCommandMethod = true; // Mark as "tried" to prevent re-running
                 return;
             }
@@ -75,7 +75,7 @@ namespace MusicBeePlugin.Utils
                 }
                 catch (ArgumentException)
                 {
-                    Debug.WriteLine($"Modern Search Bar: Command '{command}' from plugin enum not found in this version of MusicBee. It will be unavailable.");
+                    Console.WriteLine($"Modern Search Bar: Command '{command}' from plugin enum not found in this version of MusicBee. It will be unavailable.");
                 }
             }
 
@@ -116,7 +116,7 @@ namespace MusicBeePlugin.Utils
             
             if (invokeApplicationCommandMethod == null)
             {
-                Debug.WriteLine("Modern Search Bar: Attempted to call InvokeCommand, but the method was not found.");
+                Console.WriteLine("Modern Search Bar: Attempted to call InvokeCommand, but the method was not found.");
                 return;
             }
 
@@ -126,7 +126,7 @@ namespace MusicBeePlugin.Utils
             }
             else
             {
-                Debug.WriteLine($"Modern Search Bar: Command '{command}' is not available in this version of MusicBee.");
+                Console.WriteLine($"Modern Search Bar: Command '{command}' is not available in this version of MusicBee.");
             }
         }
 
@@ -308,13 +308,6 @@ namespace MusicBeePlugin.Utils
             return (artist, title, album, albumArtist, files[0]);
         }
 
-
-        /// <summary>
-        /// Generates the album-specific part of the cache key, including the subfolder.
-        /// The format is "subfolder\albumHash".
-        /// </summary>
-        /// <param name="albumFolderPath">The absolute path to the album's folder.</param>
-        /// <returns>The album-specific cache key part (e.g., "4\EFA892B").</returns>
         public static string GenerateAlbumCachePath(string albumFolderPath)
         {
             // musicbee's hashing function always has a trailing slash in the paths
@@ -331,27 +324,144 @@ namespace MusicBeePlugin.Utils
             return Path.Combine(subfolder, albumHash);
         }
 
-        /// <summary>
-        /// Generates a hash for the source filename.
-        /// </summary>
-        /// <param name="sourceFilename">The filename the artwork was derived from (e.g., "Cover.jpg" or "01 artist - song.flac").</param>
-        /// <returns>The hexadecimal hash of the source filename (e.g., "A1B2C3D4").</returns>
         public static string GenerateSourceFileHash(string sourceFilename)
         {
             return StringComparer.OrdinalIgnoreCase.GetHashCode(sourceFilename).ToString("X");
         }
 
-        /// <summary>
-        /// Generates the full relative cache key for an album and a specific source file,
-        /// by combining the album path and source file hash.
-        /// The format is "subfolder\albumHash_sourceFileHash".
-        /// </summary>
-        /// <param name="albumFolderPath">The absolute path to the album's folder.</param>
-        /// <param name="sourceFilename">The filename the artwork was derived from (e.g., "Cover.jpg" or "01 artist - song.flac").</param>
-        /// <returns>The full cache key (e.g., "4\EFA892B_A1B2C3D4").</returns>
         public static string GenerateFullCacheKey(string albumFolderPath, string sourceFilename)
         {
             return $"{GenerateAlbumCachePath(albumFolderPath)}_{GenerateSourceFileHash(sourceFilename)}";
+        }
+
+
+        // A cache for the MethodInfo so we don't have to perform the expensive search every time.
+        private static MethodInfo _openArtistInMusicExplorerMethod;
+        private static bool _searchPerformed = false;
+
+        public static bool OpenArtistInMusicExplorer(string artistName)
+        {
+            try
+            {
+                if (!_searchPerformed)
+                {
+                    _openArtistInMusicExplorerMethod = FindOpenArtistMethod();
+                    _searchPerformed = true;
+                }
+
+                if (_openArtistInMusicExplorerMethod != null)
+                {
+                    _openArtistInMusicExplorerMethod.Invoke(null, new object[] { artistName });
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[MusicBeeInternals] Failed to call internal function: " + ex.Message);
+            }
+
+            return false;
+        }
+
+        private static MethodInfo FindOpenArtistMethod()
+        {
+            var musicBeeAssembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "MusicBee");
+            if (musicBeeAssembly == null) return null;
+
+            var targetType = FindMainMusicBeeType(musicBeeAssembly);
+            if (targetType == null) return null;
+
+            // Find the specific method by scanning its IL for a unique string literal, as its name is obfuscated.
+            const string ArtistUrlFingerprint = "artist://";
+
+            var candidateMethods = targetType.GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .Where(m =>
+                    m.ReturnType == typeof(void) &&
+                    m.GetParameters().Length == 1 &&
+                    m.GetParameters()[0].ParameterType == typeof(string)
+                );
+
+            foreach (var method in candidateMethods)
+            {
+                try
+                {
+                    var methodBody = method.GetMethodBody();
+                    if (methodBody == null) continue;
+
+                    if (ContainsStringLiteral(methodBody.GetILAsByteArray(), method.Module, ArtistUrlFingerprint))
+                    {
+                        return method; // yay
+                    }
+                }
+                catch { continue; }
+            }
+
+            return null;
+        }
+
+        private static Type FindMainMusicBeeType(Assembly assembly)
+        {
+            // These interfaces are used by the main Form/Control and are stable framework types.
+            Type iMessageFilter = typeof(IMessageFilter);
+            Type iContainerControl = typeof(IContainerControl);
+            Type iDropTarget = typeof(IDropTarget);
+
+            // This interface is internal to WinForms, so we must resolve it at runtime via reflection.
+            Assembly winformsAssembly = typeof(Form).Assembly;
+            Type iOleObject = winformsAssembly.GetType("System.Windows.Forms.UnsafeNativeMethods+IOleObject");
+
+            if (iOleObject == null) return null; // Defensive check for future .NET changes.
+
+            try
+            {
+                // This query combines multiple criteria to uniquely identify the target class.
+                return assembly.GetTypes().FirstOrDefault(t =>
+                    // Criterion 1: Must be a top-level class, not a nested helper class.
+                    t.IsClass && !t.IsNested &&
+
+                    // Criterion 2: Must implement the specific combination of low-level interfaces.
+                    iMessageFilter.IsAssignableFrom(t) &&
+                    iContainerControl.IsAssignableFrom(t) &&
+                    iOleObject.IsAssignableFrom(t) &&
+                    iDropTarget.IsAssignableFrom(t) &&
+
+                    // Criterion 3: Must possess a unique "method constellation" to distinguish it
+                    // from other components with similar interfaces.
+                    t.GetMethods(BindingFlags.Public | BindingFlags.Static)
+                        .Any(m => m.ReturnType == typeof(void) && // this is the method we actually want
+                                  m.GetParameters().Length == 1 &&
+                                  m.GetParameters()[0].ParameterType == typeof(string)) &&
+                    t.GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
+                        .Any(m => m.ReturnType == typeof(void) && // some random other method to uniquely identify the class
+                                  m.GetParameters().Length == 2 &&
+                                  m.GetParameters()[0].ParameterType.IsInterface &&
+                                  m.GetParameters()[1].ParameterType.IsEnum)
+                );
+            }
+            catch { return null; }
+        }
+
+        private static bool ContainsStringLiteral(byte[] ilBytes, Module module, string literal)
+        {
+            for (int i = 0; i < ilBytes.Length; i++)
+            {
+                if (ilBytes[i] == 0x72) // OpCodes.Ldstr
+                {
+                    if (i + 4 < ilBytes.Length)
+                    {
+                        int metadataToken = BitConverter.ToInt32(ilBytes, i + 1);
+                        try
+                        {
+                            if (module.ResolveString(metadataToken).Contains(literal))
+                            {
+                                return true;
+                            }
+                        }
+                        catch { /* Ignore invalid tokens */ }
+                    }
+                }
+            }
+            return false;
         }
     }
 }
