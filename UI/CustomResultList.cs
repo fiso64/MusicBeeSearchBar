@@ -332,7 +332,7 @@ namespace MusicBeePlugin.UI
                 using (var headerFont = new Font(ResultFont.FontFamily, ResultFont.Size, FontStyle.Italic))
                 {
                     var headerColor = Color.Gray;
-                    TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.Left;
+                    TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.Left | TextFormatFlags.NoPrefix;
 
                     int currentTopPadding = (index > 0) ? HEADER_TOP_PADDING : 0;
 
@@ -460,7 +460,7 @@ namespace MusicBeePlugin.UI
             // 6. Draw the text, centered vertically within the text area.
             if (textBounds.Width > 0)
             {
-                TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding;
+                TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix;
                 if (string.IsNullOrEmpty(resultItem.DisplayDetail))
                 {
                     TextRenderer.DrawText(g, resultItem.DisplayTitle, ResultFont, textBounds, this.ForeColor, flags | TextFormatFlags.VerticalCenter);
