@@ -122,7 +122,7 @@ namespace MusicBeePlugin
             
             startupComplete.Set();
 
-            Debug.WriteLine(mbApi.Setting_GetPersistentStoragePath());
+            Debug.WriteLine(MusicBeeHelpers.GenerateFullCacheKey(@"C:\Users\fiso\Music\Main\Graham Kartna\World Of Dweebs", "Cover.png"));
         }
 
         public static void LoadConfig()

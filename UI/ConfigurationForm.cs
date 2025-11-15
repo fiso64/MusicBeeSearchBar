@@ -220,7 +220,7 @@ namespace MusicBeePlugin.UI
                 Dock = DockStyle.Fill,
                 Padding = new Padding(10),
                 ColumnCount = 2,
-                RowCount = 7,
+                RowCount = 9,
                 AutoSize = true
             };
 
@@ -235,9 +235,27 @@ namespace MusicBeePlugin.UI
                 Checked = _config.SearchUI.ShowImages,
                 AutoSize = true
             };
-            showImagesCheckbox.CheckedChanged += (s, e) => _config.SearchUI.ShowImages = showImagesCheckbox.Checked;
             appearanceLayout.Controls.Add(new Label { Text = "Show Images:", AutoSize = true }, 0, 0);
             appearanceLayout.Controls.Add(showImagesCheckbox, 1, 0);
+
+            // Use MB Cache checkbox
+            var useMbCacheCheckbox = new CheckBox
+            {
+                Text = "Use MusicBee's internal cache for album covers (faster)",
+                Checked = _config.SearchUI.UseMusicBeeCacheForCovers,
+                AutoSize = true,
+                Enabled = _config.SearchUI.ShowImages
+            };
+            useMbCacheCheckbox.CheckedChanged += (s, e) => _config.SearchUI.UseMusicBeeCacheForCovers = useMbCacheCheckbox.Checked;
+
+            showImagesCheckbox.CheckedChanged += (s, e) =>
+            {
+                _config.SearchUI.ShowImages = showImagesCheckbox.Checked;
+                useMbCacheCheckbox.Enabled = showImagesCheckbox.Checked;
+            };
+
+            appearanceLayout.Controls.Add(new Label { Text = "Use Image Cache:", AutoSize = true }, 0, 1);
+            appearanceLayout.Controls.Add(useMbCacheCheckbox, 1, 1);
 
             // Overlay Opacity numeric input
             opacityInput = new NumericUpDown
@@ -248,8 +266,8 @@ namespace MusicBeePlugin.UI
                 Width = 70
             };
             opacityInput.ValueChanged += (s, e) => _config.SearchUI.OverlayOpacity = (double)opacityInput.Value / 100;
-            appearanceLayout.Controls.Add(new Label { Text = "Overlay Opacity (%):", AutoSize = true }, 0, 1);
-            appearanceLayout.Controls.Add(opacityInput, 1, 1);
+            appearanceLayout.Controls.Add(new Label { Text = "Overlay Opacity (%):", AutoSize = true }, 0, 2);
+            appearanceLayout.Controls.Add(opacityInput, 1, 2);
 
             // Max Results numeric input
             maxResultsInput = new NumericUpDown
@@ -260,30 +278,20 @@ namespace MusicBeePlugin.UI
                 Width = 70
             };
             maxResultsInput.ValueChanged += (s, e) => _config.SearchUI.MaxResultsVisible = (int)maxResultsInput.Value;
-            appearanceLayout.Controls.Add(new Label { Text = "Max Visible Results:", AutoSize = true }, 0, 2);
-            appearanceLayout.Controls.Add(maxResultsInput, 1, 2);
+            appearanceLayout.Controls.Add(new Label { Text = "Max Visible Results:", AutoSize = true }, 0, 3);
+            appearanceLayout.Controls.Add(maxResultsInput, 1, 3);
 
             // Color pickers
             textColorButton = CreateColorButton("Text Color", _config.SearchUI.TextColor);
             baseColorButton = CreateColorButton("Base Color", _config.SearchUI.BaseColor);
             highlightColorButton = CreateColorButton("Highlight Color", _config.SearchUI.ResultHighlightColor);
 
-            appearanceLayout.Controls.Add(new Label { Text = "Text Color:", AutoSize = true }, 0, 3);
-            appearanceLayout.Controls.Add(textColorButton, 1, 3);
-            appearanceLayout.Controls.Add(new Label { Text = "Base Color:", AutoSize = true }, 0, 4);
-            appearanceLayout.Controls.Add(baseColorButton, 1, 4);
-            appearanceLayout.Controls.Add(new Label { Text = "Highlight Color:", AutoSize = true }, 0, 5);
-            appearanceLayout.Controls.Add(highlightColorButton, 1, 5);
-
-            var resultItemHeightInput = new NumericUpDown
-            {
-                Minimum = 1,
-                Value = _config.SearchUI.ResultItemHeight,
-                Width = 70
-            };
-            resultItemHeightInput.ValueChanged += (s, e) => _config.SearchUI.ResultItemHeight = (int)resultItemHeightInput.Value;
-            appearanceLayout.Controls.Add(new Label { Text = "Result Item Height:", AutoSize = true }, 0, 7);
-            appearanceLayout.Controls.Add(resultItemHeightInput, 1, 7);
+            appearanceLayout.Controls.Add(new Label { Text = "Text Color:", AutoSize = true }, 0, 4);
+            appearanceLayout.Controls.Add(textColorButton, 1, 4);
+            appearanceLayout.Controls.Add(new Label { Text = "Base Color:", AutoSize = true }, 0, 5);
+            appearanceLayout.Controls.Add(baseColorButton, 1, 5);
+            appearanceLayout.Controls.Add(new Label { Text = "Highlight Color:", AutoSize = true }, 0, 6);
+            appearanceLayout.Controls.Add(highlightColorButton, 1, 6);
 
             widthInput = new NumericUpDown
             {
@@ -294,8 +302,18 @@ namespace MusicBeePlugin.UI
             };
             widthInput.ValueChanged += (s, e) => _config.SearchUI.InitialSize = new Size((int)widthInput.Value, _config.SearchUI.InitialSize.Height);
 
-            appearanceLayout.Controls.Add(new Label { Text = "Width:", AutoSize = true }, 0, 6);
-            appearanceLayout.Controls.Add(widthInput, 1, 6);
+            appearanceLayout.Controls.Add(new Label { Text = "Width:", AutoSize = true }, 0, 7);
+            appearanceLayout.Controls.Add(widthInput, 1, 7);
+
+            var resultItemHeightInput = new NumericUpDown
+            {
+                Minimum = 1,
+                Value = _config.SearchUI.ResultItemHeight,
+                Width = 70
+            };
+            resultItemHeightInput.ValueChanged += (s, e) => _config.SearchUI.ResultItemHeight = (int)resultItemHeightInput.Value;
+            appearanceLayout.Controls.Add(new Label { Text = "Result Item Height:", AutoSize = true }, 0, 8);
+            appearanceLayout.Controls.Add(resultItemHeightInput, 1, 8);
 
             appearanceTab.Controls.Add(appearanceLayout);
 

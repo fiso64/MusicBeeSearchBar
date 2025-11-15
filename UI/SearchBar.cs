@@ -90,7 +90,7 @@ namespace MusicBeePlugin.UI
             searchService = new SearchService(musicBeeApi, searchUIConfig);
             if (searchUIConfig.ShowImages)
             {
-                imageService = new ImageService(musicBeeApi, searchService, imageSize);
+                imageService = new ImageService(musicBeeApi, searchService, searchUIConfig, imageSize);
                 InitializeImageLoadingTimer();
             }
 

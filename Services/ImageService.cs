@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using static MusicBeePlugin.Plugin;
 
@@ -14,14 +15,24 @@ namespace MusicBeePlugin.Services
     public class ImageService : IDisposable
     {
         private readonly MusicBeeApiInterface mbApi;
+        private readonly Config.SearchUIConfig searchUIConfig;
         private readonly int imageSize;
         private readonly Dictionary<string, Image> imageCache = new Dictionary<string, Image>();
         private bool disposed = false;
 
-        public ImageService(MusicBeeApiInterface mbApi, SearchService searchService, int imageSize = 40)
+        private readonly string _coverJpgHash;
+        private readonly string _coverJpegHash;
+        private readonly string _coverPngHash;
+
+        public ImageService(MusicBeeApiInterface mbApi, SearchService searchService, Config.SearchUIConfig searchUIConfig, int imageSize = 40)
         {
             this.mbApi = mbApi;
+            this.searchUIConfig = searchUIConfig;
             this.imageSize = imageSize;
+
+            _coverJpgHash = MusicBeeHelpers.GenerateSourceFileHash("Cover.jpg");
+            _coverJpegHash = MusicBeeHelpers.GenerateSourceFileHash("Cover.jpeg");
+            _coverPngHash = MusicBeeHelpers.GenerateSourceFileHash("Cover.png");
         }
 
         private string GetCacheKey(string identifier, ResultType type) => $"{type}:{identifier}";
@@ -98,6 +109,115 @@ namespace MusicBeePlugin.Services
             }
         }
 
+        private string GetInternalCacheImagePath(string anyTrackFilepath)
+        {
+            if (string.IsNullOrEmpty(anyTrackFilepath)) return null;
+
+            try
+            {
+                string albumFolderPath = Path.GetDirectoryName(anyTrackFilepath);
+                string albumCachePathPart = MusicBeeHelpers.GenerateAlbumCachePath(albumFolderPath);
+                string albumHash = Path.GetFileName(albumCachePathPart);
+
+                string internalCacheDir = Path.Combine(mbApi.Setting_GetPersistentStoragePath(), "InternalCache", "AlbumCovers");
+                string searchDir = Path.Combine(internalCacheDir, Path.GetDirectoryName(albumCachePathPart));
+
+                if (!Directory.Exists(searchDir)) return null;
+
+                // Helper to check if an image file exists and meets size requirements.
+                bool IsImageSuitable(string filePath)
+                {
+                    if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return false;
+
+                    // A larger source image will produce a better downscaled result.
+                    Size dims = GetImageDimensions(filePath);
+                    return dims.Width >= imageSize * 2 && dims.Height >= imageSize * 2;
+                };
+
+                // Helper to check both .jpg and .png extensions for a given base path.
+                string FindSuitableFileWithExtensions(string basePath)
+                {
+                    string jpgPath = basePath + ".jpg";
+                    if (IsImageSuitable(jpgPath)) return jpgPath;
+
+                    string pngPath = basePath + ".png";
+                    if (IsImageSuitable(pngPath)) return pngPath;
+
+                    return null;
+                }
+
+                // 1. Check preferred standard cover filenames.
+                var preferredHashes = new[] { _coverJpgHash, _coverJpegHash, _coverPngHash };
+                foreach (var hash in preferredHashes)
+                {
+                    string basePath = Path.Combine(searchDir, $"{albumHash}_{hash}");
+                    string foundPath = FindSuitableFileWithExtensions(basePath);
+                    if (foundPath != null) 
+                        return foundPath;
+                }
+
+                // 2. Check for an image matching the specific track's filename (e.g., for embedded art).
+                string trackFileHash = MusicBeeHelpers.GenerateSourceFileHash(Path.GetFileName(anyTrackFilepath));
+                string trackBasePath = Path.Combine(searchDir, $"{albumHash}_{trackFileHash}");
+                string trackFoundPath = FindSuitableFileWithExtensions(trackBasePath);
+                if (trackFoundPath != null) 
+                    return trackFoundPath;
+
+                // 3. Fallback: Search all cache files for the album.
+                // This is the slowest path, used if standard names don't yield a suitable image.
+                var checkedFileSizes = new HashSet<long>();
+                var allFiles = Directory.EnumerateFiles(searchDir, $"{albumHash}_*");
+
+                foreach (var file in allFiles)
+                {
+                    try
+                    {
+                        var fileInfo = new FileInfo(file);
+
+                        // Performance: If we've already checked a file of this size and it was too small,
+                        // assume any other file with the same size is also unsuitable and skip it.
+                        if (checkedFileSizes.Contains(fileInfo.Length)) continue;
+
+                        if (IsImageSuitable(file))
+                        {
+                            return file;
+                        }
+                        else
+                        {
+                            // Remember this file size is unsuitable to avoid re-checking.
+                            checkedFileSizes.Add(fileInfo.Length);
+                        }
+                    }
+                    catch (IOException) { /* Ignore files that might be locked, deleted, or otherwise unreadable */ }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error getting internal cache image path: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        private static Size GetImageDimensions(string path)
+        {
+            try
+            {
+                // Reading image dimensions this way is faster and uses less memory
+                // than Image.FromFile, as it doesn't need to decode the full pixel data.
+                // It also avoids locking the file on disk.
+                using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+                using (var img = Image.FromStream(fs, useEmbeddedColorManagement: false, validateImageData: false))
+                {
+                    return new Size(img.Width, img.Height);
+                }
+            }
+            catch (Exception) // FromStream can throw various exceptions for invalid/unsupported formats.
+            {
+                return Size.Empty;
+            }
+        }
+
         public async Task<Image> GetAlbumImageAsync(string albumArtist, string album)
         {
             string cacheKey = GetCacheKey($"{albumArtist}:{album}", ResultType.Album);
@@ -115,6 +235,21 @@ namespace MusicBeePlugin.Services
                 if (files == null || files.Length == 0)
                     return null;
 
+                if (searchUIConfig.UseMusicBeeCacheForCovers)
+                {
+                    string imagePath = GetInternalCacheImagePath(files[0]);
+                    if (!string.IsNullOrEmpty(imagePath) && new FileInfo(imagePath).Length > 0)
+                    {
+                        using (var originalImage = Image.FromFile(imagePath))
+                        {
+                            var thumb = CreateSquareThumb(originalImage);
+                            if (!disposed) { imageCache[cacheKey] = thumb; } else { thumb?.Dispose(); thumb = null; }
+                            return thumb;
+                        }
+                    }
+                }
+
+                // Fallback to original method
                 mbApi.Library_GetArtworkEx(files[0], 0, true, out _, out _, out byte[] imageData);
                 if (imageData == null || imageData.Length == 0)
                     return null;
