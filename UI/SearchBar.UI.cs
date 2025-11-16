@@ -114,6 +114,17 @@ namespace MusicBeePlugin.UI
             searchBoxContainer.Controls.Add(searchBox);
             searchBox.TabStop = true;
 
+            if (searchUIConfig.ShowPlaceholderText)
+            {
+                this.Shown += (s, e) =>
+                {
+                    if (searchBox.IsHandleCreated)
+                    {
+                        WinApiHelpers.SetCueBanner(searchBox.Handle, "Search or type a prefix a: l: s: p: >...");
+                    }
+                };
+            }
+
             spacerPanel = new Panel
             {
                 Dock = DockStyle.Top,

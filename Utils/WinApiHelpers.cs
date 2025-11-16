@@ -12,6 +12,7 @@ namespace MusicBeePlugin.Utils
         const int WM_GETTEXT = 0x000D;
         const int WM_GETTEXTLENGTH = 0x000E;
         const int WM_SETTEXT = 0x000C;
+        const uint EM_SETCUEBANNER = 0x1501;
 
         const int WM_KEYDOWN = 0x0100;
         const int WM_KEYUP = 0x0101;
@@ -304,6 +305,11 @@ namespace MusicBeePlugin.Utils
 
             keybd_event(VK_TAB, 0, 0, UIntPtr.Zero);
             keybd_event(VK_TAB, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        }
+
+        public static void SetCueBanner(IntPtr hwnd, string text, bool showWhenFocused = true)
+        {
+            SendMessage(hwnd, (int)EM_SETCUEBANNER, showWhenFocused ? 1 : 0, text);
         }
     }
 }
