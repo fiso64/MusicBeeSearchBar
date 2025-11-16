@@ -22,7 +22,7 @@ namespace MusicBeePlugin.UI
         private SynchronizationContext musicBeeContext;
         private SearchService searchService;
         private ImageService imageService;
-        private Func<string, SearchResult, KeyEventArgs, bool> resultAcceptAction;
+        private Func<string, SearchResult, KeyEventArgs, Task<bool>> resultAcceptAction;
 
         // UI Controls
         private TextBox searchBox;
@@ -68,7 +68,7 @@ namespace MusicBeePlugin.UI
             Control musicBeeControl,
             SynchronizationContext musicBeeContext,
             MusicBeeApiInterface musicBeeApi,
-            Func<string, SearchResult, KeyEventArgs, bool> resultAcceptAction,
+            Func<string, SearchResult, KeyEventArgs, Task<bool>> resultAcceptAction,
             SearchUIConfig searchUIConfig,
             string defaultText = null
         )

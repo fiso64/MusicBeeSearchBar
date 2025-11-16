@@ -167,7 +167,9 @@ namespace MusicBeePlugin.UI
         private void HandleResultSelection(SearchResult selectedItem, KeyEventArgs e)
         {
             Close();
-            musicBeeContext.Post(_ => resultAcceptAction(searchBox.Text, selectedItem, e), null);
+            // Fire-and-forget the async action on the MusicBee UI thread.
+            // The async method will yield on await Task.Delay, preventing UI lockup.
+            musicBeeContext.Post(_ => { _ = resultAcceptAction(searchBox.Text, selectedItem, e); }, null);
         }
 
         private async void ResultsListBox_Scrolled(object sender, EventArgs e)

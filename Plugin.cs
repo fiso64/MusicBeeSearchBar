@@ -155,7 +155,7 @@ namespace MusicBeePlugin
             searchBarThread.Start();
         }
 
-        public void PerformActionOnSelected(ResultType actionType)
+        public async void PerformActionOnSelected(ResultType actionType)
         {
             var modifiers = Keys.None;
             if (Control.ModifierKeys.HasFlag(Keys.Control)) modifiers |= Keys.Control;
@@ -180,7 +180,7 @@ namespace MusicBeePlugin
             }
 
             var actionService = new ActionService(config.SearchActions);
-            actionService.RunAction(result.DisplayTitle, result, new KeyEventArgs(modifiers));
+            await actionService.RunAction(result.DisplayTitle, result, new KeyEventArgs(modifiers));
         }
 
         public bool Configure(IntPtr panelHandle)

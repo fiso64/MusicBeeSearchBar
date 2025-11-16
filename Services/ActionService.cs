@@ -23,7 +23,7 @@ namespace MusicBeePlugin.Services
             this.actionsConfig = actionsConfig;
         }
 
-        public bool RunAction(string searchBoxText, SearchResult result, KeyEventArgs keyEvent)
+        public async Task<bool> RunAction(string searchBoxText, SearchResult result, KeyEventArgs keyEvent)
         {
             Debug.WriteLine($"RunAction called with result={result.DisplayTitle} of type={result.Type}");
 
@@ -57,11 +57,11 @@ namespace MusicBeePlugin.Services
 
             if (action is OpenFilterInTabActionData filterAction)
             {
-                OpenFilter(result, filterAction);
+                await OpenFilter(result, filterAction);
             }
             else if (action is SearchInTabActionData searchAction)
             {
-                Search(searchBoxText, result, searchAction);
+                await Search(searchBoxText, result, searchAction);
             }
             else if (action is PlayActionData playAction)
             {
@@ -111,7 +111,7 @@ namespace MusicBeePlugin.Services
                 MusicBeeHelpers.MinimiseRestoreOrFocus();
         }
 
-        private void GotoTab(TabChoice tab)
+        private async Task GotoTab(TabChoice tab, BaseActionData action)
         {
             var command = ApplicationCommand.None;
 
@@ -136,9 +136,14 @@ namespace MusicBeePlugin.Services
             }
 
             MusicBeeHelpers.InvokeCommand(command);
+
+            if (!action._actionExecuted)
+            {
+                await Task.Delay(100);
+            }
         }
 
-        private void Search(string searchBoxText, SearchResult result, SearchInTabActionData action)
+        private async Task Search(string searchBoxText, SearchResult result, SearchInTabActionData action)
         {
             string getSearchArtist(string artist, string sortArtist)
             {
@@ -148,7 +153,7 @@ namespace MusicBeePlugin.Services
             }
 
             RestoreOrFocus();
-            GotoTab(action.TabChoice);
+            await GotoTab(action.TabChoice, action);
 
             if (action.ToggleSearchEntireLibraryBeforeSearch)
                 MusicBeeHelpers.InvokeCommand(ApplicationCommand.GeneralToggleSearchScope);
@@ -191,25 +196,21 @@ namespace MusicBeePlugin.Services
 
                 if (!action._actionExecuted)
                 {
-                    _ = Task.Delay(200).ContinueWith(_ => 
-                    {
-                        WinApiHelpers.SendEnterKey(searchBox);
-                    });
+                    await Task.Delay(200);
+                    WinApiHelpers.SendEnterKey(searchBox);
                 }
 
                 if (action.ClearSearchBarTextAfterSearch)
                 {
-                    _ = Task.Delay(action._actionExecuted ? 50 : 250).ContinueWith(_ => 
-                    {
-                        WinApiHelpers.SetEditText(searchBox, "");
-                    });
+                    await Task.Delay(action._actionExecuted ? 50 : 250);
+                    WinApiHelpers.SetEditText(searchBox, "");
                 }
             }
             else
             {
                 MusicBeeHelpers.FocusLeftSidebar();
 
-                Thread.Sleep(50);
+                await Task.Delay(50);
 
                 WinApiHelpers.SendKey(Keys.Home);
 
@@ -220,7 +221,7 @@ namespace MusicBeePlugin.Services
 
                 while (count++ < 20)
                 {
-                    Thread.Sleep(50);
+                    await Task.Delay(50);
                     searchBar = WinApiHelpers.GetFocus();
                     if (WinApiHelpers.IsEdit(searchBar))
                         break;
@@ -232,7 +233,7 @@ namespace MusicBeePlugin.Services
 
                     if (action.ClearSearchBarTextAfterSearch)
                     {
-                        Thread.Sleep(50);
+                        await Task.Delay(50);
                         WinApiHelpers.SendKey(Keys.Escape);
                     }
                 }
@@ -242,7 +243,7 @@ namespace MusicBeePlugin.Services
                 MusicBeeHelpers.InvokeCommand(ApplicationCommand.GeneralToggleSearchScope);
         }
 
-        private void OpenFilter(SearchResult result, OpenFilterInTabActionData action)
+        private async Task OpenFilter(SearchResult result, OpenFilterInTabActionData action)
         {
             if (result.Type == ResultType.Playlist)
             {
@@ -250,7 +251,7 @@ namespace MusicBeePlugin.Services
             }
 
             RestoreOrFocus();
-            GotoTab(action.TabChoice);
+            await GotoTab(action.TabChoice, action);
 
             if (action.GoBackBeforeOpenFilter)
                 MusicBeeHelpers.InvokeCommand(ApplicationCommand.GeneralGoBack);
