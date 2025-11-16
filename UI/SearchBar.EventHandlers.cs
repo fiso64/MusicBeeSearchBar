@@ -17,6 +17,13 @@ namespace MusicBeePlugin.UI
                 e.Handled = true;
                 e.SuppressKeyPress = true;
             }
+            else if (e.Control && e.KeyCode == Keys.H)
+            {
+                Close();
+                musicBeeContext.Post(_ => Plugin.ShowConfigDialog(3), null);
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
             else if (e.KeyCode == Keys.ControlKey)
             {
                 // temporary hack to fix control+enter bug that makes the selected index jump to 0

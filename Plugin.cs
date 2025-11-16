@@ -190,9 +190,9 @@ namespace MusicBeePlugin
             return true;
         }
 
-        public static void ShowConfigDialog()
+        public static void ShowConfigDialog(int initialTabIndex = 0)
         {
-            var cfgForm = new ConfigurationForm(config, mbApi);
+            var cfgForm = new ConfigurationForm(config, mbApi, initialTabIndex);
             if (cfgForm.ShowDialog() == DialogResult.OK)
             {
                 config = cfgForm.Config;

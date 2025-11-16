@@ -23,14 +23,19 @@ namespace MusicBeePlugin.UI
         private Button textColorButton;
         private Button baseColorButton;
         private Button highlightColorButton;
+        private TabControl tabControl;
 
-        public ConfigurationForm(Config.Config config, Plugin.MusicBeeApiInterface mbApi)
+        public ConfigurationForm(Config.Config config, Plugin.MusicBeeApiInterface mbApi, int initialTabIndex = 0)
         {
             // Create a deep copy of the config for our use
             _config = JsonConvert.DeserializeObject<Config.Config>(
                 JsonConvert.SerializeObject(config));
             _mbApi = mbApi;
             InitializeComponent();
+            if (initialTabIndex >= 0 && initialTabIndex < this.tabControl.TabCount)
+            {
+                this.tabControl.SelectedIndex = initialTabIndex;
+            }
         }
 
         private void InitializeComponent()
@@ -44,7 +49,7 @@ namespace MusicBeePlugin.UI
             this.StartPosition = FormStartPosition.CenterParent;
             
             // Create tab control for different settings sections
-            TabControl tabControl = new TabControl
+            tabControl = new TabControl
             {
                 Dock = DockStyle.Fill,
                 Padding = new Point(12, 4)
@@ -54,6 +59,7 @@ namespace MusicBeePlugin.UI
             TabPage actionsTab = new TabPage("Actions");
             TabPage searchTab = new TabPage("Search");
             TabPage appearanceTab = new TabPage("Appearance");
+            TabPage helpTab = new TabPage("Help");
             
             // Configure Actions tab
             TableLayoutPanel actionsLayout = new TableLayoutPanel
@@ -86,9 +92,45 @@ namespace MusicBeePlugin.UI
             actionsScrollPanel.Controls.Add(actionsLayout);
             actionsTab.Controls.Add(actionsScrollPanel);
             
+            // Configure Help Tab
+            var helpTextBox = new TextBox
+            {
+                Dock = DockStyle.Fill,
+                ReadOnly = true,
+                Multiline = true,
+                BorderStyle = BorderStyle.None,
+                BackColor = this.BackColor,
+                Font = new Font("Consolas", 10),
+                Text = string.Join(Environment.NewLine, new[]
+                {
+                    "Quick Reference",
+                    "",
+                    "Prefixes",
+                    "Use these at the start of your search to filter results:",
+                    "  a:        Artists",
+                    "  l:        Albums",
+                    "  s:        Songs",
+                    "  p:        Playlists",
+                    "  >         Commands",
+                    "",
+                    "Shortcuts",
+                    "These can be used while the search bar is open:",
+                    "  Enter             Execute default action for selected result",
+                    "  Ctrl+Enter        Execute alternative action",
+                    "  Shift+Enter       Execute alternative action",
+                    "  Ctrl+Shift+Enter  Execute alternative action",
+                    "  Alt+R             Execute artist action for selected result",
+                    "  Alt+A             Execute album action for selected result",
+                    "  Ctrl+P            Open the settings dialog",
+                    "  Ctrl+H            Open this help page",
+                })
+            };
+            helpTab.Controls.Add(helpTextBox);
+
             tabControl.TabPages.Add(actionsTab);
             tabControl.TabPages.Add(searchTab);
             tabControl.TabPages.Add(appearanceTab);
+            tabControl.TabPages.Add(helpTab);
 
             this.Controls.Add(tabControl);
 

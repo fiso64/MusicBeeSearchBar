@@ -16,7 +16,7 @@ Also functions as a command palette that can search MusicBee and plugin commands
   - `l:` for albums
   - `s:` for songs
   - `p:` for playlists
-  - `> ` for commands
+  - `>`  for commands
 - **Customizable Actions**: Configure different actions for each result type:
   - Default click / Enter
   - Ctrl + click / Enter
@@ -36,7 +36,6 @@ Also functions as a command palette that can search MusicBee and plugin commands
 
 ## Keyboard Shortcuts
 
-- `Alt+D`: Focus search box
 - `Alt+R`: Execute artist action for current result
 - `Alt+A`: Execute album action for current result
 - `Ctrl+P`: Open configuration
