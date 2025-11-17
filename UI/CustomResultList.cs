@@ -395,7 +395,7 @@ namespace MusicBeePlugin.UI
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-            Debug.WriteLine($"[CustomResultList] OnPaint: Firing. ClipRectangle={e.ClipRectangle}. IsUpdating={_isUpdating}. Items={_items.Count}. Height={Height}.");
+            //Debug.WriteLine($"[CustomResultList] OnPaint: Firing. ClipRectangle={e.ClipRectangle}. IsUpdating={_isUpdating}. Items={_items.Count}. Height={Height}.");
 
             if (_isUpdating || _items.Count == 0)
             {
@@ -566,9 +566,24 @@ namespace MusicBeePlugin.UI
 
             if (displayImage == null) return;
 
-            int artworkSize = availableHeight;
-            int iconSize = (int)(availableHeight * 0.6);
-            int effectiveSize = isArtwork ? artworkSize : iconSize;
+            int effectiveSize;
+            if (isArtwork)
+            {
+                effectiveSize = availableHeight;
+            }
+            else // It's an icon
+            {
+                if (resultItem.IsTopMatch)
+                {
+                    // For top match, don't scale up the icon. Draw it at its native size.
+                    effectiveSize = displayImage.Width;
+                }
+                else
+                {
+                    // For normal items, the icon is scaled to fit.
+                    effectiveSize = (int)(availableHeight * 0.6);
+                }
+            }
 
             var imageBounds = new Rectangle(
                 imageArea.X + (imageArea.Width - effectiveSize) / 2,

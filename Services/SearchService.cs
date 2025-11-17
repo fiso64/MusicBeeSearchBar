@@ -623,7 +623,9 @@ namespace MusicBeePlugin.Services
             if (normalizeText)
                 text = NormalizeString(text);
 
-            return queryWords.All(word => text.Contains(word));
+            string spacelessText = text.Replace(" ", "");
+
+            return queryWords.All(word => spacelessText.Contains(word));
         }
 
         private bool GetResultLimit(ResultType type, out int limit, Dictionary<ResultType, int> resultLimits = null)
