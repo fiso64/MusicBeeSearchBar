@@ -137,26 +137,72 @@ namespace MusicBeePlugin.Config
 
     public class SearchUIConfig // should be split into two configs, one for the search UI and one for the search behavior
     {
+        // --- Search Settings ---
+        [ConfigProperty("Group Results by Type", Category = "Search")]
         public bool GroupResultsByType { get; set; } = true;
-        public bool ShowTypeHeaders { get; set; } = true;
+
+        [ConfigProperty("Filter Results Using Contains Check", "If disabled, all items are shown and only sorted by relevance. May impact performance.", Category = "Search")]
         public bool EnableContainsCheck { get; set; } = true;
-        public bool ShowImages { get; set; } = true;
-        public bool UseMusicBeeCacheForCovers { get; set; } = true;
-        public bool PreferAlbumImageForSongs { get; set; } = true;
-        public double OverlayOpacity { get; set; } = 0.6;
-        public int MaxResultsVisible { get; set; } = 8;
+
+        [ConfigProperty("Artist Result Limit", Category = "Search")]
+        [Range(0, 10000)]
         public int ArtistResultLimit { get; set; } = 5;
+
+        [ConfigProperty("Album Result Limit", Category = "Search")]
+        [Range(0, 10000)]
         public int AlbumResultLimit { get; set; } = 5;
+
+        [ConfigProperty("Song Result Limit", Category = "Search")]
+        [Range(0, 10000)]
         public int SongResultLimit { get; set; } = 10;
-        public int ResultItemHeight { get; set; } = 56;
+
+        [ConfigProperty("Playlist Result Limit", Category = "Search")]
+        [Range(0, 10000)]
         public int PlaylistResultLimit { get; set; } = 100;
+
         public enum DefaultResultsChoice { Playing, Selected, None };
-        public DefaultResultsChoice DefaultResults = DefaultResultsChoice.Playing;
-        public Color TextColor { get; set; } = Color.White;
-        public Color BaseColor { get; set; } = Color.FromArgb(20, 20, 20);
-        public Color ResultHighlightColor { get; set; } = Color.FromArgb(45, 45, 45);
-        public Size InitialSize { get; set; } = new Size(550, 40);
+        [ConfigProperty("Default Results on Empty Search", Category = "Search")]
+        public DefaultResultsChoice DefaultResults { get; set; } = DefaultResultsChoice.Playing;
+
+        // --- Appearance Settings ---
+        [ConfigProperty("Show Type Headers", "Requires 'Group Results' to be enabled.", Category = "Appearance")]
+        public bool ShowTypeHeaders { get; set; } = true;
+
+        [ConfigProperty("Show Placeholder Text", Category = "Appearance")]
         public bool ShowPlaceholderText { get; set; } = true;
+
+        [ConfigProperty("Show Images in Results", Category = "Appearance")]
+        public bool ShowImages { get; set; } = true;
+
+        [ConfigProperty("Use MusicBee's Image Cache", "Faster, uses MusicBee's internal cache for album covers.", Category = "Appearance")]
+        public bool UseMusicBeeCacheForCovers { get; set; } = true;
+
+        [ConfigProperty("Prefer Album Image for Songs", "Faster, uses the album artwork for songs when available.", Category = "Appearance")]
+        public bool PreferAlbumImageForSongs { get; set; } = true;
+
+        [ConfigProperty("Overlay Opacity", "From 0 (transparent) to 1 (opaque).", Category = "Appearance")]
+        [Range(0, 1)]
+        public double OverlayOpacity { get; set; } = 0.6;
+
+        [ConfigProperty("Max Visible Results", "Maximum number of results to show before scrolling.", Category = "Appearance")]
+        [Range(1, 20)]
+        public int MaxResultsVisible { get; set; } = 8;
+
+        [ConfigProperty("Result Item Height", "Height of each result item in pixels.", Category = "Appearance")]
+        [Range(1, 200)]
+        public int ResultItemHeight { get; set; } = 56;
+
+        [ConfigProperty("Initial Size", Category = "Appearance")]
+        public Size InitialSize { get; set; } = new Size(550, 40);
+
+        [ConfigProperty("Text Color", Category = "Appearance")]
+        public Color TextColor { get; set; } = Color.White;
+
+        [ConfigProperty("Base Color", Category = "Appearance")]
+        public Color BaseColor { get; set; } = Color.FromArgb(20, 20, 20);
+
+        [ConfigProperty("Highlight Color", Category = "Appearance")]
+        public Color ResultHighlightColor { get; set; } = Color.FromArgb(45, 45, 45);
 
         public static SearchUIConfig GetDefault(MusicBeeApiInterface mbApi)
         {

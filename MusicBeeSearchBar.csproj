@@ -96,6 +96,7 @@
     <Compile Include="UI\ConfigurationForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="UI\ConfigControlFactory.cs" />
     <Compile Include="UI\OverlayForm.cs">
       <SubType>Form</SubType>
     </Compile>

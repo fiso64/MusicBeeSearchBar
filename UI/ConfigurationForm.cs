@@ -14,15 +14,6 @@ namespace MusicBeePlugin.UI
         private readonly Plugin.MusicBeeApiInterface _mbApi;
 
         public Config.Config Config => _config;
-
-        // Add control fields
-        private CheckBox groupResultsCheckbox;
-        private NumericUpDown opacityInput;
-        private NumericUpDown maxResultsInput;
-        private NumericUpDown widthInput;
-        private Button textColorButton;
-        private Button baseColorButton;
-        private Button highlightColorButton;
         private TabControl tabControl;
 
         public ConfigurationForm(Config.Config config, Plugin.MusicBeeApiInterface mbApi, int initialTabIndex = 0)
@@ -62,35 +53,61 @@ namespace MusicBeePlugin.UI
             TabPage helpTab = new TabPage("Help");
             
             // Configure Actions tab
-            TableLayoutPanel actionsLayout = new TableLayoutPanel
+            var actionsLayout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 Padding = new Padding(10),
                 ColumnCount = 1,
-                RowCount = 3,
+                RowCount = 4,
                 AutoSize = true,
                 AutoScroll = true
             };
 
-            // Set row styles to ensure proper spacing
+            actionsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             actionsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             actionsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             actionsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-            // Add action configuration panels for each type
             actionsLayout.Controls.Add(CreateActionPanel("Artist Actions", _config.SearchActions.ArtistAction), 0, 0);
             actionsLayout.Controls.Add(CreateActionPanel("Album Actions", _config.SearchActions.AlbumAction), 0, 1);
             actionsLayout.Controls.Add(CreateActionPanel("Song Actions", _config.SearchActions.SongAction), 0, 2);
             actionsLayout.Controls.Add(CreateActionPanel("Playlist Actions", _config.SearchActions.PlaylistAction), 0, 3);
-
-            // Wrap the layout in a panel to enable scrolling
-            Panel actionsScrollPanel = new Panel
+            
+            var actionsScrollPanel = new Panel
             {
                 Dock = DockStyle.Fill,
                 AutoScroll = true
             };
             actionsScrollPanel.Controls.Add(actionsLayout);
             actionsTab.Controls.Add(actionsScrollPanel);
+
+            // Configure Search tab using factory
+            var searchLayout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(10),
+                ColumnCount = 2,
+                AutoSize = false,
+                AutoScroll = true
+            };
+            searchLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            searchLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            ConfigControlFactory.CreateControlsForObject(searchLayout, _config.SearchUI, "Search");
+            searchTab.Controls.Add(searchLayout);
+
+            // Configure Appearance tab using factory
+            var appearanceLayout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(10),
+                ColumnCount = 2,
+                AutoSize = false,
+                AutoScroll = true
+            };
+            appearanceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            appearanceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            ConfigControlFactory.CreateControlsForObject(appearanceLayout, _config.SearchUI, "Appearance");
+            appearanceTab.Controls.Add(appearanceLayout);
             
             // Configure Help Tab
             var helpTextBox = new TextBox
@@ -140,264 +157,14 @@ namespace MusicBeePlugin.UI
 
             this.Controls.Add(tabControl);
 
-            // Configure Search tab
-            TableLayoutPanel searchLayout = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                Padding = new Padding(10),
-                ColumnCount = 2,
-                RowCount = 8,
-                AutoSize = true
-            };
-
-            // Set column styles for search tab
-            searchLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            searchLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-
-            // Show Type Headers checkbox
-            var showHeadersCheckbox = new CheckBox
-            {
-                Text = "Show Type Headers",
-                Checked = _config.SearchUI.ShowTypeHeaders,
-                AutoSize = true,
-                Enabled = _config.SearchUI.GroupResultsByType
-            };
-            showHeadersCheckbox.CheckedChanged += (s, e) => _config.SearchUI.ShowTypeHeaders = showHeadersCheckbox.Checked;
-
-            // Group Results checkbox
-            groupResultsCheckbox = new CheckBox
-            {
-                Text = "Group Results by Type",
-                Checked = _config.SearchUI.GroupResultsByType,
-                AutoSize = true
-            };
-            groupResultsCheckbox.CheckedChanged += (s, e) =>
-            {
-                _config.SearchUI.GroupResultsByType = groupResultsCheckbox.Checked;
-                showHeadersCheckbox.Enabled = groupResultsCheckbox.Checked;
-            };
-            searchLayout.Controls.Add(new Label { Text = "Group Results:", AutoSize = true }, 0, 0);
-            searchLayout.Controls.Add(groupResultsCheckbox, 1, 0);
-
-            searchLayout.Controls.Add(new Label { Text = "Show Headers:", AutoSize = true }, 0, 1);
-            searchLayout.Controls.Add(showHeadersCheckbox, 1, 1);
-
-            // Enable Contains Check
-            var enableContainsCheckbox = new CheckBox
-            {
-                Text = "Enable Contains Check",
-                Checked = _config.SearchUI.EnableContainsCheck,
-                AutoSize = true
-            };
-            enableContainsCheckbox.CheckedChanged += (s, e) => _config.SearchUI.EnableContainsCheck = enableContainsCheckbox.Checked;
-            searchLayout.Controls.Add(new Label { Text = "Filter Results:", AutoSize = true }, 0, 2);
-            searchLayout.Controls.Add(enableContainsCheckbox, 1, 2);
-
-            // Artist Result Limit
-            var artistLimitInput = new NumericUpDown
-            {
-                Minimum = 1,
-                Maximum = 10000,
-                Value = _config.SearchUI.ArtistResultLimit,
-                Width = 70
-            };
-            artistLimitInput.ValueChanged += (s, e) => _config.SearchUI.ArtistResultLimit = (int)artistLimitInput.Value;
-            searchLayout.Controls.Add(new Label { Text = "Artist Result Limit:", AutoSize = true }, 0, 3);
-            searchLayout.Controls.Add(artistLimitInput, 1, 3);
-
-            // Album Result Limit
-            var albumLimitInput = new NumericUpDown
-            {
-                Minimum = 1,
-                Maximum = 10000,
-                Value = _config.SearchUI.AlbumResultLimit,
-                Width = 70
-            };
-            albumLimitInput.ValueChanged += (s, e) => _config.SearchUI.AlbumResultLimit = (int)albumLimitInput.Value;
-            searchLayout.Controls.Add(new Label { Text = "Album Result Limit:", AutoSize = true }, 0, 4);
-            searchLayout.Controls.Add(albumLimitInput, 1, 4);
-
-            // Song Result Limit
-            var songLimitInput = new NumericUpDown
-            {
-                Minimum = 1,
-                Maximum = 10000,
-                Value = _config.SearchUI.SongResultLimit,
-                Width = 70
-            };
-            songLimitInput.ValueChanged += (s, e) => _config.SearchUI.SongResultLimit = (int)songLimitInput.Value;
-            searchLayout.Controls.Add(new Label { Text = "Song Result Limit:", AutoSize = true }, 0, 5);
-            searchLayout.Controls.Add(songLimitInput, 1, 5);
-
-            // Playlist Result Limit
-            var playlistLimitInput = new NumericUpDown
-            {
-                Minimum = 1,
-                Maximum = 10000,
-                Value = _config.SearchUI.PlaylistResultLimit,
-                Width = 70
-            };
-            playlistLimitInput.ValueChanged += (s, e) => _config.SearchUI.PlaylistResultLimit = (int)playlistLimitInput.Value;
-            searchLayout.Controls.Add(new Label { Text = "Playlist Result Limit:", AutoSize = true }, 0, 6);
-            searchLayout.Controls.Add(playlistLimitInput, 1, 6);
-
-            // Default Results Choice
-            var defaultResultsComboBox = new ComboBox
-            {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Width = 120
-            };
-            defaultResultsComboBox.MouseWheel += (s, e) => ((HandledMouseEventArgs)e).Handled = true;
-            defaultResultsComboBox.Items.AddRange(Enum.GetNames(typeof(SearchUIConfig.DefaultResultsChoice)));
-            defaultResultsComboBox.SelectedItem = _config.SearchUI.DefaultResults.ToString();
-            defaultResultsComboBox.SelectedIndexChanged += (s, e) =>
-            {
-                if (Enum.TryParse(defaultResultsComboBox.SelectedItem.ToString(), out SearchUIConfig.DefaultResultsChoice choice))
-                {
-                    _config.SearchUI.DefaultResults = choice;
-                }
-            };
-            searchLayout.Controls.Add(new Label { Text = "Default Results:", AutoSize = true }, 0, 7);
-            searchLayout.Controls.Add(defaultResultsComboBox, 1, 7);
-
-            searchTab.Controls.Add(searchLayout);
-
-            // Configure Appearance tab
-            TableLayoutPanel appearanceLayout = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                Padding = new Padding(10),
-                ColumnCount = 2,
-                RowCount = 11,
-                AutoSize = true
-            };
-
-            // Set column styles
-            appearanceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            appearanceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-
-            // Show Placeholder Text checkbox
-            var showPlaceholderCheckbox = new CheckBox
-            {
-                Text = "Show Placeholder Text",
-                Checked = _config.SearchUI.ShowPlaceholderText,
-                AutoSize = true
-            };
-            showPlaceholderCheckbox.CheckedChanged += (s, e) => _config.SearchUI.ShowPlaceholderText = showPlaceholderCheckbox.Checked;
-            appearanceLayout.Controls.Add(new Label { Text = "Show Placeholder:", AutoSize = true }, 0, 0);
-            appearanceLayout.Controls.Add(showPlaceholderCheckbox, 1, 0);
-
-            // Show Images checkbox
-            var showImagesCheckbox = new CheckBox
-            {
-                Text = "Show Images in Results",
-                Checked = _config.SearchUI.ShowImages,
-                AutoSize = true
-            };
-            appearanceLayout.Controls.Add(new Label { Text = "Show Images:", AutoSize = true }, 0, 1);
-            appearanceLayout.Controls.Add(showImagesCheckbox, 1, 1);
-
-            // Use MB Cache checkbox
-            var useMbCacheCheckbox = new CheckBox
-            {
-                Text = "Use MusicBee's internal cache for album covers (faster)",
-                Checked = _config.SearchUI.UseMusicBeeCacheForCovers,
-                AutoSize = true,
-                Enabled = _config.SearchUI.ShowImages
-            };
-            useMbCacheCheckbox.CheckedChanged += (s, e) => _config.SearchUI.UseMusicBeeCacheForCovers = useMbCacheCheckbox.Checked;
-
-            // Prefer Album Image for Songs checkbox
-            var preferAlbumImageCheckbox = new CheckBox
-            {
-                Text = "Prefer album artwork for songs (when available) (faster)",
-                Checked = _config.SearchUI.PreferAlbumImageForSongs,
-                AutoSize = true,
-                Enabled = _config.SearchUI.ShowImages
-            };
-            preferAlbumImageCheckbox.CheckedChanged += (s, e) => _config.SearchUI.PreferAlbumImageForSongs = preferAlbumImageCheckbox.Checked;
-
-            showImagesCheckbox.CheckedChanged += (s, e) =>
-            {
-                _config.SearchUI.ShowImages = showImagesCheckbox.Checked;
-                useMbCacheCheckbox.Enabled = showImagesCheckbox.Checked;
-                preferAlbumImageCheckbox.Enabled = showImagesCheckbox.Checked;
-            };
-
-            appearanceLayout.Controls.Add(new Label { Text = "Use Image Cache:", AutoSize = true }, 0, 2);
-            appearanceLayout.Controls.Add(useMbCacheCheckbox, 1, 2);
-
-            appearanceLayout.Controls.Add(new Label { Text = "Song Images:", AutoSize = true }, 0, 3);
-            appearanceLayout.Controls.Add(preferAlbumImageCheckbox, 1, 3);
-
-            // Overlay Opacity numeric input
-            opacityInput = new NumericUpDown
-            {
-                Minimum = 0,
-                Maximum = 100,
-                Value = (decimal)(_config.SearchUI.OverlayOpacity * 100),
-                Width = 70
-            };
-            opacityInput.ValueChanged += (s, e) => _config.SearchUI.OverlayOpacity = (double)opacityInput.Value / 100;
-            appearanceLayout.Controls.Add(new Label { Text = "Overlay Opacity (%):", AutoSize = true }, 0, 4);
-            appearanceLayout.Controls.Add(opacityInput, 1, 4);
-
-            // Max Results numeric input
-            maxResultsInput = new NumericUpDown
-            {
-                Minimum = 1,
-                Maximum = 20,
-                Value = _config.SearchUI.MaxResultsVisible,
-                Width = 70
-            };
-            maxResultsInput.ValueChanged += (s, e) => _config.SearchUI.MaxResultsVisible = (int)maxResultsInput.Value;
-            appearanceLayout.Controls.Add(new Label { Text = "Max Visible Results:", AutoSize = true }, 0, 5);
-            appearanceLayout.Controls.Add(maxResultsInput, 1, 5);
-
-            // Color pickers
-            textColorButton = CreateColorButton("Text Color", _config.SearchUI.TextColor);
-            baseColorButton = CreateColorButton("Base Color", _config.SearchUI.BaseColor);
-            highlightColorButton = CreateColorButton("Highlight Color", _config.SearchUI.ResultHighlightColor);
-
-            appearanceLayout.Controls.Add(new Label { Text = "Text Color:", AutoSize = true }, 0, 6);
-            appearanceLayout.Controls.Add(textColorButton, 1, 6);
-            appearanceLayout.Controls.Add(new Label { Text = "Base Color:", AutoSize = true }, 0, 7);
-            appearanceLayout.Controls.Add(baseColorButton, 1, 7);
-            appearanceLayout.Controls.Add(new Label { Text = "Highlight Color:", AutoSize = true }, 0, 8);
-            appearanceLayout.Controls.Add(highlightColorButton, 1, 8);
-
-            widthInput = new NumericUpDown
-            {
-                Minimum = 200,
-                Maximum = 100000,
-                Value = _config.SearchUI.InitialSize.Width,
-                Width = 70
-            };
-            widthInput.ValueChanged += (s, e) => _config.SearchUI.InitialSize = new Size((int)widthInput.Value, _config.SearchUI.InitialSize.Height);
-
-            appearanceLayout.Controls.Add(new Label { Text = "Width:", AutoSize = true }, 0, 9);
-            appearanceLayout.Controls.Add(widthInput, 1, 9);
-
-            var resultItemHeightInput = new NumericUpDown
-            {
-                Minimum = 1,
-                Value = _config.SearchUI.ResultItemHeight,
-                Width = 70
-            };
-            resultItemHeightInput.ValueChanged += (s, e) => _config.SearchUI.ResultItemHeight = (int)resultItemHeightInput.Value;
-            appearanceLayout.Controls.Add(new Label { Text = "Result Item Height:", AutoSize = true }, 0, 10);
-            appearanceLayout.Controls.Add(resultItemHeightInput, 1, 10);
-
-            appearanceTab.Controls.Add(appearanceLayout);
-
             // Add bottom buttons panel
-            Panel buttonPanel = new Panel
+            var buttonPanel = new Panel
             {
                 Dock = DockStyle.Bottom,
                 Height = 50
             };
 
-            Button saveButton = new Button
+            var saveButton = new Button
             {
                 Text = "Save",
                 DialogResult = DialogResult.OK,
@@ -407,7 +174,7 @@ namespace MusicBeePlugin.UI
                 Location = new Point(buttonPanel.Width - 170, 14)
             };
 
-            Button cancelButton = new Button
+            var cancelButton = new Button
             {
                 Text = "Cancel",
                 DialogResult = DialogResult.Cancel,
@@ -416,8 +183,7 @@ namespace MusicBeePlugin.UI
                 Height = 23,
                 Location = new Point(buttonPanel.Width - 85, 14)
             };
-
-            // Set the CancelButton property to enable Esc key
+            
             this.CancelButton = cancelButton;
 
             buttonPanel.Controls.Add(saveButton);
@@ -426,17 +192,12 @@ namespace MusicBeePlugin.UI
 
             this.ResumeLayout(false);
 
-            // Simplify save button click handler to just validate
             saveButton.Click += (sender, e) =>
             {
-                if (ValidateInputs())
-                {
-                    DialogResult = DialogResult.OK;
-                    Close();
-                }
+                DialogResult = DialogResult.OK;
+                Close();
             };
 
-            // Simplify cancel button click handler
             cancelButton.Click += (sender, e) =>
             {
                 DialogResult = DialogResult.Cancel;
@@ -758,72 +519,5 @@ namespace MusicBeePlugin.UI
                 return 5;
             return 0;
         }
-
-        private Button CreateColorButton(string text, Color initialColor)
-        {
-            Button button = new Button
-            {
-                Text = text,
-                Width = 100,
-                Height = 23,
-                BackColor = initialColor
-            };
-
-            button.Click += (sender, e) =>
-            {
-                using (ColorDialog colorDialog = new ColorDialog())
-                {
-                    colorDialog.Color = button.BackColor;
-                    if (colorDialog.ShowDialog() == DialogResult.OK)
-                    {
-                        button.BackColor = colorDialog.Color;
-                        // Store the selected color in the config when saving
-                        switch (text)
-                        {
-                            case "Text Color":
-                                _config.SearchUI.TextColor = colorDialog.Color;
-                                break;
-                            case "Base Color":
-                                _config.SearchUI.BaseColor = colorDialog.Color;
-                                break;
-                            case "Highlight Color":
-                                _config.SearchUI.ResultHighlightColor = colorDialog.Color;
-                                break;
-                        }
-                    }
-                }
-            };
-
-            return button;
-        }
-
-        private bool ValidateInputs()
-        {
-            // Validate opacity
-            double opacity = (double)opacityInput.Value / 100;
-            if (opacity < 0 || opacity > 1)
-            {
-                ShowError("Opacity must be between 0 and 100.");
-                return false;
-            }
-
-            // Validate size
-            if (widthInput.Value < 1)
-            {
-                ShowError("Width must be bigger than 0.");
-                return false;
-            }
-
-            return true;
-        }
-
-        private void ShowError(string message)
-        {
-            MessageBox.Show(
-                message,
-                "Validation Error",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
-        }
     }
-} 
+}

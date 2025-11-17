@@ -9,14 +9,12 @@ namespace MusicBeePlugin.Config
         public string DisplayName { get; set; }
         public string Description { get; set; }
         public string Category { get; set; }
-        public int Order { get; set; }
 
-        public ConfigPropertyAttribute(string displayName = null, string description = null, string category = "General", int order = 0)
+        public ConfigPropertyAttribute(string displayName = null, string description = null, string category = "General")
         {
             DisplayName = displayName;
             Description = description;
             Category = category;
-            Order = order;
         }
     }
 
