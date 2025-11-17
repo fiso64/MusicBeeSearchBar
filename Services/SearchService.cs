@@ -27,6 +27,7 @@ namespace MusicBeePlugin.Services
         public string DisplayTitle;
         public string DisplayDetail;
         public ResultType Type;
+        public bool IsTopMatch = false;
     }
 
     public class SongResult : SearchResult
@@ -514,9 +515,38 @@ namespace MusicBeePlugin.Services
 
         private List<SearchResult> OrderResults(List<SearchResult> results, string normalizedQuery)
         {
-            return results.OrderByDescending(r => GetResultTypePriority(r.Type))
-                .ThenByDescending(r => CalculateOverallScore(r, normalizedQuery))
+            if (results.Count == 0 || !config.ShowTopMatch || string.IsNullOrWhiteSpace(normalizedQuery))
+            {
+                return results.OrderByDescending(r => GetResultTypePriority(r.Type))
+                    .ThenByDescending(r => CalculateOverallScore(r, normalizedQuery))
+                    .ToList();
+            }
+
+            var scoredResults = results
+                .Select(r => new { Result = r, Score = CalculateOverallScore(r, normalizedQuery) })
                 .ToList();
+
+            var topMatchWithScore = scoredResults.OrderByDescending(x => x.Score).FirstOrDefault();
+
+            if (topMatchWithScore == null)
+            {
+                return new List<SearchResult>();
+            }
+
+            topMatchWithScore.Result.IsTopMatch = true;
+
+            var regularResultsWithScore = scoredResults.Where(x => x != topMatchWithScore);
+
+            var regularResults = regularResultsWithScore
+                .OrderByDescending(x => GetResultTypePriority(x.Result.Type))
+                .ThenByDescending(x => x.Score)
+                .Select(x => x.Result)
+                .ToList();
+
+            var finalList = new List<SearchResult> { topMatchWithScore.Result };
+            finalList.AddRange(regularResults);
+
+            return finalList;
         }
 
         private List<ArtistResult> SearchArtists(string[] queryWords, string normalizedQuery, int limit)

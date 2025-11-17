@@ -177,6 +177,9 @@ namespace MusicBeePlugin.Config
         [ConfigProperty("Show Type Icons", "Shows result type icons on the right side of each item.", Category = "Appearance")]
         public bool ShowTypeIcons { get; set; } = false;
 
+        [ConfigProperty("Show Top Match", "Shows the best matching result as a larger item at the top.", Category = "Appearance")]
+        public bool ShowTopMatch { get; set; } = true;
+
         [ConfigProperty("Use MusicBee's Image Cache", "Faster, uses MusicBee's internal cache for album covers.", Category = "Appearance")]
         public bool UseMusicBeeCacheForCovers { get; set; } = true;
 
@@ -189,7 +192,7 @@ namespace MusicBeePlugin.Config
 
         [ConfigProperty("Max Visible Results", "Maximum number of results to show before scrolling.", Category = "Appearance")]
         [Range(1, 20)]
-        public int MaxResultsVisible { get; set; } = 8;
+        public int MaxResultsVisible { get; set; } = 11;
 
         [ConfigProperty("Result Item Height", "Height of each result item in pixels.", Category = "Appearance")]
         [Range(1, 200)]

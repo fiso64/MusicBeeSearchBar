@@ -32,8 +32,9 @@ namespace MusicBeePlugin.UI
 
             try
             {
-        int startIndex = resultsListBox.FirstVisibleIndex;
-        int endIndex = Math.Min(startIndex + searchUIConfig.MaxResultsVisible + VISIBLE_ITEMS_BUFFER, resultsListBox.Items.Count);
+                int startIndex = resultsListBox.FirstVisibleIndex;
+                int lastVisibleIndex = resultsListBox.LastVisibleIndex;
+                int endIndex = Math.Min(lastVisibleIndex + VISIBLE_ITEMS_BUFFER, resultsListBox.Items.Count);
 
                 // Create a list of tasks for loading all visible images
                 var loadTasks = new List<Task>();
@@ -45,10 +46,12 @@ namespace MusicBeePlugin.UI
                     // Capture both the index and the result for validation
                     var result = resultsListBox.Items[i];
 
+                    int sizeToLoad = result.IsTopMatch ? topMatchImageSize : imageSize;
+
                     var loadTask = Task.Run(async () => {
-                        if (imageService.GetCachedImage(result) == null)
+                        if (imageService.GetCachedImage(result, sizeToLoad) == null)
                         {
-                            var image = await imageService.GetImageAsync(result);
+                            var image = await imageService.GetImageAsync(result, sizeToLoad);
                             if (image != null && !IsDisposed)
                             {
                                 // Invalidate the whole list as items might move
@@ -275,6 +278,12 @@ namespace MusicBeePlugin.UI
             if (searchUIConfig.GroupResultsByType && searchUIConfig.ShowTypeHeaders && results.Count > 0)
             {
                 var newResults = new List<SearchResult>();
+
+                if (results[0].IsTopMatch)
+                {
+                    newResults.Add(new HeaderResult("Top Match"));
+                }
+
                 bool isDefaultView = string.IsNullOrWhiteSpace(searchBox.Text);
 
                 if (isDefaultView) // Default results view has custom ordering
@@ -308,7 +317,7 @@ namespace MusicBeePlugin.UI
                     ResultType? currentType = null;
                     foreach (var result in results)
                     {
-                        if (result.Type != currentType)
+                        if (!result.IsTopMatch && result.Type != currentType)
                         {
                             currentType = result.Type;
                             switch (currentType)
@@ -345,12 +354,32 @@ namespace MusicBeePlugin.UI
             int nonListHeight = mainPanel.Padding.Vertical + searchContainer.Height;
 
             int listHeight = 0;
-            int itemsToMeasure = Math.Min(results.Count, searchUIConfig.MaxResultsVisible);
-            for (int i = 0; i < itemsToMeasure; i++)
+            int visibleItemCount = 0;
+            for (int i = 0; i < results.Count && visibleItemCount < searchUIConfig.MaxResultsVisible; i++)
             {
-                listHeight += (results[i].Type == ResultType.Header)
-                    ? resultsListBox.HeaderHeight + ((i > 0) ? CustomResultList.HEADER_TOP_PADDING : 0)
-                    : resultsListBox.ItemHeight;
+                var currentItem = results[i];
+                int itemHeight = 0;
+
+                if (currentItem.IsTopMatch)
+                {
+                    itemHeight = resultsListBox.ItemHeight * 2;
+                }
+                else if (currentItem.Type == ResultType.Header)
+                {
+                    itemHeight = resultsListBox.HeaderHeight + ((i > 0) ? CustomResultList.HEADER_TOP_PADDING : 0);
+                }
+                else
+                {
+                    itemHeight = resultsListBox.ItemHeight;
+                }
+                
+                listHeight += itemHeight;
+
+                // Headers don't count towards the MaxResultsVisible limit
+                if (currentItem.Type != ResultType.Header)
+                {
+                    visibleItemCount++;
+                }
             }
 
             if (results.Count > 0)

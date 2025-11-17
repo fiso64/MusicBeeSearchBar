@@ -144,6 +144,8 @@ namespace MusicBeePlugin.UI
             resultsListBox = new CustomResultList
             {
                 Dock = DockStyle.Fill, // Use Fill to take up the remaining space
+                NormalImageSize = this.imageSize,
+                TopMatchImageSize = this.topMatchImageSize,
                 BackColor = searchUIConfig.BaseColor,
                 ForeColor = searchUIConfig.TextColor,
                 HighlightColor = searchUIConfig.ResultHighlightColor,
@@ -153,6 +155,8 @@ namespace MusicBeePlugin.UI
                 Height = 0,
                 ResultFont = this.resultFont,
                 ResultDetailFont = this.resultDetailFont,
+                TopMatchResultFont = this.topMatchResultFont,
+                TopMatchResultDetailFont = this.topMatchResultDetailFont,
                 ImageService = this.imageService,
                 ShowTypeIcons = searchUIConfig.ShowTypeIcons,
                 Icons = new Dictionary<ResultType, Image>

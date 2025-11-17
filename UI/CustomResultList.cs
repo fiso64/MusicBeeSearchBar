@@ -48,6 +48,10 @@ namespace MusicBeePlugin.UI
         public Color HoverColor { get; set; }
         public Font ResultFont { get; set; }
         public Font ResultDetailFont { get; set; }
+        public Font TopMatchResultFont { get; set; }
+        public Font TopMatchResultDetailFont { get; set; }
+        public int NormalImageSize { get; set; }
+        public int TopMatchImageSize { get; set; }
         public ImageService ImageService { get; set; }
         public Dictionary<ResultType, Image> Icons { get; set; }
         public bool ShowTypeIcons { get; set; }
@@ -193,6 +197,31 @@ namespace MusicBeePlugin.UI
             }
         }
 
+        public int LastVisibleIndex
+        {
+            get
+            {
+                if (_items.Count == 0 || _itemYPositions.Count == 0) return -1;
+
+                int firstVisible = FirstVisibleIndex;
+                if (firstVisible < 0 || firstVisible >= _items.Count) return -1;
+
+                int lastVisible = firstVisible;
+                for (int i = firstVisible; i < _items.Count; i++)
+                {
+                    int itemTop = _itemYPositions[i] - _scrollTop;
+                    // If the top of the current item is already past the bottom of the control,
+                    // then the previous item was the last visible one.
+                    if (itemTop >= Height)
+                    {
+                        break;
+                    }
+                    lastVisible = i;
+                }
+                return lastVisible;
+            }
+        }
+
         public CustomResultList()
         {
             this.DoubleBuffered = true;
@@ -218,7 +247,14 @@ namespace MusicBeePlugin.UI
         private int GetItemHeight(int index)
         {
             if (index < 0 || index >= _items.Count) return ItemHeight;
-            if (_items[index].Type == ResultType.Header)
+
+            var item = _items[index];
+            if (item.IsTopMatch)
+            {
+                return ItemHeight * 2;
+            }
+
+            if (item.Type == ResultType.Header)
             {
                 // Add extra spacing before headers that are not the very first item.
                 return HeaderHeight + ((index > 0) ? HEADER_TOP_PADDING : 0);
@@ -401,33 +437,46 @@ namespace MusicBeePlugin.UI
         {
             if (resultItem.Type == ResultType.Header)
             {
-                using (var backgroundBrush = new SolidBrush(this.BackColor))
-                {
-                    g.FillRectangle(backgroundBrush, bounds);
-                }
+                DrawHeader(g, resultItem, bounds, index);
+            }
+            else
+            {
+                DrawResult(g, resultItem, bounds, index, isSelected);
+            }
+        }
 
-                using (var headerFont = new Font(ResultFont.FontFamily, ResultFont.Size, FontStyle.Italic))
-                {
-                    var headerColor = Color.Gray;
-                    TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.Left | TextFormatFlags.NoPrefix;
-
-                    int currentTopPadding = (index > 0) ? HEADER_TOP_PADDING : 0;
-
-                    Rectangle textRenderBounds = new Rectangle(
-                        bounds.X + 10,
-                        bounds.Y + currentTopPadding, // Position text after the padding
-                        bounds.Width - 20,
-                        HeaderHeight // The text area has the original header height
-                    );
-
-                    TextRenderer.DrawText(g, resultItem.DisplayTitle.ToUpper(), headerFont, textRenderBounds, headerColor, flags | TextFormatFlags.VerticalCenter);
-                }
-                return;
+        private void DrawHeader(Graphics g, SearchResult resultItem, Rectangle bounds, int index)
+        {
+            using (var backgroundBrush = new SolidBrush(this.BackColor))
+            {
+                g.FillRectangle(backgroundBrush, bounds);
             }
 
+            using (var headerFont = new Font(ResultFont.FontFamily, ResultFont.Size, FontStyle.Italic))
+            {
+                var headerColor = Color.Gray;
+                TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.Left | TextFormatFlags.NoPrefix;
+
+                int currentTopPadding = (index > 0) ? HEADER_TOP_PADDING : 0;
+
+                Rectangle textRenderBounds = new Rectangle(
+                    bounds.X + 10,
+                    bounds.Y + currentTopPadding, // Position text after the padding
+                    bounds.Width - 20,
+                    HeaderHeight // The text area has the original header height
+                );
+
+                TextRenderer.DrawText(g, resultItem.DisplayTitle.ToUpper(), headerFont, textRenderBounds, headerColor, flags | TextFormatFlags.VerticalCenter);
+            }
+        }
+
+        private void DrawResult(Graphics g, SearchResult resultItem, Rectangle bounds, int index, bool isSelected)
+        {
             const int HORIZONTAL_PADDING = 10;
-            const int IMAGE_VERTICAL_MARGIN = 6; // Margin from top and bottom for the image
-            const int IMAGE_TO_TEXT_SPACING = 10;
+            int imageVerticalMargin = resultItem.IsTopMatch ? 12 : 6;
+            int imageToTextSpacing = 10;
+            Font titleFont = resultItem.IsTopMatch ? this.TopMatchResultFont : this.ResultFont;
+            Font detailFont = resultItem.IsTopMatch ? this.TopMatchResultDetailFont : this.ResultDetailFont;
 
             int itemWidth = bounds.Width;
             if (_isThumbVisible)
@@ -435,166 +484,180 @@ namespace MusicBeePlugin.UI
                 itemWidth -= SCROLLBAR_WIDTH;
             }
 
-            // Draw background for the whole item, which is visible if the highlight is smaller
+            // Draw background
             using (var backgroundBrush = new SolidBrush(this.BackColor))
             {
                 g.FillRectangle(backgroundBrush, bounds);
             }
 
+            // Draw highlight
             bool isHovered = index == _hoveredIndex && !_isDraggingThumb;
-            Color? highlightBrushColor = null;
-            if (isSelected)
+            if (isSelected || isHovered)
             {
-                highlightBrushColor = this.HighlightColor;
-            }
-            else if (isHovered)
-            {
-                highlightBrushColor = this.HoverColor;
-            }
-
-            if (highlightBrushColor.HasValue)
-            {
+                Color highlightColor = isSelected ? this.HighlightColor : this.HoverColor;
                 const int HIGHLIGHT_MARGIN = 2;
                 var highlightBounds = new Rectangle(
-                    bounds.X + HIGHLIGHT_MARGIN,
-                    bounds.Y + HIGHLIGHT_MARGIN,
-                    itemWidth - (HIGHLIGHT_MARGIN * 2),
-                    bounds.Height - (HIGHLIGHT_MARGIN * 2)
+                    bounds.X + HIGHLIGHT_MARGIN, bounds.Y + HIGHLIGHT_MARGIN,
+                    itemWidth - (HIGHLIGHT_MARGIN * 2), bounds.Height - (HIGHLIGHT_MARGIN * 2)
                 );
-                
+
                 if (highlightBounds.Width > 0 && highlightBounds.Height > 0)
                 {
                     using (var path = GetRoundedRectPath(highlightBounds, 8))
-                    using (var highlightBrush = new SolidBrush(highlightBrushColor.Value))
+                    using (var highlightBrush = new SolidBrush(highlightColor))
                     {
                         g.FillPath(highlightBrush, path);
                     }
                 }
             }
 
-            // 1. Define the total available content height for images/text.
-            int availableHeight = bounds.Height - (IMAGE_VERTICAL_MARGIN * 2);
+            // 1. Define Image Area
+            int availableHeight = bounds.Height - (imageVerticalMargin * 2);
             if (availableHeight <= 0) return;
 
-            // 2. Define the image area on the left, respecting horizontal padding.
             var imageArea = new Rectangle(
-                bounds.X + HORIZONTAL_PADDING,
-                bounds.Y + IMAGE_VERTICAL_MARGIN,
-                availableHeight, // Make it a square
-                availableHeight
+                bounds.X + HORIZONTAL_PADDING, bounds.Y + imageVerticalMargin,
+                availableHeight, availableHeight
             );
 
-            // 3. Determine which image to use.
-            int artworkSize = availableHeight;
-            int iconSize = (int)(availableHeight * 0.6);
+            // 2. Draw Image
+            DrawResultImage(g, resultItem, imageArea, availableHeight);
 
-            Image displayImage = null;
-            bool isArtwork = false;
-            if (ImageService != null) { displayImage = ImageService.GetCachedImage(resultItem); }
-
-            if (displayImage != null)
-            {
-                isArtwork = true;
-            }
-            else if (Icons != null && Icons.TryGetValue(resultItem.Type, out var icon))
-            {
-                displayImage = icon;
-            }
-
-            // 4. Draw the image, centered within its dedicated area.
-            if (displayImage != null)
-            {
-                int effectiveSize = isArtwork ? artworkSize : iconSize;
-                int imageX = imageArea.X + (imageArea.Width - effectiveSize) / 2;
-                int imageY = imageArea.Y + (imageArea.Height - effectiveSize) / 2;
-                var imageBounds = new Rectangle(imageX, imageY, effectiveSize, effectiveSize);
-
-                // Apply rounded corners to square artwork (albums, songs)
-                if (isArtwork && ARTWORK_CORNER_RADIUS > 0 && resultItem.Type != ResultType.Artist)
-                {
-                    using (var path = GetRoundedRectPath(imageBounds, ARTWORK_CORNER_RADIUS))
-                    using (var brush = new TextureBrush(displayImage, WrapMode.Clamp))
-                    {
-                        // Align brush to the destination rectangle
-                        brush.TranslateTransform(imageBounds.X, imageBounds.Y);
-                        g.FillPath(brush, path);
-                    }
-                }
-                else // Draw normally (icons or pre-rendered circular artist art)
-                {
-                    g.DrawImage(displayImage, imageBounds);
-                }
-            }
-
-            // 5. Define icon and text areas
+            // 3. Define Text Area and Draw Right Icon
             Rectangle textBounds;
             if (ShowTypeIcons)
             {
-                int rightIconSize = (int)(availableHeight * 0.4); // smaller
+                int rightIconSize = resultItem.IsTopMatch ? (int)(availableHeight * 0.25) : (int)(availableHeight * 0.4);
                 var iconArea = new Rectangle(
                     itemWidth - HORIZONTAL_PADDING - rightIconSize,
                     bounds.Y + (bounds.Height - rightIconSize) / 2,
-                    rightIconSize,
-                    rightIconSize
+                    rightIconSize, rightIconSize
                 );
-
                 textBounds = new Rectangle(
-                    imageArea.Right + IMAGE_TO_TEXT_SPACING,
-                    bounds.Y,
-                    iconArea.Left - (imageArea.Right + IMAGE_TO_TEXT_SPACING) - (IMAGE_TO_TEXT_SPACING / 2),
-                    bounds.Height
+                    imageArea.Right + imageToTextSpacing, bounds.Y,
+                    iconArea.Left - (imageArea.Right + imageToTextSpacing) - (imageToTextSpacing / 2), bounds.Height
                 );
-
-                if (Icons != null && Icons.TryGetValue(resultItem.Type, out var icon))
-                {
-                    using (var imageAttributes = new ImageAttributes())
-                    {
-                        var colorMatrix = new ColorMatrix();
-                        colorMatrix.Matrix33 = 0.5f; // 50% opacity
-                        imageAttributes.SetColorMatrix(colorMatrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
-
-                        g.DrawImage(
-                            icon,
-                            iconArea,
-                            0, 0, icon.Width, icon.Height,
-                            GraphicsUnit.Pixel,
-                            imageAttributes);
-                    }
-                }
+                float opacity = resultItem.IsTopMatch ? 0.3f : 0.5f;
+                DrawRightIcon(g, resultItem.Type, iconArea, opacity);
             }
             else
             {
                 textBounds = new Rectangle(
-                    imageArea.Right + IMAGE_TO_TEXT_SPACING,
-                    bounds.Y, // Use full item bounds for vertical centering later
-                    itemWidth - (imageArea.Right + IMAGE_TO_TEXT_SPACING) - HORIZONTAL_PADDING,
-                    bounds.Height
+                    imageArea.Right + imageToTextSpacing, bounds.Y,
+                    itemWidth - (imageArea.Right + imageToTextSpacing) - HORIZONTAL_PADDING, bounds.Height
                 );
             }
 
-            // 6. Draw the text, centered vertically within the text area.
-            if (textBounds.Width > 0)
+            // 4. Draw Text
+            DrawResultText(g, resultItem, textBounds, titleFont, detailFont);
+        }
+
+        private void DrawResultImage(Graphics g, SearchResult resultItem, Rectangle imageArea, int availableHeight)
+        {
+            int sizeToGet = resultItem.IsTopMatch ? TopMatchImageSize : NormalImageSize;
+            Image displayImage = ImageService?.GetCachedImage(resultItem, sizeToGet);
+            bool isArtwork = displayImage != null;
+
+            if (displayImage == null && Icons != null && Icons.TryGetValue(resultItem.Type, out var icon))
             {
-                TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix;
-                if (string.IsNullOrEmpty(resultItem.DisplayDetail))
+                displayImage = icon;
+                isArtwork = false;
+            }
+
+            if (displayImage == null) return;
+
+            int artworkSize = availableHeight;
+            int iconSize = (int)(availableHeight * 0.6);
+            int effectiveSize = isArtwork ? artworkSize : iconSize;
+
+            var imageBounds = new Rectangle(
+                imageArea.X + (imageArea.Width - effectiveSize) / 2,
+                imageArea.Y + (imageArea.Height - effectiveSize) / 2,
+                effectiveSize, effectiveSize
+            );
+
+            if (isArtwork && ARTWORK_CORNER_RADIUS > 0 && resultItem.Type != ResultType.Artist)
+            {
+                using (var path = GetRoundedRectPath(imageBounds, ARTWORK_CORNER_RADIUS))
                 {
-                    TextRenderer.DrawText(g, resultItem.DisplayTitle, ResultFont, textBounds, this.ForeColor, flags | TextFormatFlags.VerticalCenter);
+                    var previousClip = g.Clip;
+                    g.SetClip(path, CombineMode.Intersect);
+                    g.DrawImage(displayImage, imageBounds);
+                    g.Clip = previousClip;
                 }
-                else
+            }
+            else
+            {
+                g.DrawImage(displayImage, imageBounds);
+            }
+        }
+        
+        private void DrawRightIcon(Graphics g, ResultType type, Rectangle iconArea, float opacity)
+        {
+            if (Icons != null && Icons.TryGetValue(type, out var icon))
+            {
+                using (var imageAttributes = new ImageAttributes())
                 {
-                    var titleSize = TextRenderer.MeasureText(g, resultItem.DisplayTitle, ResultFont, textBounds.Size, flags);
-                    var detailSize = TextRenderer.MeasureText(g, resultItem.DisplayDetail, ResultDetailFont, textBounds.Size, flags);
+                    var colorMatrix = new ColorMatrix { Matrix33 = opacity };
+                    imageAttributes.SetColorMatrix(colorMatrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
 
-                    const int lineSpacing = 2;
-                    int totalTextHeight = titleSize.Height + detailSize.Height + lineSpacing;
-                    int y = textBounds.Y + (textBounds.Height - totalTextHeight) / 2;
-
-                    var titleRect = new Rectangle(textBounds.X, y, textBounds.Width, titleSize.Height);
-                    TextRenderer.DrawText(g, resultItem.DisplayTitle, ResultFont, titleRect, this.ForeColor, flags);
-
-                    var detailRect = new Rectangle(textBounds.X, y + titleSize.Height + lineSpacing, textBounds.Width, detailSize.Height);
-                    TextRenderer.DrawText(g, resultItem.DisplayDetail, ResultDetailFont, detailRect, Color.Gray, flags);
+                    g.DrawImage(
+                        icon, iconArea,
+                        0, 0, icon.Width, icon.Height,
+                        GraphicsUnit.Pixel, imageAttributes
+                    );
                 }
+            }
+        }
+
+        private void DrawResultText(Graphics g, SearchResult resultItem, Rectangle textBounds, Font titleFont, Font detailFont)
+        {
+            if (textBounds.Width <= 0) return;
+            
+            TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix;
+            string detailText = resultItem.DisplayDetail;
+
+            // Override detail text for Top Match when not using type icons
+            if (resultItem.IsTopMatch && !ShowTypeIcons)
+            {
+                switch (resultItem.Type)
+                {
+                    case ResultType.Song:
+                        detailText = $"Song • {resultItem.DisplayDetail}";
+                        break;
+                    case ResultType.Album:
+                        detailText = $"Album • {resultItem.DisplayDetail}";
+                        break;
+                    case ResultType.Artist:
+                        detailText = "Artist";
+                        break;
+                    case ResultType.Playlist:
+                        detailText = "Playlist";
+                        break;
+                    case ResultType.Command:
+                        detailText = "Command";
+                        break;
+                }
+            }
+
+            if (string.IsNullOrEmpty(detailText))
+            {
+                TextRenderer.DrawText(g, resultItem.DisplayTitle, titleFont, textBounds, this.ForeColor, flags | TextFormatFlags.VerticalCenter);
+            }
+            else
+            {
+                var titleSize = TextRenderer.MeasureText(g, resultItem.DisplayTitle, titleFont, textBounds.Size, flags);
+                var detailSize = TextRenderer.MeasureText(g, detailText, detailFont, textBounds.Size, flags);
+
+                int lineSpacing = resultItem.IsTopMatch ? 4 : 2;
+                int totalTextHeight = titleSize.Height + detailSize.Height + lineSpacing;
+                int y = textBounds.Y + (textBounds.Height - totalTextHeight) / 2;
+
+                var titleRect = new Rectangle(textBounds.X, y, textBounds.Width, titleSize.Height);
+                TextRenderer.DrawText(g, resultItem.DisplayTitle, titleFont, titleRect, this.ForeColor, flags);
+
+                var detailRect = new Rectangle(textBounds.X, y + titleSize.Height + lineSpacing, textBounds.Width, detailSize.Height);
+                TextRenderer.DrawText(g, detailText, detailFont, detailRect, Color.Gray, flags);
             }
         }
 

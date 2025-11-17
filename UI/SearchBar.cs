@@ -34,6 +34,7 @@ namespace MusicBeePlugin.UI
         // Configuration
         private readonly SearchUIConfig searchUIConfig;
         private readonly int imageSize;
+        private readonly int topMatchImageSize;
         private readonly int iconSize;
 
         // State
@@ -55,8 +56,10 @@ namespace MusicBeePlugin.UI
 
         // Fonts
         private Font searchBoxFont;
-        private readonly Font resultFont = new Font("Arial", 11, FontStyle.Bold);
-        private readonly Font resultDetailFont = new Font("Arial", 10, FontStyle.Regular);
+        private Font resultFont;
+        private Font resultDetailFont;
+        private Font topMatchResultFont;
+        private Font topMatchResultDetailFont;
 
         // Constants
         private const int SEARCH_BOX_HEIGHT = 34;
@@ -81,7 +84,14 @@ namespace MusicBeePlugin.UI
             float fontSize = (float)Math.Max(Math.Round((SEARCH_BOX_HEIGHT - 12) * 0.55f), 6f);
             this.searchBoxFont = new Font("Arial", fontSize, FontStyle.Bold);
 
+            this.resultFont = new Font("Arial", 11, FontStyle.Bold);
+            this.resultDetailFont = new Font("Arial", 10, FontStyle.Regular);
+            this.topMatchResultFont = new Font(this.resultFont.FontFamily, this.resultFont.Size * 1.4f, FontStyle.Bold);
+            this.topMatchResultDetailFont = new Font(this.resultDetailFont.FontFamily, this.resultDetailFont.Size * 1.2f, FontStyle.Regular);
+
+
             imageSize = Math.Max(searchUIConfig.ResultItemHeight - 12, 5);
+            topMatchImageSize = Math.Max((searchUIConfig.ResultItemHeight * 2) - 24, 5);
             iconSize = Math.Max(searchUIConfig.ResultItemHeight - 30, 5);
 
             this.musicBeeControl = musicBeeControl;
@@ -196,6 +206,8 @@ namespace MusicBeePlugin.UI
                 searchBoxFont?.Dispose();
                 resultFont?.Dispose();
                 resultDetailFont?.Dispose();
+                topMatchResultFont?.Dispose();
+                topMatchResultDetailFont?.Dispose();
             }
             base.Dispose(disposing);
         }
