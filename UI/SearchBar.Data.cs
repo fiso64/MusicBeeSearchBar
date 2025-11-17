@@ -172,10 +172,17 @@ namespace MusicBeePlugin.UI
                 var filter = ResultType.All;
                 Dictionary<ResultType, int> resultLimits = null;
 
-                if (query.EndsWith(".."))
+                int trailingDots = 0;
+                while (query.Length > trailingDots && query[query.Length - 1 - trailingDots] == '.')
                 {
-                    query = query.Substring(0, query.Length - 2).TrimEnd();
-                    resultLimits = new Dictionary<ResultType, int> { { ResultType.All, 100 } };
+                    trailingDots++;
+                }
+
+                if (trailingDots >= 2 && trailingDots % 2 == 0)
+                {
+                    query = query.Substring(0, query.Length - trailingDots).TrimEnd();
+                    int limit = (int)(100 * Math.Pow(10, (trailingDots / 2) - 1));
+                    resultLimits = new Dictionary<ResultType, int> { { ResultType.All, limit } };
                 }
 
                 if (query.StartsWith("a:", StringComparison.OrdinalIgnoreCase))
