@@ -12,8 +12,13 @@ namespace MusicBeePlugin.UI
 {
     public class CustomResultList : Control
     {
-        // A reasonable default pixel height for one "line" of scrolling, inspired by browser standards.
-        private const int ScrollLineHeight = 18;
+        // Animation settings
+        private const float ANIMATION_FACTOR = 0.25f; // Easing factor (higher = faster animation)
+        private System.Windows.Forms.Timer _animationTimer;
+        private int _targetScrollTop;
+
+        // A reasonable default pixel height for one "line" of scrolling.
+        private const int ScrollLineHeight = 28;
         private const int SCROLLBAR_WIDTH = 8;
         private const int ARTWORK_CORNER_RADIUS = 8;
         public const int HEADER_TOP_PADDING = 8;
@@ -70,31 +75,29 @@ namespace MusicBeePlugin.UI
                 {
                     firstSelectable = _items.FindIndex(i => i.Type != ResultType.Header);
                 }
-                SelectedIndex = firstSelectable;
+                SetSelectedIndex(firstSelectable, animateScroll: false);
 
                 UpdateScrollbar();
                 Invalidate();
             }
         }
 
-        public int SelectedIndex
+        public int SelectedIndex => _selectedIndex;
+
+        public void SetSelectedIndex(int value, bool animateScroll = false)
         {
-            get => _selectedIndex;
-            set
+            if (value >= _items.Count) value = _items.Count - 1;
+            if (value < 0) value = -1;
+
+            if (_selectedIndex != value)
             {
-                if (value >= _items.Count) value = _items.Count - 1;
-                if (value < 0) value = -1;
+                int oldIndex = _selectedIndex;
+                _selectedIndex = value;
 
-                if (_selectedIndex != value)
-                {
-                    int oldIndex = _selectedIndex;
-                    _selectedIndex = value;
+                if (oldIndex != -1) InvalidateItem(oldIndex);
+                if (_selectedIndex != -1) InvalidateItem(_selectedIndex);
 
-                    if (oldIndex != -1) InvalidateItem(oldIndex);
-                    if (_selectedIndex != -1) InvalidateItem(_selectedIndex);
-                    
-                    EnsureVisible(_selectedIndex);
-                }
+                EnsureVisible(_selectedIndex, animate: animateScroll);
             }
         }
 
@@ -167,6 +170,22 @@ namespace MusicBeePlugin.UI
         {
             this.DoubleBuffered = true;
             this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+
+            _animationTimer = new System.Windows.Forms.Timer
+            {
+                Interval = 15 // Aim for ~66 FPS
+            };
+            _animationTimer.Tick += AnimationTimer_Tick;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _animationTimer?.Stop();
+                _animationTimer?.Dispose();
+            }
+            base.Dispose(disposing);
         }
 
         private int GetItemHeight(int index)
@@ -238,22 +257,43 @@ namespace MusicBeePlugin.UI
             }
         }
 
-        private void EnsureVisible(int index)
+        public void EnsureVisible(int index, bool animate = true)
         {
             if (index < 0 || index >= _items.Count || _itemYPositions.Count <= index) return;
 
             int itemTop = _itemYPositions[index];
             int itemBottom = itemTop + GetItemHeight(index);
 
+            int newScrollTop = _scrollTop;
+            bool needsScroll = false;
+
             if (itemTop < _scrollTop)
             {
                 // Item is above the view, scroll up to show it at the top.
-                ScrollTop = itemTop;
+                newScrollTop = itemTop;
+                needsScroll = true;
             }
             else if (itemBottom > _scrollTop + Height)
             {
                 // Item is below the view, scroll down to make its bottom flush with the view's bottom.
-                ScrollTop = itemBottom - Height;
+                newScrollTop = itemBottom - Height;
+                needsScroll = true;
+            }
+
+            if (needsScroll)
+            {
+                if (animate)
+                {
+                    _targetScrollTop = newScrollTop;
+                    _animationTimer.Start();
+                }
+                else
+                {
+                    // For instant scroll, stop any animation and snap to the position.
+                    _animationTimer.Stop();
+                    ScrollTop = newScrollTop;
+                    _targetScrollTop = newScrollTop;
+                }
             }
         }
 
@@ -556,7 +596,8 @@ namespace MusicBeePlugin.UI
             if (lineMultiplier > 100)
             {
                 // Scroll by the height of the visible area, minus one item to maintain context.
-                ScrollTop -= ticks * (this.Height - ItemHeight);
+                _targetScrollTop -= ticks * (this.Height - ItemHeight);
+                _animationTimer.Start();
                 return;
             }
 
@@ -566,7 +607,15 @@ namespace MusicBeePlugin.UI
 
             // Apply the scroll. We subtract because a positive delta (scroll up) means
             // decreasing the ScrollTop value.
-            ScrollTop -= scrollAmount;
+            _targetScrollTop -= scrollAmount;
+
+            // Clamp the target to the valid scroll range
+            int contentHeight = 0;
+            if (_items.Any()) contentHeight = _itemYPositions.Last() + GetItemHeight(_items.Count - 1);
+            int maxScrollTop = Math.Max(0, contentHeight - Height);
+            _targetScrollTop = Math.Max(0, Math.Min(_targetScrollTop, maxScrollTop));
+
+            _animationTimer.Start();
         }
 
         protected override void OnMouseDown(MouseEventArgs e)
@@ -578,6 +627,7 @@ namespace MusicBeePlugin.UI
                 _isDraggingThumb = true;
                 _dragStartY = e.Y;
                 _dragStartScrollTop = _scrollTop;
+                _animationTimer.Stop(); // Stop any ongoing animation when dragging begins
             }
             else
             {
@@ -586,11 +636,11 @@ namespace MusicBeePlugin.UI
                 {
                     if (_items[index].Type != ResultType.Header)
                     {
-                        SelectedIndex = index;
+                        SetSelectedIndex(index, animateScroll: false);
                     }
                     else
                     {
-                        SelectedIndex = -1; // Deselect if a header is clicked
+                        SetSelectedIndex(-1, animateScroll: false); // Deselect if a header is clicked
                     }
                 }
             }
@@ -611,7 +661,11 @@ namespace MusicBeePlugin.UI
                 int deltaY = e.Y - _dragStartY;
                 float deltaContent = (deltaY / trackHeight) * scrollableHeight;
                 
+                // When dragging, we bypass the animation and set the position directly.
                 ScrollTop = _dragStartScrollTop + (int)deltaContent;
+                // We also sync the target position so the animation doesn't fight back
+                // when the user releases the mouse button.
+                _targetScrollTop = _scrollTop;
             }
             else
             {
@@ -667,6 +721,37 @@ namespace MusicBeePlugin.UI
             {
                 base.Invalidate();
             }
+        }
+
+        private void AnimationTimer_Tick(object sender, EventArgs e)
+        {
+            // If we are actively dragging the scrollbar, don't animate.
+            if (_isDraggingThumb)
+            {
+                _animationTimer.Stop();
+                return;
+            }
+
+            int distance = _targetScrollTop - _scrollTop;
+
+            // If we are very close, snap to the target and stop the animation.
+            if (Math.Abs(distance) < 1)
+            {
+                ScrollTop = _targetScrollTop;
+                _animationTimer.Stop();
+                return;
+            }
+
+            // Calculate the next step. It's a fraction of the remaining distance.
+            int step = (int)Math.Round(distance * ANIMATION_FACTOR);
+
+            // Ensure we always move at least one pixel to prevent getting stuck.
+            if (step == 0)
+            {
+                step = Math.Sign(distance);
+            }
+
+            ScrollTop += step;
         }
     }
 }

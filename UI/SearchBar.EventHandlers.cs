@@ -31,7 +31,7 @@ namespace MusicBeePlugin.UI
             }
             else if (e.KeyCode == Keys.Enter && e.Control && preservedIndex != -1)
             {
-                resultsListBox.SelectedIndex = preservedIndex;
+                resultsListBox.SetSelectedIndex(preservedIndex);
                 HandleSearchBoxEnter(e);
                 e.Handled = true;
                 e.SuppressKeyPress = true;
@@ -61,7 +61,7 @@ namespace MusicBeePlugin.UI
                     {
                         newIndex = (newIndex + 1) % count;
                     } while (resultsListBox.Items[newIndex].Type == ResultType.Header);
-                    resultsListBox.SelectedIndex = newIndex;
+                    resultsListBox.SetSelectedIndex(newIndex, animateScroll: false);
                 }
                 e.Handled = true;
                 e.SuppressKeyPress = true;
@@ -80,7 +80,7 @@ namespace MusicBeePlugin.UI
                     {
                         newIndex = newIndex > 0 ? newIndex - 1 : count - 1;
                     } while (resultsListBox.Items[newIndex].Type == ResultType.Header);
-                    resultsListBox.SelectedIndex = newIndex;
+                    resultsListBox.SetSelectedIndex(newIndex, animateScroll: false);
                 }
                 e.Handled = true;
                 e.SuppressKeyPress = true;
@@ -89,7 +89,13 @@ namespace MusicBeePlugin.UI
             {
                 if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                 {
-                    resultsListBox.SelectedIndex = 0;
+                    int newIndex = 0;
+                    // Skip header if it's the first item
+                    if (resultsListBox.Items[newIndex].Type == ResultType.Header && resultsListBox.Items.Count > 1)
+                    {
+                        newIndex = 1;
+                    }
+                    resultsListBox.SetSelectedIndex(newIndex, animateScroll: true);
                 }
                 e.Handled = true;
                 e.SuppressKeyPress = true;
@@ -98,7 +104,13 @@ namespace MusicBeePlugin.UI
             {
                 if (resultsListBox.Visible && resultsListBox.Items.Count > 0)
                 {
-                    resultsListBox.SelectedIndex = resultsListBox.Items.Count - 1;
+                    int newIndex = resultsListBox.Items.Count - 1;
+                    // Skip header if it's the last item
+                    if (resultsListBox.Items[newIndex].Type == ResultType.Header && resultsListBox.Items.Count > 1)
+                    {
+                        newIndex = resultsListBox.Items.Count - 2;
+                    }
+                    resultsListBox.SetSelectedIndex(newIndex, animateScroll: true);
                 }
                 e.Handled = true;
                 e.SuppressKeyPress = true;
