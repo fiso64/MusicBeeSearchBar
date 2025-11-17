@@ -146,7 +146,7 @@ namespace MusicBeePlugin.Config
 
         [ConfigProperty("Artist Result Limit", Category = "Search")]
         [Range(0, 10000)]
-        public int ArtistResultLimit { get; set; } = 5;
+        public int ArtistResultLimit { get; set; } = 3;
 
         [ConfigProperty("Album Result Limit", Category = "Search")]
         [Range(0, 10000)]
@@ -192,7 +192,7 @@ namespace MusicBeePlugin.Config
 
         [ConfigProperty("Max Visible Results", "Maximum number of results to show before scrolling.", Category = "Appearance")]
         [Range(1, 20)]
-        public int MaxResultsVisible { get; set; } = 11;
+        public int MaxResultsVisible { get; set; } = 10;
 
         [ConfigProperty("Result Item Height", "Height of each result item in pixels.", Category = "Appearance")]
         [Range(1, 200)]
@@ -205,10 +205,10 @@ namespace MusicBeePlugin.Config
         public Color TextColor { get; set; } = Color.White;
 
         [ConfigProperty("Base Color", Category = "Appearance")]
-        public Color BaseColor { get; set; } = Color.FromArgb(20, 20, 20);
+        public Color BaseColor { get; set; } = Color.FromArgb(16, 16, 16);
 
         [ConfigProperty("Highlight Color", Category = "Appearance")]
-        public Color ResultHighlightColor { get; set; } = Color.FromArgb(45, 45, 45);
+        public Color ResultHighlightColor { get; set; } = Color.FromArgb(35, 35, 35);
 
         public static SearchUIConfig GetDefault(MusicBeeApiInterface mbApi)
         {
