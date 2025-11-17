@@ -174,6 +174,9 @@ namespace MusicBeePlugin.Config
         [ConfigProperty("Show Images in Results", Category = "Appearance")]
         public bool ShowImages { get; set; } = true;
 
+        [ConfigProperty("Show Type Icons", "Shows result type icons on the right side of each item.", Category = "Appearance")]
+        public bool ShowTypeIcons { get; set; } = false;
+
         [ConfigProperty("Use MusicBee's Image Cache", "Faster, uses MusicBee's internal cache for album covers.", Category = "Appearance")]
         public bool UseMusicBeeCacheForCovers { get; set; } = true;
 

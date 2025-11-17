@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Linq;
 using System.Windows.Forms;
 
@@ -49,6 +50,7 @@ namespace MusicBeePlugin.UI
         public Font ResultDetailFont { get; set; }
         public ImageService ImageService { get; set; }
         public Dictionary<ResultType, Image> Icons { get; set; }
+        public bool ShowTypeIcons { get; set; }
 
         public List<SearchResult> Items
         {
@@ -524,13 +526,51 @@ namespace MusicBeePlugin.UI
                 }
             }
 
-            // 5. Define the text area, which starts after the image area.
-            var textBounds = new Rectangle(
-                imageArea.Right + IMAGE_TO_TEXT_SPACING,
-                bounds.Y, // Use full item bounds for vertical centering later
-                itemWidth - (imageArea.Right + IMAGE_TO_TEXT_SPACING) - HORIZONTAL_PADDING,
-                bounds.Height
-            );
+            // 5. Define icon and text areas
+            Rectangle textBounds;
+            if (ShowTypeIcons)
+            {
+                int rightIconSize = (int)(availableHeight * 0.4); // smaller
+                var iconArea = new Rectangle(
+                    itemWidth - HORIZONTAL_PADDING - rightIconSize,
+                    bounds.Y + (bounds.Height - rightIconSize) / 2,
+                    rightIconSize,
+                    rightIconSize
+                );
+
+                textBounds = new Rectangle(
+                    imageArea.Right + IMAGE_TO_TEXT_SPACING,
+                    bounds.Y,
+                    iconArea.Left - (imageArea.Right + IMAGE_TO_TEXT_SPACING) - (IMAGE_TO_TEXT_SPACING / 2),
+                    bounds.Height
+                );
+
+                if (Icons != null && Icons.TryGetValue(resultItem.Type, out var icon))
+                {
+                    using (var imageAttributes = new ImageAttributes())
+                    {
+                        var colorMatrix = new ColorMatrix();
+                        colorMatrix.Matrix33 = 0.5f; // 50% opacity
+                        imageAttributes.SetColorMatrix(colorMatrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
+
+                        g.DrawImage(
+                            icon,
+                            iconArea,
+                            0, 0, icon.Width, icon.Height,
+                            GraphicsUnit.Pixel,
+                            imageAttributes);
+                    }
+                }
+            }
+            else
+            {
+                textBounds = new Rectangle(
+                    imageArea.Right + IMAGE_TO_TEXT_SPACING,
+                    bounds.Y, // Use full item bounds for vertical centering later
+                    itemWidth - (imageArea.Right + IMAGE_TO_TEXT_SPACING) - HORIZONTAL_PADDING,
+                    bounds.Height
+                );
+            }
 
             // 6. Draw the text, centered vertically within the text area.
             if (textBounds.Width > 0)
