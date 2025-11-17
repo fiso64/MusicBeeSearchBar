@@ -12,6 +12,8 @@ namespace MusicBeePlugin.UI
 {
     public class CustomResultList : Control
     {
+        // A reasonable default pixel height for one "line" of scrolling, inspired by browser standards.
+        private const int ScrollLineHeight = 18;
         private const int SCROLLBAR_WIDTH = 8;
         private const int ARTWORK_CORNER_RADIUS = 8;
         public const int HEADER_TOP_PADDING = 8;
@@ -19,7 +21,7 @@ namespace MusicBeePlugin.UI
         private List<SearchResult> _items = new List<SearchResult>();
         private int _selectedIndex = -1;
         private int _hoveredIndex = -1;
-        private int _topIndex = 0;
+        private int _scrollTop = 0;
         private bool _isUpdating = false;
         private List<int> _itemYPositions = new List<int>();
 
@@ -29,7 +31,7 @@ namespace MusicBeePlugin.UI
         private bool _isThumbVisible = false;
         private bool _isDraggingThumb = false;
         private int _dragStartY;
-        private int _dragStartTopIndex;
+        private int _dragStartScrollTop;
 
         public event EventHandler Scrolled;
 
@@ -61,8 +63,8 @@ namespace MusicBeePlugin.UI
                     }
                 }
 
-                TopIndex = 0;
-                
+                ScrollTop = 0;
+
                 int firstSelectable = -1;
                 if (_items.Count > 0)
                 {
@@ -98,46 +100,23 @@ namespace MusicBeePlugin.UI
 
         public SearchResult SelectedItem => (_selectedIndex >= 0 && _selectedIndex < _items.Count) ? _items[_selectedIndex] : null;
 
-        public int TopIndex
+        public int ScrollTop
         {
-            get => _topIndex;
+            get => _scrollTop;
             set
             {
-                if (_items.Count == 0 || _itemYPositions.Count == 0)
+                int contentHeight = 0;
+                if (_items.Any() && _itemYPositions.Any())
                 {
-                    if (_topIndex != 0) Invalidate();
-                    _topIndex = 0;
-                    return;
-                }
-        
-                int maxTopIndex;
-                int contentHeight = _itemYPositions.Last() + GetItemHeight(_items.Count - 1);
-                if (contentHeight <= Height)
-                {
-                    maxTopIndex = 0;
-                }
-                else
-                {
-                    int lastItemIndex = _items.Count - 1;
-                    int heightSum = 0;
-                    maxTopIndex = lastItemIndex;
-                    for (int i = lastItemIndex; i >= 0; i--)
-                    {
-                        heightSum += GetItemHeight(i);
-                        if (heightSum > Height)
-                        {
-                            maxTopIndex = i + 1;
-                            break;
-                        }
-                        maxTopIndex = i;
-                    }
+                    contentHeight = _itemYPositions.Last() + GetItemHeight(_items.Count - 1);
                 }
 
-                var newValue = Math.Max(0, Math.Min(value, maxTopIndex));
-                if (_topIndex != newValue)
+                int maxScrollTop = Math.Max(0, contentHeight - Height);
+                var newValue = Math.Max(0, Math.Min(value, maxScrollTop));
+
+                if (_scrollTop != newValue)
                 {
-                    Debug.WriteLine($"[CustomResultList] TopIndex set from {_topIndex} to {newValue}.");
-                    _topIndex = newValue;
+                    _scrollTop = newValue;
                     UpdateScrollbar();
                     Invalidate();
                     Scrolled?.Invoke(this, EventArgs.Empty);
@@ -155,6 +134,32 @@ namespace MusicBeePlugin.UI
                         InvalidateItem(oldIndex);
                     }
                 }
+            }
+        }
+
+        public int FirstVisibleIndex
+        {
+            get
+            {
+                if (_items.Count == 0) return 0;
+                // Use a binary search to find the last item whose top is at or before the current scroll position
+                int low = 0;
+                int high = _itemYPositions.Count - 1;
+                int result = 0;
+                while (low <= high)
+                {
+                    int mid = low + (high - low) / 2;
+                    if (_itemYPositions[mid] <= _scrollTop)
+                    {
+                        result = mid;
+                        low = mid + 1;
+                    }
+                    else
+                    {
+                        high = mid - 1;
+                    }
+                }
+                return result;
             }
         }
 
@@ -178,19 +183,37 @@ namespace MusicBeePlugin.UI
         private int GetIndexFromY(int y)
         {
             if (_items.Count == 0 || _itemYPositions.Count == 0) return -1;
-        
-            int absoluteY = y + _itemYPositions[TopIndex];
-        
-            // This could be a binary search, but linear is fine for the number of visible items.
-            for (int i = TopIndex; i < _items.Count; i++)
+
+            int absoluteY = y + _scrollTop;
+
+            // Binary search to find the item. This is more efficient than a linear scan.
+            int low = 0;
+            int high = _itemYPositions.Count - 1;
+            int result = -1;
+
+            // Find the last item whose top is at or before the absoluteY
+            while (low <= high)
             {
-                if (absoluteY < _itemYPositions[i] + GetItemHeight(i))
+                int mid = low + (high - low) / 2;
+                if (_itemYPositions[mid] <= absoluteY)
                 {
-                    return i;
+                    result = mid;
+                    low = mid + 1;
+                }
+                else
+                {
+                    high = mid - 1;
                 }
             }
-            // If cursor is below the last item, it's not on any item.
-            return -1;
+
+            // After the loop, 'result' is the index of the item that contains or is before the y-coordinate.
+            // Now, check if the coordinate is actually within this item's bounds.
+            if (result != -1 && absoluteY < _itemYPositions[result] + GetItemHeight(result))
+            {
+                return result;
+            }
+
+            return -1; // Not over any item
         }
 
         public void BeginUpdate() => _isUpdating = true;
@@ -205,8 +228,7 @@ namespace MusicBeePlugin.UI
         {
             if (index >= 0 && index < _itemYPositions.Count)
             {
-                int topY = (TopIndex < _itemYPositions.Count) ? _itemYPositions[TopIndex] : 0;
-                int itemY = _itemYPositions[index] - topY;
+                int itemY = _itemYPositions[index] - _scrollTop;
                 var rect = new Rectangle(0, itemY, Width, GetItemHeight(index));
                 
                 if (rect.Bottom >= 0 && rect.Top <= Height)
@@ -218,34 +240,20 @@ namespace MusicBeePlugin.UI
 
         private void EnsureVisible(int index)
         {
-            if (index < 0 || index >= _items.Count) return;
-            
-            if (index < TopIndex)
-            {
-                TopIndex = index;
-            }
-            else
-            {
-                int itemBottom = _itemYPositions[index] + GetItemHeight(index);
-                int viewTop = _itemYPositions[TopIndex];
+            if (index < 0 || index >= _items.Count || _itemYPositions.Count <= index) return;
 
-                if (itemBottom > viewTop + Height)
-                {
-                    // Item is below the view. Scroll so it becomes the last fully visible item.
-                    int heightSum = 0;
-                    int newTopIndex = index;
-                    for (int i = index; i >= 0; i--)
-                    {
-                        heightSum += GetItemHeight(i);
-                        if (heightSum > Height)
-                        {
-                            newTopIndex = i + 1;
-                            break;
-                        }
-                        newTopIndex = i;
-                    }
-                    TopIndex = newTopIndex;
-                }
+            int itemTop = _itemYPositions[index];
+            int itemBottom = itemTop + GetItemHeight(index);
+
+            if (itemTop < _scrollTop)
+            {
+                // Item is above the view, scroll up to show it at the top.
+                ScrollTop = itemTop;
+            }
+            else if (itemBottom > _scrollTop + Height)
+            {
+                // Item is below the view, scroll down to make its bottom flush with the view's bottom.
+                ScrollTop = itemBottom - Height;
             }
         }
 
@@ -271,7 +279,7 @@ namespace MusicBeePlugin.UI
             float thumbHeight = Math.Max(20, Height * (Height / (float)contentHeight));
             float scrollableHeight = contentHeight - Height;
             
-            float scrollRatio = (scrollableHeight > 0) ? (_itemYPositions[TopIndex] / scrollableHeight) : 0;
+            float scrollRatio = (scrollableHeight > 0) ? (_scrollTop / scrollableHeight) : 0;
             float thumbY = (Height - thumbHeight) * scrollRatio;
 
             _scrollThumb = new Rectangle(
@@ -298,16 +306,18 @@ namespace MusicBeePlugin.UI
 
             if (_items.Count == 0 || _itemYPositions.Count == 0) return;
 
-            int topItemY = _itemYPositions[TopIndex];
+            int startIndex = FirstVisibleIndex;
 
-            for (int i = TopIndex; i < _items.Count; i++)
+            for (int i = startIndex; i < _items.Count; i++)
             {
-                int itemY = _itemYPositions[i] - topItemY;
-                if (itemY >= Height) break; // Optimization: stop if we're past the bottom of the control
+                int itemY = _itemYPositions[i] - _scrollTop;
+                // Optimization: stop drawing if we're past the bottom of the control
+                if (itemY >= Height) break;
 
                 var item = _items[i];
                 var bounds = new Rectangle(0, itemY, Width, GetItemHeight(i));
 
+                // Only draw if the item is actually within the clip rectangle
                 if (e.ClipRectangle.IntersectsWith(bounds))
                 {
                     DrawItem(e.Graphics, item, bounds, i, i == _selectedIndex);
@@ -534,9 +544,29 @@ namespace MusicBeePlugin.UI
         {
             base.OnMouseWheel(e);
             if (!_isThumbVisible) return;
-            
-            int delta = e.Delta > 0 ? -1 : 1;
-            TopIndex += delta;
+
+            // A positive delta means scrolling up. Normalize the delta to "ticks".
+            int ticks = e.Delta / 120;
+
+            // Get the user's system-wide scroll preference.
+            int lineMultiplier = SystemInformation.MouseWheelScrollLines;
+
+            // Check for the special case where the user wants to scroll a full page at a time.
+            // A very large value for lineMultiplier indicates this setting.
+            if (lineMultiplier > 100)
+            {
+                // Scroll by the height of the visible area, minus one item to maintain context.
+                ScrollTop -= ticks * (this.Height - ItemHeight);
+                return;
+            }
+
+            // Standard line-based scrolling, translated to pixels.
+            // This is the direct C# equivalent of the browser's DOM_DELTA_LINE handling.
+            int scrollAmount = ticks * ScrollLineHeight * lineMultiplier;
+
+            // Apply the scroll. We subtract because a positive delta (scroll up) means
+            // decreasing the ScrollTop value.
+            ScrollTop -= scrollAmount;
         }
 
         protected override void OnMouseDown(MouseEventArgs e)
@@ -547,7 +577,7 @@ namespace MusicBeePlugin.UI
             {
                 _isDraggingThumb = true;
                 _dragStartY = e.Y;
-                _dragStartTopIndex = TopIndex;
+                _dragStartScrollTop = _scrollTop;
             }
             else
             {
@@ -581,13 +611,7 @@ namespace MusicBeePlugin.UI
                 int deltaY = e.Y - _dragStartY;
                 float deltaContent = (deltaY / trackHeight) * scrollableHeight;
                 
-                int startY = _itemYPositions[_dragStartTopIndex];
-                int newY = startY + (int)deltaContent;
-
-                // Find the index closest to newY
-                int newTopIndex = _itemYPositions.FindLastIndex(y => y <= newY);
-                if (newTopIndex == -1) newTopIndex = 0;
-                TopIndex = newTopIndex;
+                ScrollTop = _dragStartScrollTop + (int)deltaContent;
             }
             else
             {
