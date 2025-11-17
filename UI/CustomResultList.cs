@@ -97,7 +97,32 @@ namespace MusicBeePlugin.UI
                 if (oldIndex != -1) InvalidateItem(oldIndex);
                 if (_selectedIndex != -1) InvalidateItem(_selectedIndex);
 
-                EnsureVisible(_selectedIndex, animate: animateScroll);
+                int firstSelectableIndex = -1;
+                if (_selectedIndex != -1)
+                {
+                    firstSelectableIndex = _items.FindIndex(i => i.Type != ResultType.Header);
+                }
+
+                if (firstSelectableIndex != -1 && _selectedIndex == firstSelectableIndex)
+                {
+                    // Special case: first item selected, scroll to top to show header
+                    if (animateScroll)
+                    {
+                        _targetScrollTop = 0;
+                        _animationTimer.Start();
+                    }
+                    else
+                    {
+                        _animationTimer.Stop();
+                        ScrollTop = 0;
+                        _targetScrollTop = 0;
+                    }
+                }
+                else
+                {
+                    // Default behavior for all other items
+                    EnsureVisible(_selectedIndex, animate: animateScroll);
+                }
             }
         }
 

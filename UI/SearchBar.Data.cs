@@ -32,8 +32,8 @@ namespace MusicBeePlugin.UI
 
             try
             {
-                int startIndex = resultsListBox.FirstVisibleIndex;
-                int endIndex = Math.Min(startIndex + searchUIConfig.MaxResultsVisible, resultsListBox.Items.Count);
+        int startIndex = resultsListBox.FirstVisibleIndex;
+        int endIndex = Math.Min(startIndex + searchUIConfig.MaxResultsVisible + VISIBLE_ITEMS_BUFFER, resultsListBox.Items.Count);
 
                 // Create a list of tasks for loading all visible images
                 var loadTasks = new List<Task>();
