@@ -465,12 +465,13 @@ namespace MusicBeePlugin.Services
             return await Task.Run(async () => {
                 var results = new List<SearchResult>();
                 string normalizedQuery = NormalizeString(query, true);
-                string[] queryWords = normalizedQuery.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                string[] sortedQueryWords = normalizedQuery.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                Array.Sort(sortedQueryWords, (a, b) => b.Length.CompareTo(a.Length));
 
                 if (enabledTypes.HasFlag(ResultType.Artist) && GetResultLimit(ResultType.Artist, out var limit, resultLimits))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var artistResults = SearchArtists(queryWords, normalizedQuery, limit);
+                    var artistResults = SearchArtists(sortedQueryWords, normalizedQuery, limit);
                     results.AddRange(artistResults);
                     onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
@@ -478,7 +479,7 @@ namespace MusicBeePlugin.Services
                 if (enabledTypes.HasFlag(ResultType.Album) && GetResultLimit(ResultType.Album, out limit, resultLimits))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var albumResults = SearchAlbums(queryWords, normalizedQuery, limit);
+                    var albumResults = SearchAlbums(sortedQueryWords, normalizedQuery, limit);
                     results.AddRange(albumResults);
                     onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
@@ -486,7 +487,7 @@ namespace MusicBeePlugin.Services
                 if (enabledTypes.HasFlag(ResultType.Song) && GetResultLimit(ResultType.Song, out limit, resultLimits))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var songResults = SearchSongs(queryWords, normalizedQuery, limit);
+                    var songResults = SearchSongs(sortedQueryWords, normalizedQuery, limit);
                     results.AddRange(songResults);
                     onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
@@ -494,7 +495,7 @@ namespace MusicBeePlugin.Services
                 if (enabledTypes.HasFlag(ResultType.Playlist) && GetResultLimit(ResultType.Playlist, out limit, resultLimits))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var playlistResults = SearchPlaylists(queryWords, normalizedQuery, limit);
+                    var playlistResults = SearchPlaylists(sortedQueryWords, normalizedQuery, limit);
                     results.AddRange(playlistResults);
                     onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
@@ -538,7 +539,7 @@ namespace MusicBeePlugin.Services
             return finalList;
         }
 
-        private List<ArtistResult> SearchArtists(string[] queryWords, string normalizedQuery, int limit)
+        private List<ArtistResult> SearchArtists(string[] sortedQueryWords, string normalizedQuery, int limit)
         {
             var scoredArtists = new List<ArtistResult>();
 
@@ -549,11 +550,11 @@ namespace MusicBeePlugin.Services
 
                 var aliasesToScore = entity.AliasMap.Keys.AsEnumerable();
                 if (config.EnableContainsCheck)
-                    aliasesToScore = aliasesToScore.Where(alias => QueryMatchesWords(alias, queryWords, normalizeText: false));
+                    aliasesToScore = aliasesToScore.Where(alias => QueryMatchesWords(alias, sortedQueryWords, normalizeText: false));
 
                 foreach (var alias in aliasesToScore)
                 {
-                    double currentScore = CalculateGeneralItemScore(alias, normalizedQuery, queryWords, normalizeStrings: false);
+                    double currentScore = CalculateGeneralItemScore(alias, normalizedQuery, sortedQueryWords, normalizeStrings: false);
                     if (currentScore > bestScore)
                     {
                         bestScore = currentScore;
@@ -573,18 +574,18 @@ namespace MusicBeePlugin.Services
                 .ToList();
         }
 
-        private List<AlbumResult> SearchAlbums(string[] queryWords, string normalizedQuery, int limit)
+        private List<AlbumResult> SearchAlbums(string[] sortedQueryWords, string normalizedQuery, int limit)
         {
             var items = db.Albums.AsEnumerable();
 
             if (config.EnableContainsCheck)
-                items = items.Where(x => QueryMatchesWords(x.Key.NormalizedAlbumArtist + " " + x.Key.NormalizedAlbum, queryWords, normalizeText: false));
+                items = items.Where(x => QueryMatchesWords(x.Key.NormalizedAlbumArtist + " " + x.Key.NormalizedAlbum, sortedQueryWords, normalizeText: false));
 
             return items
                 .Select(x => new
                 {
                     Track = x.Value,
-                    Score = CalculateArtistAndTitleScore(x.Key.NormalizedAlbumArtist, x.Key.NormalizedAlbum, normalizedQuery, queryWords, normalizeStrings: false)
+                    Score = CalculateArtistAndTitleScore(x.Key.NormalizedAlbumArtist, x.Key.NormalizedAlbum, normalizedQuery, sortedQueryWords, normalizeStrings: false)
                 })
                 .OrderByDescending(x => x.Score)
                 .Take(limit)
@@ -592,18 +593,18 @@ namespace MusicBeePlugin.Services
                 .ToList();
         }
 
-        private List<SongResult> SearchSongs(string[] queryWords, string normalizedQuery, int limit)
+        private List<SongResult> SearchSongs(string[] sortedQueryWords, string normalizedQuery, int limit)
         {
             var items = db.Songs.AsEnumerable();
 
             if (config.EnableContainsCheck)
-                items = items.Where(x => QueryMatchesWords(x.Value.NormalizedArtists + " " + x.Value.NormalizedTitle, queryWords, normalizeText: false));
+                items = items.Where(x => QueryMatchesWords(x.Value.NormalizedArtists + " " + x.Value.NormalizedTitle, sortedQueryWords, normalizeText: false));
 
             return items
                 .Select(x => new
                 {
                     Track = x.Key,
-                    Score = CalculateArtistAndTitleScore(x.Value.NormalizedArtists, x.Value.NormalizedTitle, normalizedQuery, queryWords, normalizeStrings: false)
+                    Score = CalculateArtistAndTitleScore(x.Value.NormalizedArtists, x.Value.NormalizedTitle, normalizedQuery, sortedQueryWords, normalizeStrings: false)
                 })
                 .OrderByDescending(x => x.Score)
                 .Take(limit)
@@ -611,18 +612,18 @@ namespace MusicBeePlugin.Services
                 .ToList();
         }
 
-        private List<PlaylistResult> SearchPlaylists(string[] queryWords, string normalizedQuery, int limit)
+        private List<PlaylistResult> SearchPlaylists(string[] sortedQueryWords, string normalizedQuery, int limit)
         {
             var items = GetAllPlaylists().AsEnumerable();
 
             if (config.EnableContainsCheck)
-                items = items.Where(p => QueryMatchesWords(p.Name, queryWords));
+                items = items.Where(p => QueryMatchesWords(p.Name, sortedQueryWords));
 
             return items
                 .Select(p => new
                 {
                     Playlist = p,
-                    Score = CalculateGeneralItemScore(p.Name, normalizedQuery, queryWords)
+                    Score = CalculateGeneralItemScore(p.Name, normalizedQuery, sortedQueryWords)
                 })
                 .OrderByDescending(x => x.Score)
                 .Take(limit)
@@ -630,17 +631,80 @@ namespace MusicBeePlugin.Services
                 .ToList();
         }
 
-        private bool QueryMatchesWords(string text, string[] queryWords, bool normalizeText = true) // TODO: Disallow matching a single text part multiple times
+        /// <summary>
+        /// Checks if all query words can be found as substrings within the given text, with specific rules for matching.
+        /// </summary>
+        /// <remarks>
+        /// This is a "bag of words" substring match with overlap prevention. Its key behaviors are:
+        /// 1.  The search is performed on a version of the input `text` that has been normalized and has all spaces removed.
+        ///     This allows queries like "foobar" to match the text "foo bar".
+        /// 2.  Each character in the source text can only be used once across all matches. This prevents a single
+        ///     word in the text (e.g., "artist") from satisfying multiple query words (e.g., "art art").
+        /// 3.  To resolve ambiguity where a shorter word is a substring of a longer one (e.g., query "foo foobar" vs. text "foobar"),
+        ///     the function matches longer query words first before attempting to match shorter ones.
+        /// </remarks>
+        /// <param name="text">The source text to search within.</param>
+        /// <param name="sortedQueryWords">An array of query words to find within the text. These are assumed to be pre-normalized and pre-sorted by length.</param>
+        /// <param name="normalizeText">If true, the input `text` is normalized before comparison.</param>
+        /// <returns>True if all query words can be placed in the text without overlapping; otherwise, false.</returns>
+        private bool QueryMatchesWords(string text, string[] sortedQueryWords, bool normalizeText = true)
         {
             if (string.IsNullOrEmpty(text)) return false;
-            if (queryWords.Length == 0) return true;
+            if (sortedQueryWords.Length == 0) return true;
 
             if (normalizeText)
                 text = NormalizeString(text);
 
             string spacelessText = text.Replace(" ", "");
+            var usedChars = new bool[spacelessText.Length];
 
-            return queryWords.All(word => spacelessText.Contains(word));
+            // Assumes queryWords has been pre-sorted by length, descending.
+            foreach (var queryWord in sortedQueryWords)
+            {
+                int searchFromIndex = 0;
+                bool foundMatchForThisWord = false;
+                while (true)
+                {
+                    int matchIndex = spacelessText.IndexOf(queryWord, searchFromIndex);
+                    if (matchIndex == -1)
+                    {
+                        break; // No more occurrences of this query word.
+                    }
+
+                    // Check if this match location is available.
+                    bool overlaps = false;
+                    for (int i = 0; i < queryWord.Length; i++)
+                    {
+                        if (usedChars[matchIndex + i])
+                        {
+                            overlaps = true;
+                            break;
+                        }
+                    }
+
+                    if (overlaps)
+                    {
+                        // This spot is taken, search for the next occurrence.
+                        searchFromIndex = matchIndex + 1;
+                        continue;
+                    }
+
+                    // Found an available spot. Mark it as used and move to the next query word.
+                    for (int i = 0; i < queryWord.Length; i++)
+                    {
+                        usedChars[matchIndex + i] = true;
+                    }
+                    foundMatchForThisWord = true;
+                    break; // Exit while loop for this query word
+                }
+
+                if (!foundMatchForThisWord)
+                {
+                    return false; // A query word could not be placed.
+                }
+            }
+
+            return true; // All query words were placed successfully.
         }
 
         private bool GetResultLimit(ResultType type, out int limit, Dictionary<ResultType, int> resultLimits = null)
@@ -961,9 +1025,10 @@ namespace MusicBeePlugin.Services
             else
             {
                 string normalizedQuery = NormalizeString(commandQuery, true);
-                string[] queryWords = normalizedQuery.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                string[] sortedQueryWords = normalizedQuery.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                Array.Sort(sortedQueryWords, (a, b) => b.Length.CompareTo(a.Length));
 
-                if (queryWords.Length == 0)
+                if (sortedQueryWords.Length == 0)
                 {
                     finalFilteredResults = combinedResults.Cast<SearchResult>();
                 }
@@ -977,14 +1042,14 @@ namespace MusicBeePlugin.Services
                             if (cancellationToken.IsCancellationRequested) return false;
 
                             bool titleMatches = cr.DisplayTitle != null &&
-                                                QueryMatchesWords(cr.DisplayTitle, queryWords, true);
+                                                QueryMatchesWords(cr.DisplayTitle, sortedQueryWords, true);
 
                             if (titleMatches) return true;
 
                             // For built-in commands, also check the enum name if DisplayTitle didn't match
                             if (cr.Command.HasValue)
                             {
-                                return QueryMatchesWords(cr.Command.Value.ToString(), queryWords, true);
+                                return QueryMatchesWords(cr.Command.Value.ToString(), sortedQueryWords, true);
                             }
                             return false;
                         });
