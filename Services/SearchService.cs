@@ -28,6 +28,7 @@ namespace MusicBeePlugin.Services
         public string DisplayDetail;
         public ResultType Type;
         public bool IsTopMatch = false;
+        public double Score;
     }
 
     public class SongResult : SearchResult
@@ -39,12 +40,13 @@ namespace MusicBeePlugin.Services
 
         public Track Track;
 
-        public SongResult(Track track)
+        public SongResult(Track track, double score = 0)
         {
             Track = track;
             DisplayTitle = TrackTitle;
             DisplayDetail = Artist;
             Type = ResultType.Song;
+            Score = score;
         }
 
         public static SongResult FromSearchResult(SearchResult result)
@@ -59,7 +61,7 @@ namespace MusicBeePlugin.Services
         public string AlbumArtist;
         public string SortAlbumArtist;
 
-        public AlbumResult(string album, string albumArtist, string sortAlbumArtist)
+        public AlbumResult(string album, string albumArtist, string sortAlbumArtist, double score = 0)
         {
             Album = album;
             AlbumArtist = albumArtist;
@@ -67,6 +69,7 @@ namespace MusicBeePlugin.Services
             DisplayDetail = albumArtist;
             SortAlbumArtist = sortAlbumArtist;
             Type = ResultType.Album;
+            Score = score;
         }
 
         public AlbumResult(SongResult songResult) 
@@ -89,12 +92,13 @@ namespace MusicBeePlugin.Services
         public string Artist;
         public string SortArtist;
 
-        public ArtistResult(string artist, string sortArtist)
+        public ArtistResult(string artist, string sortArtist, double score = 0)
         {
             Artist = artist;
             SortArtist = sortArtist;
             Type = ResultType.Artist;
             DisplayTitle = Artist;
+            Score = score;
 
             //if (!Artist.Equals(SortArtist, StringComparison.OrdinalIgnoreCase))
             //    DisplayDetail = SortArtist;
@@ -132,13 +136,14 @@ namespace MusicBeePlugin.Services
         public string PlaylistName;
         public string PlaylistPath;
 
-        public PlaylistResult(string playlistName, string playlistPath)
+        public PlaylistResult(string playlistName, string playlistPath, double score = 0)
         {
             PlaylistName = playlistName;
             PlaylistPath = playlistPath;
             Type = ResultType.Playlist;
             DisplayTitle = PlaylistName;
             DisplayDetail = "Playlist";
+            Score = score;
         }
     }
 
@@ -515,35 +520,34 @@ namespace MusicBeePlugin.Services
 
         private List<SearchResult> OrderResults(List<SearchResult> results, string normalizedQuery)
         {
-            if (results.Count == 0 || !config.ShowTopMatch || string.IsNullOrWhiteSpace(normalizedQuery))
+            if (results.Count == 0)
             {
-                return results.OrderByDescending(r => GetResultTypePriority(r.Type))
-                    .ThenByDescending(r => CalculateOverallScore(r, normalizedQuery))
+                return results;
+            }
+
+            if (!config.ShowTopMatch || string.IsNullOrWhiteSpace(normalizedQuery))
+            {
+                return results
+                    .OrderByDescending(r => GetResultTypePriority(r.Type))
+                    .ThenByDescending(r => r.Score)
                     .ToList();
             }
 
-            var scoredResults = results
-                .Select(r => new { Result = r, Score = CalculateOverallScore(r, normalizedQuery) })
-                .ToList();
+            var topMatch = results.OrderByDescending(x => x.Score).FirstOrDefault();
 
-            var topMatchWithScore = scoredResults.OrderByDescending(x => x.Score).FirstOrDefault();
-
-            if (topMatchWithScore == null)
+            if (topMatch == null)
             {
                 return new List<SearchResult>();
             }
 
-            topMatchWithScore.Result.IsTopMatch = true;
+            topMatch.IsTopMatch = true;
 
-            var regularResultsWithScore = scoredResults.Where(x => x != topMatchWithScore);
-
-            var regularResults = regularResultsWithScore
-                .OrderByDescending(x => GetResultTypePriority(x.Result.Type))
+            var regularResults = results.Where(x => x != topMatch)
+                .OrderByDescending(x => GetResultTypePriority(x.Type))
                 .ThenByDescending(x => x.Score)
-                .Select(x => x.Result)
                 .ToList();
 
-            var finalList = new List<SearchResult> { topMatchWithScore.Result };
+            var finalList = new List<SearchResult> { topMatch };
             finalList.AddRange(regularResults);
 
             return finalList;
@@ -551,7 +555,7 @@ namespace MusicBeePlugin.Services
 
         private List<ArtistResult> SearchArtists(string[] queryWords, string normalizedQuery, int limit)
         {
-            var scoredArtists = new List<((string Artist, string SortArtist) pair, double score)>();
+            var scoredArtists = new List<ArtistResult>();
 
             foreach (var entity in db.Artists)
             {
@@ -573,14 +577,13 @@ namespace MusicBeePlugin.Services
 
                 if (bestScore > 0 && winningAlias != null)
                 {
-                    scoredArtists.Add((entity.AliasMap[winningAlias], bestScore));
+                    scoredArtists.Add(new ArtistResult(entity.AliasMap[winningAlias].Artist, entity.AliasMap[winningAlias].SortArtist, bestScore));
                 }
             }
 
             return scoredArtists
-                .OrderByDescending(x => x.score)
+                .OrderByDescending(x => x.Score)
                 .Take(limit)
-                .Select(x => new ArtistResult(x.pair.Artist, x.pair.SortArtist))
                 .ToList();
         }
 
@@ -588,9 +591,14 @@ namespace MusicBeePlugin.Services
         {
             return db.Albums
                 .Where(x => QueryMatchesWords(x.Key.NormalizedAlbumArtist + " " + x.Key.NormalizedAlbum, queryWords, normalizeText: false))
-                .OrderByDescending(x => CalculateArtistAndTitleScore(x.Key.NormalizedAlbumArtist, x.Key.NormalizedAlbum, normalizedQuery, queryWords, normalizeStrings: false))
+                .Select(x => new
+                {
+                    Track = x.Value,
+                    Score = CalculateArtistAndTitleScore(x.Key.NormalizedAlbumArtist, x.Key.NormalizedAlbum, normalizedQuery, queryWords, normalizeStrings: false)
+                })
+                .OrderByDescending(x => x.Score)
                 .Take(limit)
-                .Select(x => new AlbumResult(x.Value.Album, x.Value.AlbumArtist, x.Value.SortAlbumArtist))
+                .Select(x => new AlbumResult(x.Track.Album, x.Track.AlbumArtist, x.Track.SortAlbumArtist, x.Score))
                 .ToList();
         }
 
@@ -598,9 +606,14 @@ namespace MusicBeePlugin.Services
         {
             return db.Songs
                 .Where(x => QueryMatchesWords(x.Value.NormalizedArtists + " " + x.Value.NormalizedTitle, queryWords, normalizeText: false))
-                .OrderByDescending(x => CalculateArtistAndTitleScore(x.Value.NormalizedArtists, x.Value.NormalizedTitle, normalizedQuery, queryWords, normalizeStrings: false))
+                .Select(x => new
+                {
+                    Track = x.Key,
+                    Score = CalculateArtistAndTitleScore(x.Value.NormalizedArtists, x.Value.NormalizedTitle, normalizedQuery, queryWords, normalizeStrings: false)
+                })
+                .OrderByDescending(x => x.Score)
                 .Take(limit)
-                .Select(x => new SongResult(x.Key))
+                .Select(x => new SongResult(x.Track, x.Score))
                 .ToList();
         }
 
@@ -608,9 +621,14 @@ namespace MusicBeePlugin.Services
         {
             return GetAllPlaylists()
                 .Where(p => !string.IsNullOrEmpty(p.Name) && QueryMatchesWords(p.Name, queryWords))
-                .OrderByDescending(p => CalculateGeneralItemScore(p.Name, normalizedQuery, queryWords))
+                .Select(p => new
+                {
+                    Playlist = p,
+                    Score = CalculateGeneralItemScore(p.Name, normalizedQuery, queryWords)
+                })
+                .OrderByDescending(x => x.Score)
                 .Take(limit)
-                .Select(p => new PlaylistResult(p.Name, p.Path))
+                .Select(x => new PlaylistResult(x.Playlist.Name, x.Playlist.Path, x.Score))
                 .ToList();
         }
 
@@ -668,20 +686,6 @@ namespace MusicBeePlugin.Services
                 case ResultType.Song: return 1;
                 case ResultType.Playlist: return 0;
                 default: return 0;
-            }
-        }
-
-        private double CalculateOverallScore(SearchResult result, string query)
-        {
-            // This method is primarily for ordering DB search results.
-            // Command results are typically filtered directly and may not use this complex scoring.
-            switch (result.Type)
-            {
-                case ResultType.Artist: return CalculateGeneralItemScore(result.DisplayTitle, query, query.Split(' '));
-                case ResultType.Album: return CalculateArtistAndTitleScore(((AlbumResult)result).AlbumArtist, ((AlbumResult)result).Album, query, query.Split(' '));
-                case ResultType.Song: return CalculateArtistAndTitleScore(((SongResult)result).Artist, ((SongResult)result).TrackTitle, query, query.Split(' '));
-                case ResultType.Command: return CalculateGeneralItemScore(result.DisplayTitle, query, query.Split(' '), normalizeStrings: false); // For commands, direct match on DisplayTitle
-                default: return CalculateGeneralItemScore(result.DisplayTitle, query, query.Split(' '));
             }
         }
 
