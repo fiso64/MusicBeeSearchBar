@@ -744,25 +744,24 @@ namespace MusicBeePlugin.UI
             base.OnMouseWheel(e);
             if (!_isThumbVisible) return;
 
-            // A positive delta means scrolling up. Normalize the delta to "ticks".
-            int ticks = e.Delta / 120;
+            // A positive delta means scrolling up. Use floating point division for precision touchpads.
+            float ticks = e.Delta / 120.0f;
 
             // Get the user's system-wide scroll preference.
             int lineMultiplier = SystemInformation.MouseWheelScrollLines;
 
-            // Check for the special case where the user wants to scroll a full page at a time.
-            // A very large value for lineMultiplier indicates this setting.
-            if (lineMultiplier > 100)
+            // Check for the special case where the user wants to scroll a full page at a time (-1).
+            if (lineMultiplier == -1)
             {
                 // Scroll by the height of the visible area, minus one item to maintain context.
-                _targetScrollTop -= ticks * (this.Height - ItemHeight);
+                _targetScrollTop -= (int)(ticks * (this.Height - ItemHeight));
                 _animationTimer.Start();
                 return;
             }
 
             // Standard line-based scrolling, translated to pixels.
-            // This is the direct C# equivalent of the browser's DOM_DELTA_LINE handling.
-            int scrollAmount = ticks * ScrollLineHeight * lineMultiplier;
+            // This now handles both standard mouse wheels and precision touchpads.
+            int scrollAmount = (int)(ticks * ScrollLineHeight * lineMultiplier);
 
             // Apply the scroll. We subtract because a positive delta (scroll up) means
             // decreasing the ScrollTop value.
