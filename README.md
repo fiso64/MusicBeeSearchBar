@@ -22,8 +22,9 @@ Also functions as a command palette that can search MusicBee and plugin commands
 - **Action Types**:
   - Play (with optional shuffle)
   - Queue Next
+  - Open Album/Artist
   - etc.
-- **Quick Launcher**: Can be used as a quick song/album selector while MusicBee is hidden
+- **Quick Launcher**: Can also be used as a quick song/album selector while MusicBee is hidden
 
 ## Installation
 
@@ -39,6 +40,7 @@ Also functions as a command palette that can search MusicBee and plugin commands
 - `Ctrl+P`: Open configuration
 - `Enter`: Execute action
 - `Ctrl/Shift + Enter`: Execute alternative actions
+- For the full list of shortcuts, see the help (`Ctrl+H`)
 
 ## Command Palette Notes
 The command palette feature (activated with the `>` prefix) can be used to search and execute built-in or plugin commands. Note:
