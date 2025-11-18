@@ -7,17 +7,11 @@ using static MusicBeePlugin.Plugin;
 
 namespace MusicBeePlugin.UI
 {
-    public partial class SearchBar
+    public partial class SearchBarControl
     {
         private void HandleSearchBoxKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Control && e.KeyCode == Keys.D)
-            {
-                ToggleDetachedMode();
-                e.Handled = true;
-                e.SuppressKeyPress = true;
-            }
-            else if (e.Control && e.KeyCode == Keys.P)
+            if (e.Control && e.KeyCode == Keys.P)
             {
                 Close();
                 musicBeeContext.Post(_ => Plugin.ShowConfigDialog(), null);
@@ -52,7 +46,7 @@ namespace MusicBeePlugin.UI
             }
             else if (e.KeyCode == Keys.Escape)
             {
-                Close();
+                CloseRequested?.Invoke(this, EventArgs.Empty);
             }
             else if (e.KeyCode == Keys.Down)
             {
@@ -124,46 +118,7 @@ namespace MusicBeePlugin.UI
             }
         }
 
-        private void HandleFormDeactivate(object sender, EventArgs e)
-        {
-            // Use BeginInvoke to marshal the Close call to the UI thread
-            if (!IsDisposed && !Disposing)
-            {
-                try
-                {
-                    BeginInvoke((Action)Close);
-                }
-                catch (InvalidOperationException)
-                {
-                    // Ignore if the form is already being disposed or handle is already gone
-                }
-            }
-        }
 
-        private void HandleFormKeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Alt && e.KeyCode == Keys.D)
-            {
-                searchBox.Focus();
-                searchBox.SelectAll();
-                e.Handled = true;
-                e.SuppressKeyPress = true;
-            }
-            else if (e.Alt && e.KeyCode == Keys.R)
-            {
-                if (resultsListBox.SelectedItem is SearchResult selectedResult)
-                {
-                    HandleResultSelection(ArtistResult.FromSearchResult(selectedResult), e);
-                }
-            }
-            else if (e.Alt && e.KeyCode == Keys.A)
-            {
-                 if (resultsListBox.SelectedItem is SearchResult selectedResult)
-                {
-                    HandleResultSelection(AlbumResult.FromSearchResult(selectedResult), e);
-                }
-            }
-        }
 
         private void ResultsListBox_Click(object sender, EventArgs e)
         {
@@ -192,61 +147,16 @@ namespace MusicBeePlugin.UI
 
         private void HandleResultSelection(SearchResult selectedItem, KeyEventArgs e)
         {
-            if (!isDetached)
+            if (_closeOnAccept)
             {
-                Close();
+                CloseRequested?.Invoke(this, EventArgs.Empty);
             }
 
             // Fire-and-forget the async action on the MusicBee UI thread.
             musicBeeContext.Post(async _ =>
             {
-                try
-                {
-                    // If detached, temporarily make the search bar topmost to keep it visible during the action.
-                    if (isDetached && !IsDisposed)
-                    {
-                        Invoke((Action)(() => { if (!IsDisposed) TopMost = true; }));
-                    }
-
-                    await resultAcceptAction(searchBox.Text, selectedItem, e);
-                }
-                finally
-                {
-                    // After the action, if still detached, revert TopMost and refocus the search bar.
-                    if (isDetached && !IsDisposed)
-                    {
-                        Invoke((Action)(() =>
-                        {
-                            if (!IsDisposed && isDetached)
-                            {
-                                TopMost = false;
-                                Activate(); // Steal focus back.
-                            }
-                        }));
-                    }
-                }
+                await resultAcceptAction(searchBox.Text, selectedItem, e);
             }, null);
-        }
-
-        private void DragPanel_MouseDown(object sender, MouseEventArgs e)
-        {
-            isDragging = true;
-            dragCursorPoint = Cursor.Position;
-            dragFormPoint = Location;
-        }
-
-        private void DragPanel_MouseMove(object sender, MouseEventArgs e)
-        {
-            if (isDragging)
-            {
-                Point dif = Point.Subtract(Cursor.Position, new Size(dragCursorPoint));
-                Location = Point.Add(dragFormPoint, new Size(dif));
-            }
-        }
-
-        private void DragPanel_MouseUp(object sender, MouseEventArgs e)
-        {
-            isDragging = false;
         }
 
         private async void ResultsListBox_Scrolled(object sender, EventArgs e)

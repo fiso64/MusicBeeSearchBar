@@ -144,6 +144,7 @@ namespace MusicBeePlugin.UI
                     "  Ctrl+Shift+Enter  Execute alternative action",
                     "  Alt+R             Execute artist action for selected result",
                     "  Alt+A             Execute album action for selected result",
+                    "  Ctrl+D            Toggle detached mode",
                     "  Ctrl+P            Open the settings dialog",
                     "  Ctrl+H            Open this help page",
                 })

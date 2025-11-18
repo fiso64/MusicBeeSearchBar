@@ -139,7 +139,7 @@ namespace MusicBeePlugin.Services
 
             if (!action._actionExecuted)
             {
-                await Task.Delay(100);
+                await Task.Delay(200);
             }
         }
 

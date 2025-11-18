@@ -30,6 +30,7 @@ namespace MusicBeePlugin.UI
         private OverlayForm overlay;
         private PictureBox loadingIndicator;
         private Panel spacerPanel;
+        private Panel dragPanel;
 
         // Configuration
         private readonly SearchUIConfig searchUIConfig;
@@ -41,6 +42,54 @@ namespace MusicBeePlugin.UI
         private long _currentSearchSequence = 0;
         private int preservedIndex = -1; // Used for Ctrl+Enter workaround
         private bool _isImageLoading = false;
+        private bool isDetached = false;
+        private bool isDragging = false;
+        private Point dragCursorPoint;
+        private Point dragFormPoint;
+
+        // Timer to check if MusicBee window is still open in detached mode
+        private System.Windows.Forms.Timer _mbWindowCheckTimer;
+
+        private void UpdateOverlayState(bool forInitialCreation = false)
+        {
+            bool shouldShowOverlay = !isDetached && searchUIConfig.OverlayOpacity > 0;
+
+            if (forInitialCreation && !WinApiHelpers.IsWindowFocused(mbApi.MB_GetWindowHandle()))
+            {
+                shouldShowOverlay = false;
+            }
+
+            if (shouldShowOverlay)
+            {
+                if (overlay == null || overlay.IsDisposed)
+                {
+                    musicBeeContext.Post(_ =>
+                    {
+                        if (musicBeeControl != null && musicBeeControl.IsHandleCreated && (overlay == null || overlay.IsDisposed))
+                        {
+                            overlay = new OverlayForm(musicBeeControl, searchUIConfig.OverlayOpacity, 0.08);
+                            overlay.Show();
+                        }
+                    }, null);
+                }
+            }
+            else // Should NOT show overlay
+            {
+                if (overlay != null)
+                {
+                    var overlayToClose = overlay;
+                    overlay = null; 
+                    
+                    musicBeeContext.Post(__ =>
+                    {
+                        if (overlayToClose != null && !overlayToClose.IsDisposed)
+                        {
+                            overlayToClose.Close();
+                        }
+                    }, null);
+                }
+            }
+        }
 
         // Timers
         private System.Windows.Forms.Timer imageLoadDebounceTimer;
@@ -68,13 +117,90 @@ namespace MusicBeePlugin.UI
         private const int VISIBLE_ITEMS_BUFFER = 2; // Buffer for loading images for partially visible items
 
 
+        public void SetSearchText(string text)
+        {
+            if (searchBox == null || IsDisposed) return;
+
+            searchBox.Text = text;
+            searchBox.Select(text.Length, 0);
+            searchBox.Focus();
+        }
+
+        private void ToggleDetachedMode()
+        {
+            isDetached = !isDetached;
+            dragPanel.Visible = isDetached;
+            TopMost = !isDetached;
+
+            if (isDetached)
+            {
+                Deactivate -= HandleFormDeactivate;
+                _mbWindowCheckTimer.Start();
+            }
+            else // Re-attaching
+            {
+                Deactivate += HandleFormDeactivate;
+                ResetPosition();
+                _mbWindowCheckTimer.Stop();
+            }
+
+            UpdateOverlayState();
+        }
+
+        private void MbWindowCheckTimer_Tick(object sender, EventArgs e)
+        {
+            // This is only active in detached mode.
+            // Using IsWindow is more reliable than checking for IntPtr.Zero.
+            if (!Utils.WinApiHelpers.IsWindow(mbApi.MB_GetWindowHandle()))
+            {
+                if (!IsDisposed)
+                {
+                    _mbWindowCheckTimer.Stop();
+                    Close();
+                }
+            }
+        }
+
+        private void ResetPosition()
+        {
+            var mbHandle = mbApi.MB_GetWindowHandle();
+            bool minimized = WinApiHelpers.WinGetMinMax(mbHandle) == WinApiHelpers.WindowState.Minimized;
+
+            if (minimized)
+            {
+                Location = new Point(
+                    (Screen.PrimaryScreen.Bounds.Width - Size.Width) / 2,
+                    Screen.PrimaryScreen.Bounds.Height / 4 - 50
+                );
+            }
+            else
+            {
+                if (musicBeeControl != null)
+                {
+                    var mbBounds = musicBeeControl.Bounds;
+                    Location = new Point(
+                        mbBounds.Left + (mbBounds.Width - Size.Width) / 2,
+                        mbBounds.Top + 100
+                    );
+                }
+                else
+                {
+                    Location = new Point(
+                       (Screen.PrimaryScreen.WorkingArea.Width - Size.Width) / 2,
+                       (Screen.PrimaryScreen.WorkingArea.Height - Size.Height) / 2
+                   );
+                }
+            }
+        }
+
         public SearchBar(
             Control musicBeeControl,
             SynchronizationContext musicBeeContext,
             MusicBeeApiInterface musicBeeApi,
             Func<string, SearchResult, KeyEventArgs, Task<bool>> resultAcceptAction,
             SearchUIConfig searchUIConfig,
-            string defaultText = null
+            string defaultText = null,
+            bool startDetached = false
         )
         {
             this.AutoScaleMode = AutoScaleMode.Dpi;
@@ -115,11 +241,22 @@ namespace MusicBeePlugin.UI
                 InitializeImageLoadingTimer();
             }
 
+            _mbWindowCheckTimer = new System.Windows.Forms.Timer
+            {
+                Interval = 500
+            };
+            _mbWindowCheckTimer.Tick += MbWindowCheckTimer_Tick;
+
             InitializeUI(dpiScale);
             InitializeHotkeys();
 
             // Start loading tracks asynchronously
             LoadTracksAsync();
+
+            if (startDetached)
+            {
+                ToggleDetachedMode();
+            }
 
             if (!string.IsNullOrEmpty(defaultText))
             {
@@ -202,6 +339,7 @@ namespace MusicBeePlugin.UI
         {
             if (disposing)
             {
+                _mbWindowCheckTimer?.Dispose();
                 imageService?.Dispose();
                 imageLoadDebounceTimer?.Dispose();
                 _currentSearchCts?.Dispose();

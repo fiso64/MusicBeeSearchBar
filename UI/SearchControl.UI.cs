@@ -11,26 +11,10 @@ using static MusicBeePlugin.Plugin;
 
 namespace MusicBeePlugin.UI
 {
-    public partial class SearchBar
+    public partial class SearchControl
     {
         private void InitializeUI(float dpiScale)
         {
-            UpdateOverlayState(forInitialCreation: true);
-
-            FormClosed += (s, e) =>
-            {
-                // This is our final cleanup. Ensure the overlay is gone when the search bar closes.
-                if (overlay != null && !overlay.IsDisposed)
-                {
-                    musicBeeContext.Post(__ =>
-                    {
-                        if (overlay != null && !overlay.IsDisposed)
-                        {
-                            overlay.Close();
-                        }
-                    }, null);
-                }
-            };
 
             int lineSize = 3;
             songIcon = CreateIcon(Color.DarkGray, iconSize, iconSize, Services.ResultType.Song, lineSize);
@@ -39,34 +23,14 @@ namespace MusicBeePlugin.UI
             playlistIcon = CreateIcon(Color.DarkGray, iconSize, iconSize, Services.ResultType.Playlist, lineSize);
             commandIcon = CreateIcon(Color.DarkGray, iconSize, iconSize, Services.ResultType.Command, lineSize -1);
 
-            Size = searchUIConfig.InitialSize;
             BackColor = searchUIConfig.BaseColor;
-            FormBorderStyle = FormBorderStyle.None;
-            StartPosition = FormStartPosition.Manual;
-            ShowInTaskbar = false;
-            TopMost = true;
-
-            ResetPosition();
-
 
             var mainPanel = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.Transparent, // Let the form's background show through
-                Padding = new Padding((int)(8 * dpiScale)) // This creates the offset from the main rounded border
-            };
-
-            dragPanel = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = (int)(12 * dpiScale),
                 BackColor = Color.Transparent,
-                Cursor = Cursors.SizeAll,
-                Visible = false,
+                Padding = new Padding(0)
             };
-            dragPanel.MouseDown += DragPanel_MouseDown;
-            dragPanel.MouseMove += DragPanel_MouseMove;
-            dragPanel.MouseUp += DragPanel_MouseUp;
 
             var searchBoxContainer = new Panel
             {
@@ -96,7 +60,7 @@ namespace MusicBeePlugin.UI
 
             if (searchUIConfig.ShowPlaceholderText)
             {
-                this.Shown += (s, e) =>
+                this.Load += (s, e) =>
                 {
                     if (searchBox.IsHandleCreated)
                     {
@@ -154,7 +118,6 @@ namespace MusicBeePlugin.UI
             mainPanel.Controls.Add(resultsListBox); // Fills remaining space
             mainPanel.Controls.Add(spacerPanel);
             mainPanel.Controls.Add(searchBoxContainer);
-            mainPanel.Controls.Add(dragPanel); // At the very top
             Controls.Add(mainPanel);
 
             searchBox.Focus(); // Set focus to searchBox initially
@@ -164,11 +127,8 @@ namespace MusicBeePlugin.UI
 
         private void InitializeHotkeys()
         {
-            // Assign event handlers defined in SearchBar.EventHandlers.cs
+            // Assign event handlers defined in SearchControl.EventHandlers.cs
             searchBox.KeyDown += HandleSearchBoxKeyDown;
-            Deactivate += HandleFormDeactivate;
-            KeyDown += HandleFormKeyDown;
-            KeyPreview = true; // Need to set KeyPreview to true for Form to receive KeyDown events before controls
         }
 
         private void InitializeLoadingIndicator()
@@ -218,7 +178,7 @@ namespace MusicBeePlugin.UI
             };
 
             searchContainer.SizeChanged += (s, e) => UpdateLoadingIndicatorPosition();
-            Shown += (s, e) => UpdateLoadingIndicatorPosition();
+            Load += (s, e) => UpdateLoadingIndicatorPosition();
 
 
             searchContainer.Controls.Add(loadingIndicator);
@@ -259,7 +219,7 @@ namespace MusicBeePlugin.UI
                     loadingIndicator.Image = CreateLoadingSpinner(loadingIndicator.Width, COLOR);
                 }
             };
-            FormClosed += (s, e) => spinTimer?.Dispose();
+            Disposed += (s, e) => spinTimer?.Dispose();
             spinTimer.Start();
         }
 

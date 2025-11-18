@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics;
+using System.Drawing;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,7 +12,7 @@ using System.Windows.Forms;
 
 namespace MusicBeePlugin.UI
 {
-    public partial class SearchBar
+    public partial class SearchControl
     {
         private void InitializeImageLoadingTimer()
         {
@@ -131,6 +132,8 @@ namespace MusicBeePlugin.UI
 
         private async void SearchBox_TextChanged(object sender, EventArgs e)
         {
+            InitiateDataLoad(); // Ensure data loading starts if user types before the control is visible.
+
             string query = searchBox.Text; // Trim later, depending on command/search path
 
             if (string.IsNullOrWhiteSpace(query.Trim()))
@@ -345,97 +348,48 @@ namespace MusicBeePlugin.UI
                 results = newResults;
             }
 
-            var mainPanel = resultsListBox.Parent as Panel;
-            if (mainPanel == null) return;
-
+            // The logic to resize the host (Form) is now handled by the host itself
+            // via the ResizeRequested event. The SearchControl just determines the
+            // desired content size.
+            
             var searchContainer = searchBox.Parent as Panel;
             if (searchContainer == null) return;
-
-            // Calculate height based on actual, scaled control dimensions.
-            int nonListHeight = searchContainer.Height + spacerPanel.Height + mainPanel.Padding.Vertical;
-
+            
+            int nonListHeight = searchContainer.Height + spacerPanel.Height;
+            
             int listHeight = 0;
-            int visibleItemCount = 0;
-            for (int i = 0; i < results.Count && visibleItemCount < searchUIConfig.MaxResultsVisible; i++)
-            {
-                var currentItem = results[i];
-                int itemHeight = 0;
-
-                if (currentItem.IsTopMatch)
-                {
-                    itemHeight = resultsListBox.ItemHeight * 2;
-                }
-                else if (currentItem.Type == ResultType.Header)
-                {
-                    itemHeight = resultsListBox.HeaderHeight + ((i > 0) ? (int)(CustomResultList.HEADER_TOP_PADDING * resultsListBox.DpiScale) : 0);
-                }
-                else
-                {
-                    itemHeight = resultsListBox.ItemHeight;
-                }
-                
-                listHeight += itemHeight;
-
-                // Headers don't count towards the MaxResultsVisible limit
-                if (currentItem.Type != ResultType.Header)
-                {
-                    visibleItemCount++;
-                }
-            }
-
             if (results.Count > 0)
             {
                 if (!spacerPanel.Visible) spacerPanel.Visible = true;
                 if (!resultsListBox.Visible) resultsListBox.Visible = true;
 
-                int desiredHeight = nonListHeight + spacerPanel.Height + listHeight;
-                int maxAllowedHeight;
-                const int margin = 20; // A small margin from the bottom edge.
-
-                if (isDetached)
+                int visibleItemCount = 0;
+                for (int i = 0; i < results.Count && visibleItemCount < searchUIConfig.MaxResultsVisible; i++)
                 {
-                    // In detached mode, limit to screen working area.
-                    var screen = Screen.FromControl(this);
-                    maxAllowedHeight = screen.WorkingArea.Bottom - this.Top - margin;
-                }
-                else
-                {
-                    int mbWindowBottom = 0;
-                    bool isMbWindowVisible = false;
+                    var currentItem = results[i];
+                    int itemHeight;
 
-                    // Synchronously invoke on the MusicBee main thread to get window bounds safely.
-                    musicBeeContext.Send(state =>
-                    {
-                        var mbForm = musicBeeControl?.FindForm();
-                        if (mbForm != null && mbForm.WindowState != FormWindowState.Minimized)
-                        {
-                            isMbWindowVisible = true;
-                            var mbScreenRect = musicBeeControl.RectangleToScreen(musicBeeControl.ClientRectangle);
-                            mbWindowBottom = mbScreenRect.Bottom;
-                        }
-                    }, null);
-
-                    if (isMbWindowVisible)
-                    {
-                        // Limit the height to the MusicBee window's bounds.
-                        maxAllowedHeight = mbWindowBottom - this.Top - margin;
-                    }
+                    if (currentItem.IsTopMatch)
+                        itemHeight = resultsListBox.ItemHeight * 2;
+                    else if (currentItem.Type == ResultType.Header)
+                        itemHeight = resultsListBox.HeaderHeight + ((i > 0) ? (int)(CustomResultList.HEADER_TOP_PADDING * resultsListBox.DpiScale) : 0);
                     else
-                    {
-                        // Fallback: Limit the height to the screen's working area.
-                        var screen = Screen.FromControl(this);
-                        maxAllowedHeight = screen.WorkingArea.Bottom - this.Top - margin;
-                    }
+                        itemHeight = resultsListBox.ItemHeight;
+                    
+                    listHeight += itemHeight;
+
+                    if (currentItem.Type != ResultType.Header)
+                        visibleItemCount++;
                 }
-                
-                Height = Math.Min(desiredHeight, maxAllowedHeight);
+
+                ResizeRequested?.Invoke(new Size(Width, nonListHeight + listHeight));
             }
             else
             {
                 if (spacerPanel.Visible) spacerPanel.Visible = false;
                 if (resultsListBox.Visible) resultsListBox.Visible = false;
                 
-                Height = nonListHeight;
+                ResizeRequested?.Invoke(new Size(Width, nonListHeight));
             }
 
             resultsListBox.Items = results;

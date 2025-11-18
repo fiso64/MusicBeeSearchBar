@@ -25,9 +25,10 @@ namespace MusicBeePlugin
         
         private PluginInfo about = new PluginInfo();
 
-        private static readonly ManualResetEvent startupComplete = new ManualResetEvent(false);
+    private static readonly ManualResetEvent startupComplete = new ManualResetEvent(false);
+    private static SearchBar searchBarInstance;
 
-        public Plugin()
+    public Plugin()
         {
             // taken from https://github.com/sll552/DiscordBee/blob/master/DiscordBee.cs
             AppDomain.CurrentDomain.AssemblyResolve += (object _, ResolveEventArgs args) =>
@@ -89,6 +90,7 @@ namespace MusicBeePlugin
 
             mbApi.MB_RegisterCommand("Modern Search Bar: Search", (a, b) => ShowSearchBar());
             mbApi.MB_RegisterCommand("Modern Search Bar: Search (2)", (a, b) => ShowSearchBar());
+            mbApi.MB_RegisterCommand("Modern Search Bar: Search (Detached)", (a, b) => ShowSearchBar(null, true));
 
             mbApi.MB_RegisterCommand("Modern Search Bar: Search Artists", (a, b) => ShowSearchBar("a: "));
             mbApi.MB_RegisterCommand("Modern Search Bar: Search Albums", (a, b) => ShowSearchBar("l: "));
@@ -135,9 +137,25 @@ namespace MusicBeePlugin
             Config.Config.SaveToPath(configPath, config);
         }
 
-        public void ShowSearchBar(string defaultText = null)
+        public void ShowSearchBar(string defaultText = null, bool startDetached = false)
         {
             startupComplete.WaitOne();
+
+            if (searchBarInstance != null && !searchBarInstance.IsDisposed)
+            {
+                searchBarInstance.Invoke((Action)(() =>
+                {
+                    if (!searchBarInstance.IsDisposed)
+                    {
+                        searchBarInstance.Activate();
+                        if (defaultText != null)
+                        {
+                            searchBarInstance.SetSearchText(defaultText);
+                        }
+                    }
+                }));
+                return;
+            }
 
             var mbHwnd = mbApi.MB_GetWindowHandle();
             var mbControl = Control.FromHandle(mbHwnd);
@@ -147,8 +165,10 @@ namespace MusicBeePlugin
 
             Thread searchBarThread = new Thread(() =>
             {
-                var searchBarForm = new SearchBar(mbControl, mainContext, mbApi, actionService.RunAction, config.SearchUI, defaultText);
-                Application.Run(searchBarForm);
+                var searchBarForm = new SearchBar(mbControl, mainContext, mbApi, actionService.RunAction, config.SearchUI, defaultText, startDetached);
+                searchBarInstance = searchBarForm;
+                searchBarInstance.FormClosed += (s, args) => searchBarInstance = null;
+                Application.Run(searchBarInstance);
             });
 
             searchBarThread.SetApartmentState(ApartmentState.STA);
