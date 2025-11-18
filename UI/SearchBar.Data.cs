@@ -387,8 +387,39 @@ namespace MusicBeePlugin.UI
             {
                 if (!spacerPanel.Visible) spacerPanel.Visible = true;
                 if (!resultsListBox.Visible) resultsListBox.Visible = true;
-                
-                Height = nonListHeight + spacerPanel.Height + listHeight;
+
+                int desiredHeight = nonListHeight + spacerPanel.Height + listHeight;
+                int maxAllowedHeight;
+                const int margin = 20; // A small margin from the bottom edge.
+
+                int mbWindowBottom = 0;
+                bool isMbWindowVisible = false;
+
+                // Synchronously invoke on the MusicBee main thread to get window bounds safely.
+                musicBeeContext.Send(state =>
+                {
+                    var mbForm = musicBeeControl?.FindForm();
+                    if (mbForm != null && mbForm.WindowState != FormWindowState.Minimized)
+                    {
+                        isMbWindowVisible = true;
+                        var mbScreenRect = musicBeeControl.RectangleToScreen(musicBeeControl.ClientRectangle);
+                        mbWindowBottom = mbScreenRect.Bottom;
+                    }
+                }, null);
+
+                if (isMbWindowVisible)
+                {
+                    // Limit the height to the MusicBee window's bounds.
+                    maxAllowedHeight = mbWindowBottom - this.Top - margin;
+                }
+                else
+                {
+                    // Fallback: Limit the height to the screen's working area.
+                    var screen = Screen.FromControl(this);
+                    maxAllowedHeight = screen.WorkingArea.Bottom - this.Top - margin;
+                }
+
+                Height = Math.Min(desiredHeight, maxAllowedHeight);
             }
             else
             {

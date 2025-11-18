@@ -191,11 +191,11 @@ namespace MusicBeePlugin.Config
         public double OverlayOpacity { get; set; } = 0.6;
 
         [ConfigProperty("Max Visible Results", "Maximum number of results to show before scrolling.", Category = "Appearance")]
-        [Range(1, 20)]
+        [Range(1, 100)]
         public int MaxResultsVisible { get; set; } = 10;
 
         [ConfigProperty("Result Item Height", "Height of each result item in pixels.", Category = "Appearance")]
-        [Range(1, 200)]
+        [Range(1, 500)]
         public int ResultItemHeight { get; set; } = 56;
 
         [ConfigProperty("Initial Size", Category = "Appearance")]
