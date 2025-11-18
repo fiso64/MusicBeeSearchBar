@@ -351,7 +351,8 @@ namespace MusicBeePlugin.UI
             var searchContainer = searchBox.Parent as Panel;
             if (searchContainer == null) return;
 
-            int nonListHeight = mainPanel.Padding.Vertical + searchContainer.Height;
+            // Calculate height based on actual, scaled control dimensions.
+            int nonListHeight = searchContainer.Height + spacerPanel.Height + mainPanel.Padding.Vertical;
 
             int listHeight = 0;
             int visibleItemCount = 0;
@@ -366,7 +367,7 @@ namespace MusicBeePlugin.UI
                 }
                 else if (currentItem.Type == ResultType.Header)
                 {
-                    itemHeight = resultsListBox.HeaderHeight + ((i > 0) ? CustomResultList.HEADER_TOP_PADDING : 0);
+                    itemHeight = resultsListBox.HeaderHeight + ((i > 0) ? (int)(CustomResultList.HEADER_TOP_PADDING * resultsListBox.DpiScale) : 0);
                 }
                 else
                 {

@@ -61,8 +61,10 @@ namespace MusicBeePlugin.UI
         private Font topMatchResultFont;
         private Font topMatchResultDetailFont;
 
+        // Scaled Metrics
+        private readonly int searchBoxHeight;
+
         // Constants
-        private const int SEARCH_BOX_HEIGHT = 34;
         private const int IMAGE_DEBOUNCE_MS = 10;
         private const bool INCREMENTAL_UPDATE = false;
         private const int VISIBLE_ITEMS_BUFFER = 2; // Buffer for loading images for partially visible items
@@ -77,22 +79,31 @@ namespace MusicBeePlugin.UI
             string defaultText = null
         )
         {
+            this.AutoScaleMode = AutoScaleMode.Dpi;
             this.SetStyle(ControlStyles.ResizeRedraw, true);
             this.DoubleBuffered = true; // Enable double buffering for flicker-free drawing
 
-            // Calculate font size dynamically. The search box has 8px vertical padding on top and bottom.
-            float fontSize = (float)Math.Max(Math.Round((SEARCH_BOX_HEIGHT - 12) * 0.55f), 6f);
-            this.searchBoxFont = new Font("Arial", fontSize, FontStyle.Bold);
+            float dpiScale;
+            using (var g = this.CreateGraphics())
+            {
+                dpiScale = g.DpiX / 96.0f;
+            }
 
-            this.resultFont = new Font("Arial", 11, FontStyle.Bold);
-            this.resultDetailFont = new Font("Arial", 10, FontStyle.Regular);
+            // --- Scale UI metrics based on DPI ---
+            searchBoxHeight = (int)(34 * dpiScale);
+
+            // Set base font sizes. AutoScaleMode.Dpi will handle the scaling.
+            this.searchBoxFont = new Font("Arial", 12f, FontStyle.Bold);
+            this.resultFont = new Font("Arial", 11f, FontStyle.Bold);
+            this.resultDetailFont = new Font("Arial", 10f, FontStyle.Regular);
             this.topMatchResultFont = new Font(this.resultFont.FontFamily, this.resultFont.Size * 1.4f, FontStyle.Bold);
             this.topMatchResultDetailFont = new Font(this.resultDetailFont.FontFamily, this.resultDetailFont.Size * 1.2f, FontStyle.Regular);
 
-
-            imageSize = Math.Max(searchUIConfig.ResultItemHeight - 12, 5);
-            topMatchImageSize = Math.Max((searchUIConfig.ResultItemHeight * 2) - 24, 5);
-            iconSize = Math.Max(searchUIConfig.ResultItemHeight - 30, 5);
+            // The item height from config is for 96 DPI, scale it for the current DPI.
+            int scaledItemHeight = (int)(searchUIConfig.ResultItemHeight * dpiScale);
+            imageSize = Math.Max(scaledItemHeight - (int)(12 * dpiScale), 5);
+            topMatchImageSize = Math.Max((scaledItemHeight * 2) - (int)(24 * dpiScale), 5);
+            iconSize = Math.Max(scaledItemHeight - (int)(20 * dpiScale), 5);
 
             this.musicBeeControl = musicBeeControl;
             this.musicBeeContext = musicBeeContext;
@@ -106,7 +117,7 @@ namespace MusicBeePlugin.UI
                 InitializeImageLoadingTimer();
             }
 
-            InitializeUI();
+            InitializeUI(dpiScale);
             InitializeHotkeys();
 
             // Start loading tracks asynchronously

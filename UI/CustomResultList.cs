@@ -22,7 +22,9 @@ namespace MusicBeePlugin.UI
         private const int ScrollLineHeight = 28;
         private const int SCROLLBAR_WIDTH = 8;
         private const int ARTWORK_CORNER_RADIUS = 8;
-        public const int HEADER_TOP_PADDING = 8;
+        public const float HEADER_TOP_PADDING = 8f;
+
+        public float DpiScale { get; set; } = 1.0f;
 
         private List<SearchResult> _items = new List<SearchResult>();
         private int _selectedIndex = -1;
@@ -43,7 +45,7 @@ namespace MusicBeePlugin.UI
 
         // Styling & Resources
         public int ItemHeight { get; set; } = 56;
-        public int HeaderHeight { get; set; } = 24;
+        public int HeaderHeight => ResultFont != null ? (int)(ResultFont.Height * 1.5) : 24;
         public Color HighlightColor { get; set; }
         public Color HoverColor { get; set; }
         public Font ResultFont { get; set; }
@@ -257,7 +259,7 @@ namespace MusicBeePlugin.UI
             if (item.Type == ResultType.Header)
             {
                 // Add extra spacing before headers that are not the very first item.
-                return HeaderHeight + ((index > 0) ? HEADER_TOP_PADDING : 0);
+                return HeaderHeight + ((index > 0) ? (int)(HEADER_TOP_PADDING * DpiScale) : 0);
             }
             return ItemHeight;
         }
@@ -455,26 +457,30 @@ namespace MusicBeePlugin.UI
             using (var headerFont = new Font(ResultFont.FontFamily, ResultFont.Size, FontStyle.Italic))
             {
                 var headerColor = Color.Gray;
-                TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.Left | TextFormatFlags.NoPrefix;
+                TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.Left | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter;
 
-                int currentTopPadding = (index > 0) ? HEADER_TOP_PADDING : 0;
+                int currentTopPadding = (index > 0) ? (int)(HEADER_TOP_PADDING * DpiScale) : 0;
+                int horizontalPadding = (int)(10 * DpiScale);
 
+                // The text area's height is the full bounds minus the top padding.
                 Rectangle textRenderBounds = new Rectangle(
-                    bounds.X + 10,
-                    bounds.Y + currentTopPadding, // Position text after the padding
-                    bounds.Width - 20,
-                    HeaderHeight // The text area has the original header height
+                    bounds.X + horizontalPadding,
+                    bounds.Y + currentTopPadding,
+                    bounds.Width - (horizontalPadding * 2),
+                    bounds.Height - currentTopPadding 
                 );
 
-                TextRenderer.DrawText(g, resultItem.DisplayTitle.ToUpper(), headerFont, textRenderBounds, headerColor, flags | TextFormatFlags.VerticalCenter);
+                TextRenderer.DrawText(g, resultItem.DisplayTitle.ToUpper(), headerFont, textRenderBounds, headerColor, flags);
             }
         }
 
         private void DrawResult(Graphics g, SearchResult resultItem, Rectangle bounds, int index, bool isSelected)
         {
-            const int HORIZONTAL_PADDING = 10;
-            int imageVerticalMargin = resultItem.IsTopMatch ? 12 : 6;
-            int imageToTextSpacing = 10;
+            // --- Scale all layout constants ---
+            int horizontalPadding = (int)(10 * DpiScale);
+            int imageVerticalMargin = (int)((resultItem.IsTopMatch ? 12 : 6) * DpiScale);
+            int imageToTextSpacing = (int)(10 * DpiScale);
+            int highlightMargin = (int)(2 * DpiScale);
             Font titleFont = resultItem.IsTopMatch ? this.TopMatchResultFont : this.ResultFont;
             Font detailFont = resultItem.IsTopMatch ? this.TopMatchResultDetailFont : this.ResultDetailFont;
 
@@ -495,15 +501,14 @@ namespace MusicBeePlugin.UI
             if (isSelected || isHovered)
             {
                 Color highlightColor = isSelected ? this.HighlightColor : this.HoverColor;
-                const int HIGHLIGHT_MARGIN = 2;
                 var highlightBounds = new Rectangle(
-                    bounds.X + HIGHLIGHT_MARGIN, bounds.Y + HIGHLIGHT_MARGIN,
-                    itemWidth - (HIGHLIGHT_MARGIN * 2), bounds.Height - (HIGHLIGHT_MARGIN * 2)
+                    bounds.X + highlightMargin, bounds.Y + highlightMargin,
+                    itemWidth - (highlightMargin * 2), bounds.Height - (highlightMargin * 2)
                 );
 
                 if (highlightBounds.Width > 0 && highlightBounds.Height > 0)
                 {
-                    using (var path = GetRoundedRectPath(highlightBounds, 8))
+                    using (var path = GetRoundedRectPath(highlightBounds, (int)(8 * DpiScale)))
                     using (var highlightBrush = new SolidBrush(highlightColor))
                     {
                         g.FillPath(highlightBrush, path);
@@ -516,7 +521,7 @@ namespace MusicBeePlugin.UI
             if (availableHeight <= 0) return;
 
             var imageArea = new Rectangle(
-                bounds.X + HORIZONTAL_PADDING, bounds.Y + imageVerticalMargin,
+                bounds.X + horizontalPadding, bounds.Y + imageVerticalMargin,
                 availableHeight, availableHeight
             );
 
@@ -529,7 +534,7 @@ namespace MusicBeePlugin.UI
             {
                 int rightIconSize = resultItem.IsTopMatch ? (int)(availableHeight * 0.25) : (int)(availableHeight * 0.4);
                 var iconArea = new Rectangle(
-                    itemWidth - HORIZONTAL_PADDING - rightIconSize,
+                    itemWidth - horizontalPadding - rightIconSize,
                     bounds.Y + (bounds.Height - rightIconSize) / 2,
                     rightIconSize, rightIconSize
                 );
@@ -544,12 +549,15 @@ namespace MusicBeePlugin.UI
             {
                 textBounds = new Rectangle(
                     imageArea.Right + imageToTextSpacing, bounds.Y,
-                    itemWidth - (imageArea.Right + imageToTextSpacing) - HORIZONTAL_PADDING, bounds.Height
+                    itemWidth - (imageArea.Right + imageToTextSpacing) - horizontalPadding, bounds.Height
                 );
             }
 
             // 4. Draw Text
-            DrawResultText(g, resultItem, textBounds, titleFont, detailFont);
+            if (textBounds.Width > 0 && textBounds.Height > 0)
+            {
+                DrawResultText(g, resultItem, textBounds, titleFont, detailFont);
+            }
         }
 
         private void DrawResultImage(Graphics g, SearchResult resultItem, Rectangle imageArea, int availableHeight)
@@ -661,18 +669,26 @@ namespace MusicBeePlugin.UI
             }
             else
             {
-                var titleSize = TextRenderer.MeasureText(g, resultItem.DisplayTitle, titleFont, textBounds.Size, flags);
-                var detailSize = TextRenderer.MeasureText(g, detailText, detailFont, textBounds.Size, flags);
+                // Use the font's built-in height for accurate measurement that prevents clipping.
+                int titleLineHeight = titleFont.Height;
+                int detailLineHeight = detailFont.Height;
 
-                int lineSpacing = resultItem.IsTopMatch ? 4 : 2;
-                int totalTextHeight = titleSize.Height + detailSize.Height + lineSpacing;
+                // Scale the spacing between the two lines of text.
+                int lineSpacing = (int)((resultItem.IsTopMatch ? 4 : 2) * DpiScale);
+
+                // Calculate the total height of the text block (title + spacing + detail).
+                int totalTextHeight = titleLineHeight + detailLineHeight + lineSpacing;
+
+                // Calculate the starting Y position to vertically center the entire text block.
                 int y = textBounds.Y + (textBounds.Height - totalTextHeight) / 2;
 
-                var titleRect = new Rectangle(textBounds.X, y, textBounds.Width, titleSize.Height);
-                TextRenderer.DrawText(g, resultItem.DisplayTitle, titleFont, titleRect, this.ForeColor, flags);
+                // Define the rectangle for the title text.
+                var titleRect = new Rectangle(textBounds.X, y, textBounds.Width, titleLineHeight);
+                TextRenderer.DrawText(g, resultItem.DisplayTitle, titleFont, titleRect, this.ForeColor, flags | TextFormatFlags.VerticalCenter);
 
-                var detailRect = new Rectangle(textBounds.X, y + titleSize.Height + lineSpacing, textBounds.Width, detailSize.Height);
-                TextRenderer.DrawText(g, detailText, detailFont, detailRect, Color.Gray, flags);
+                // Define the rectangle for the detail text, positioned below the title.
+                var detailRect = new Rectangle(textBounds.X, y + titleLineHeight + lineSpacing, textBounds.Width, detailLineHeight);
+                TextRenderer.DrawText(g, detailText, detailFont, detailRect, Color.Gray, flags | TextFormatFlags.VerticalCenter);
             }
         }
 

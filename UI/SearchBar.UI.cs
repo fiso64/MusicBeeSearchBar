@@ -13,7 +13,7 @@ namespace MusicBeePlugin.UI
 {
     public partial class SearchBar
     {
-        private void InitializeUI()
+        private void InitializeUI(float dpiScale)
         {
             var mbHandle = mbApi.MB_GetWindowHandle();
 
@@ -86,15 +86,16 @@ namespace MusicBeePlugin.UI
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.Transparent, // Let the form's background show through
-                Padding = new Padding(8) // This creates the offset from the main rounded border
+                Padding = new Padding((int)(8 * dpiScale)) // This creates the offset from the main rounded border
             };
 
             var searchBoxContainer = new Panel
             {
                 Dock = DockStyle.Top,
-                Padding = new Padding(12, 8, 12, 8), // Inner padding for the text box
+                // Use font metrics for padding to guarantee vertical centering.
+                Padding = new Padding((int)(12 * dpiScale), (searchBoxHeight - searchBoxFont.Height) / 2, (int)(12 * dpiScale), (searchBoxHeight - searchBoxFont.Height) / 2),
                 BackColor = Color.Transparent, // The border will be painted by the parent form
-                Height = SEARCH_BOX_HEIGHT,
+                Height = searchBoxHeight,
                 BorderStyle = BorderStyle.None,
             };
 
@@ -128,7 +129,7 @@ namespace MusicBeePlugin.UI
             spacerPanel = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 8,
+                Height = (int)(8 * dpiScale),
                 BackColor = Color.Transparent
             };
 
@@ -143,6 +144,7 @@ namespace MusicBeePlugin.UI
 
             resultsListBox = new CustomResultList
             {
+                DpiScale = dpiScale,
                 Dock = DockStyle.Fill, // Use Fill to take up the remaining space
                 NormalImageSize = this.imageSize,
                 TopMatchImageSize = this.topMatchImageSize,
@@ -150,7 +152,7 @@ namespace MusicBeePlugin.UI
                 ForeColor = searchUIConfig.TextColor,
                 HighlightColor = searchUIConfig.ResultHighlightColor,
                 HoverColor = hoverColor,
-                ItemHeight = (int)(searchUIConfig.ResultItemHeight * (CreateGraphics().DpiX / 96.0)),
+                ItemHeight = (int)(searchUIConfig.ResultItemHeight * dpiScale),
                 Visible = false,
                 Height = 0,
                 ResultFont = this.resultFont,
