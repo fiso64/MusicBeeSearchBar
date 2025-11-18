@@ -2,8 +2,8 @@
 
 A modern, customizable search bar plugin for MusicBee that provides unified search across your music library.
 Also functions as a command palette that can search MusicBee and plugin commands.
-  
-<video src="https://github.com/user-attachments/assets/4a83946e-6c1e-40f3-98b9-fd58b875b417" width="800" autoplay loop muted playsinline></video>
+
+<video src="https://github.com/user-attachments/assets/4fe9b580-27c5-44c8-a494-9ef1749a5854" width="800" autoplay loop muted playsinline></video>
 
 ## Features
 
