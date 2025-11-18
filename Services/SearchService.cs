@@ -300,24 +300,8 @@ namespace MusicBeePlugin.Services
         public Dictionary<(string NormalizedAlbum, string NormalizedAlbumArtist), Track> Albums;
         public Dictionary<Track, (string NormalizedTitle, string NormalizedArtists)> Songs;
 
-        public Database(IEnumerable<Track> tracks, ResultType enabledTypes)
+        public Database(IEnumerable<Track> tracks, ResultType enabledTypes, Func<string, string> normalizeFunc)
         {
-            // cache normalized strings, because NormalizeString is expensive.
-            var normalizationCache = new Dictionary<string, string>();
-            string getNormalized(string input)
-            {
-                if (string.IsNullOrEmpty(input))
-                {
-                    return string.Empty;
-                }
-                if (!normalizationCache.TryGetValue(input, out var normalized))
-                {
-                    normalized = SearchService.NormalizeString(input);
-                    normalizationCache[input] = normalized;
-                }
-                return normalized;
-            }
-
             Artists = new List<ArtistEntity>();
             Albums = new Dictionary<(string, string), Track>();
             Songs = new Dictionary<Track, (string, string)>();
@@ -327,8 +311,8 @@ namespace MusicBeePlugin.Services
                 var tempArtistGroups = new Dictionary<string, HashSet<(string Artist, string SortArtist)>>();
                 foreach (var track in tracks)
                 {
-                    PopulateArtistGroups(track.Artists, track.SortArtist, getNormalized, tempArtistGroups);
-                    PopulateArtistGroups(track.AlbumArtist, track.SortAlbumArtist, getNormalized, tempArtistGroups);
+                    PopulateArtistGroups(track.Artists, track.SortArtist, normalizeFunc, tempArtistGroups);
+                    PopulateArtistGroups(track.AlbumArtist, track.SortAlbumArtist, normalizeFunc, tempArtistGroups);
                 }
 
                 foreach (var group in tempArtistGroups.Values)
@@ -342,13 +326,13 @@ namespace MusicBeePlugin.Services
                     {
                         if (!string.IsNullOrEmpty(pair.Artist))
                         {
-                            entity.AliasMap[getNormalized(pair.Artist)] = pair;
+                            entity.AliasMap[normalizeFunc(pair.Artist)] = pair;
                         }
 
                         if (!string.IsNullOrEmpty(pair.SortArtist))
                         {
-                            var normalizedArtist = getNormalized(pair.Artist);
-                            var normalizedSortArtist = getNormalized(pair.SortArtist);
+                            var normalizedArtist = normalizeFunc(pair.Artist);
+                            var normalizedSortArtist = normalizeFunc(pair.SortArtist);
                             if (normalizedArtist != normalizedSortArtist)
                             {
                                 entity.AliasMap[normalizedSortArtist] = pair;
@@ -366,8 +350,8 @@ namespace MusicBeePlugin.Services
                     if ((enabledTypes & ResultType.Album) != 0 && !string.IsNullOrEmpty(track.Album))
                     {
                         var key = (
-                            NormalizedAlbum: getNormalized(track.Album),
-                            NormalizedAlbumArtist: getNormalized(track.AlbumArtist)
+                            NormalizedAlbum: normalizeFunc(track.Album),
+                            NormalizedAlbumArtist: normalizeFunc(track.AlbumArtist)
                         );
                         if (!Albums.ContainsKey(key))
                         {
@@ -378,8 +362,8 @@ namespace MusicBeePlugin.Services
                     if ((enabledTypes & ResultType.Song) != 0 && !string.IsNullOrEmpty(track.TrackTitle))
                     {
                         var value = (
-                            NormalizedTitle: getNormalized(track.TrackTitle),
-                            NormalizedArtists: getNormalized(track.Artists)
+                            NormalizedTitle: normalizeFunc(track.TrackTitle),
+                            NormalizedArtists: normalizeFunc(track.Artists)
                         );
                         Songs[track] = value;
                     }
@@ -427,6 +411,7 @@ namespace MusicBeePlugin.Services
         private Database db;
         private MusicBeeApiInterface mbApi;
         private Config.SearchUIConfig config;
+        private readonly Dictionary<string, string> _normalizationCache = new Dictionary<string, string>();
         public bool IsLoaded { get; private set; } = false;
 
         public SearchService(MusicBeeApiInterface mbApi, Config.SearchUIConfig config)
@@ -455,7 +440,7 @@ namespace MusicBeePlugin.Services
                 Debug.WriteLine($"Tracks loaded in {sw.ElapsedMilliseconds}ms");
                 sw.Restart();
 
-                db = new Database(tracks, GetEnabledTypes());
+                db = new Database(tracks, GetEnabledTypes(), (s) => NormalizeString(s));
                 IsLoaded = true;
 
                 sw.Stop();
@@ -479,7 +464,7 @@ namespace MusicBeePlugin.Services
 
             return await Task.Run(async () => {
                 var results = new List<SearchResult>();
-                string normalizedQuery = NormalizeString(query);
+                string normalizedQuery = NormalizeString(query, true);
                 string[] queryWords = normalizedQuery.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
                 if (enabledTypes.HasFlag(ResultType.Artist) && GetResultLimit(ResultType.Artist, out var limit, resultLimits))
@@ -562,16 +547,17 @@ namespace MusicBeePlugin.Services
                 double bestScore = 0;
                 string winningAlias = null;
 
-                foreach (var alias in entity.AliasMap.Keys)
+                var aliasesToScore = entity.AliasMap.Keys.AsEnumerable();
+                if (config.EnableContainsCheck)
+                    aliasesToScore = aliasesToScore.Where(alias => QueryMatchesWords(alias, queryWords, normalizeText: false));
+
+                foreach (var alias in aliasesToScore)
                 {
-                    if (QueryMatchesWords(alias, queryWords, normalizeText: false))
+                    double currentScore = CalculateGeneralItemScore(alias, normalizedQuery, queryWords, normalizeStrings: false);
+                    if (currentScore > bestScore)
                     {
-                        double currentScore = CalculateGeneralItemScore(alias, normalizedQuery, queryWords, normalizeStrings: false);
-                        if (currentScore > bestScore)
-                        {
-                            bestScore = currentScore;
-                            winningAlias = alias;
-                        }
+                        bestScore = currentScore;
+                        winningAlias = alias;
                     }
                 }
 
@@ -589,8 +575,12 @@ namespace MusicBeePlugin.Services
 
         private List<AlbumResult> SearchAlbums(string[] queryWords, string normalizedQuery, int limit)
         {
-            return db.Albums
-                .Where(x => QueryMatchesWords(x.Key.NormalizedAlbumArtist + " " + x.Key.NormalizedAlbum, queryWords, normalizeText: false))
+            var items = db.Albums.AsEnumerable();
+
+            if (config.EnableContainsCheck)
+                items = items.Where(x => QueryMatchesWords(x.Key.NormalizedAlbumArtist + " " + x.Key.NormalizedAlbum, queryWords, normalizeText: false));
+
+            return items
                 .Select(x => new
                 {
                     Track = x.Value,
@@ -604,8 +594,12 @@ namespace MusicBeePlugin.Services
 
         private List<SongResult> SearchSongs(string[] queryWords, string normalizedQuery, int limit)
         {
-            return db.Songs
-                .Where(x => QueryMatchesWords(x.Value.NormalizedArtists + " " + x.Value.NormalizedTitle, queryWords, normalizeText: false))
+            var items = db.Songs.AsEnumerable();
+
+            if (config.EnableContainsCheck)
+                items = items.Where(x => QueryMatchesWords(x.Value.NormalizedArtists + " " + x.Value.NormalizedTitle, queryWords, normalizeText: false));
+
+            return items
                 .Select(x => new
                 {
                     Track = x.Key,
@@ -619,8 +613,12 @@ namespace MusicBeePlugin.Services
 
         private List<PlaylistResult> SearchPlaylists(string[] queryWords, string normalizedQuery, int limit)
         {
-            return GetAllPlaylists()
-                .Where(p => !string.IsNullOrEmpty(p.Name) && QueryMatchesWords(p.Name, queryWords))
+            var items = GetAllPlaylists().AsEnumerable();
+
+            if (config.EnableContainsCheck)
+                items = items.Where(p => QueryMatchesWords(p.Name, queryWords));
+
+            return items
                 .Select(p => new
                 {
                     Playlist = p,
@@ -636,7 +634,6 @@ namespace MusicBeePlugin.Services
         {
             if (string.IsNullOrEmpty(text)) return false;
             if (queryWords.Length == 0) return true;
-            if (!config.EnableContainsCheck) return true;
 
             if (normalizeText)
                 text = NormalizeString(text);
@@ -696,7 +693,6 @@ namespace MusicBeePlugin.Services
             if (normalizeStrings)
             {
                 item = NormalizeString(item);
-                query = NormalizeString(query);
             }
 
             return FuzzySearch.FuzzyScoreNgram(item, query, queryWords);
@@ -710,13 +706,12 @@ namespace MusicBeePlugin.Services
             {
                 title = NormalizeString(title);
                 artist = NormalizeString(artist);
-                query = NormalizeString(query);
             }
 
             titleScore = string.IsNullOrEmpty(title) ? 0 : FuzzySearch.FuzzyScoreNgram(title, query, queryWords);
             artistScore = string.IsNullOrEmpty(artist) ? 0 : FuzzySearch.FuzzyScoreNgram(artist, query, queryWords);
 
-            return titleScore + artistScore * 0.5;
+            return titleScore + artistScore * 0.3;
         }
 
         static readonly HashSet<char> punctuation = new HashSet<char>
@@ -727,10 +722,13 @@ namespace MusicBeePlugin.Services
         };
 
         // Convert to lower, remove apostrophes, replace punctuation chars with space, remove consecutive spaces, trim. 
-        public static string NormalizeString(string input)
+        public string NormalizeString(string input, bool bypassCache = false)
         {
             if (string.IsNullOrEmpty(input))
                 return string.Empty;
+
+            if (!bypassCache && _normalizationCache.TryGetValue(input, out var cached))
+                return cached;
 
             char[] inputChars = input.ToCharArray();
             char[] outputChars = new char[input.Length];
@@ -764,7 +762,12 @@ namespace MusicBeePlugin.Services
             if (outputIndex > 0 && outputChars[outputIndex - 1] == ' ')
                 outputIndex--;
 
-            return new string(outputChars, 0, outputIndex);
+            var result = new string(outputChars, 0, outputIndex);
+            if (!bypassCache)
+            {
+                _normalizationCache[input] = result;
+            }
+            return result;
         }
 
         public List<SearchResult> GetPlayingItems()
@@ -889,7 +892,10 @@ namespace MusicBeePlugin.Services
                 while (!string.IsNullOrEmpty(path))
                 {
                     var name = mbApi.Playlist_GetName(path);
-                    res.Add((name, path));
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        res.Add((name, path));
+                    }
                     path = mbApi.Playlist_QueryGetNextPlaylist();
                 }
             }
@@ -954,7 +960,7 @@ namespace MusicBeePlugin.Services
             }
             else
             {
-                string normalizedQuery = NormalizeString(commandQuery);
+                string normalizedQuery = NormalizeString(commandQuery, true);
                 string[] queryWords = normalizedQuery.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
                 if (queryWords.Length == 0)
@@ -963,22 +969,27 @@ namespace MusicBeePlugin.Services
                 }
                 else
                 {
-                    finalFilteredResults = combinedResults.Where(cr =>
+                    IEnumerable<CommandResult> query = combinedResults;
+                    if (config.EnableContainsCheck)
                     {
-                        if (cancellationToken.IsCancellationRequested) return false;
-
-                        bool titleMatches = cr.DisplayTitle != null &&
-                                            QueryMatchesWords(cr.DisplayTitle, queryWords, true);
-
-                        if (titleMatches) return true;
-
-                        // For built-in commands, also check the enum name if DisplayTitle didn't match
-                        if (cr.Command.HasValue)
+                        query = query.Where(cr =>
                         {
-                            return QueryMatchesWords(cr.Command.Value.ToString(), queryWords, true);
-                        }
-                        return false;
-                    }).Cast<SearchResult>();
+                            if (cancellationToken.IsCancellationRequested) return false;
+
+                            bool titleMatches = cr.DisplayTitle != null &&
+                                                QueryMatchesWords(cr.DisplayTitle, queryWords, true);
+
+                            if (titleMatches) return true;
+
+                            // For built-in commands, also check the enum name if DisplayTitle didn't match
+                            if (cr.Command.HasValue)
+                            {
+                                return QueryMatchesWords(cr.Command.Value.ToString(), queryWords, true);
+                            }
+                            return false;
+                        });
+                    }
+                    finalFilteredResults = query.Cast<SearchResult>();
                 }
             }
 
