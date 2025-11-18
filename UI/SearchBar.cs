@@ -110,7 +110,8 @@ namespace MusicBeePlugin.UI
             searchService = new SearchService(musicBeeApi, searchUIConfig);
             if (searchUIConfig.ShowImages)
             {
-                imageService = new ImageService(musicBeeApi, searchService, searchUIConfig, defaultImageSize);
+                int scaledCornerRadius = (int)(8 * dpiScale); // 8 is from CustomResultList.ARTWORK_CORNER_RADIUS
+                imageService = new ImageService(musicBeeApi, searchService, searchUIConfig, defaultImageSize, scaledCornerRadius);
                 InitializeImageLoadingTimer();
             }
 

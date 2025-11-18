@@ -616,20 +616,9 @@ namespace MusicBeePlugin.UI
                 effectiveSize, effectiveSize
             );
 
-            if (isArtwork && ARTWORK_CORNER_RADIUS > 0 && resultItem.Type != ResultType.Artist)
-            {
-                using (var path = GetRoundedRectPath(imageBounds, ARTWORK_CORNER_RADIUS))
-                {
-                    var previousClip = g.Clip;
-                    g.SetClip(path, CombineMode.Intersect);
-                    g.DrawImage(displayImage, imageBounds);
-                    g.Clip = previousClip;
-                }
-            }
-            else
-            {
-                g.DrawImage(displayImage, imageBounds);
-            }
+            // The image from ImageService is now pre-processed with the correct shape (circular or rounded).
+            // We can just draw it directly.
+            g.DrawImage(displayImage, imageBounds);
         }
         
         private void DrawRightIcon(Graphics g, ResultType type, Rectangle iconArea, float opacity)

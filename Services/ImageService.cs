@@ -20,16 +20,18 @@ namespace MusicBeePlugin.Services
         private readonly Dictionary<string, Image> imageCache = new Dictionary<string, Image>();
         private readonly object _cacheLock = new object();
         private bool disposed = false;
+        private readonly int _artworkCornerRadius;
 
         private readonly string _coverJpgHash;
         private readonly string _coverJpegHash;
         private readonly string _coverPngHash;
 
-        public ImageService(MusicBeeApiInterface mbApi, SearchService searchService, Config.SearchUIConfig searchUIConfig, int imageSize = 40)
+        public ImageService(MusicBeeApiInterface mbApi, SearchService searchService, Config.SearchUIConfig searchUIConfig, int imageSize = 40, int artworkCornerRadius = 8)
         {
             this.mbApi = mbApi;
             this.searchUIConfig = searchUIConfig;
             this._defaultImageSize = imageSize;
+            this._artworkCornerRadius = artworkCornerRadius;
 
             _coverJpgHash = MusicBeeHelpers.GenerateSourceFileHash("Cover.jpg");
             _coverJpegHash = MusicBeeHelpers.GenerateSourceFileHash("Cover.jpeg");
@@ -95,7 +97,7 @@ namespace MusicBeePlugin.Services
                 {
                     using (var originalImage = Image.FromFile(imagePath))
                     {
-                        thumb = CreateSquareThumb(originalImage, size, makeCircular: true);
+                        thumb = CreateSquareThumb(originalImage, size, isCircular: true);
                     }
                 }
             }
@@ -275,7 +277,7 @@ namespace MusicBeePlugin.Services
                         {
                             using (var originalImage = Image.FromFile(imagePath))
                             {
-                                thumb = CreateSquareThumb(originalImage, size);
+                                thumb = CreateSquareThumb(originalImage, size, isCircular: false);
                             }
                         }
                     }
@@ -288,7 +290,7 @@ namespace MusicBeePlugin.Services
                             using (var ms = new MemoryStream(imageData))
                             using (var originalImage = Image.FromStream(ms))
                             {
-                                thumb = CreateSquareThumb(originalImage, size);
+                                thumb = CreateSquareThumb(originalImage, size, isCircular: false);
                             }
                         }
                     }
@@ -347,7 +349,7 @@ namespace MusicBeePlugin.Services
                     {
                         using (var originalImage = Image.FromFile(imagePath))
                         {
-                            thumb = CreateSquareThumb(originalImage, size);
+                            thumb = CreateSquareThumb(originalImage, size, isCircular: false);
                         }
                     }
                 }
@@ -361,7 +363,7 @@ namespace MusicBeePlugin.Services
                         using (var ms = new MemoryStream(imageData))
                         using (var originalImage = Image.FromStream(ms))
                         {
-                            thumb = CreateSquareThumb(originalImage, size);
+                            thumb = CreateSquareThumb(originalImage, size, isCircular: false);
                         }
                     }
                 }
@@ -408,75 +410,91 @@ namespace MusicBeePlugin.Services
             }
         }
 
-        public Image CreateSquareThumb(Image original, int size, bool makeCircular = false)
+        private static GraphicsPath GetRoundedRectPath(Rectangle bounds, int radius)
+        {
+            GraphicsPath path = new GraphicsPath();
+            if (radius <= 0)
+            {
+                path.AddRectangle(bounds);
+                return path;
+            }
+            int diameter = radius * 2;
+            diameter = Math.Min(diameter, Math.Min(bounds.Width, bounds.Height));
+
+            if (diameter == 0)
+            {
+                path.AddRectangle(bounds);
+                return path;
+            }
+
+            path.AddArc(bounds.X, bounds.Y, diameter, diameter, 180, 90);
+            path.AddArc(bounds.Right - diameter, bounds.Y, diameter, diameter, 270, 90);
+            path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
+            path.AddArc(bounds.X, bounds.Bottom - diameter, diameter, diameter, 90, 90);
+            path.CloseFigure();
+
+            return path;
+        }
+
+        public Image CreateSquareThumb(Image original, int size, bool isCircular)
         {
             if (original == null) return null;
-
-            int srcSize = Math.Min(original.Width, original.Height);
-            if (srcSize <= 0) return null;
-
-            int srcX = (original.Width - srcSize) / 2;
-            int srcY = (original.Height - srcSize) / 2;
-            var sourceRect = new Rectangle(srcX, srcY, srcSize, srcSize);
 
             var destBitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb);
             destBitmap.SetResolution(original.HorizontalResolution, original.VerticalResolution);
 
-            using (var graphics = Graphics.FromImage(destBitmap))
+            try
             {
-                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                graphics.CompositingQuality = CompositingQuality.HighQuality;
-
-                var destRect = new Rectangle(0, 0, size, size);
-
-                try
+                using (var graphics = Graphics.FromImage(destBitmap))
                 {
-                    if (!makeCircular)
+                    graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                    graphics.CompositingQuality = CompositingQuality.HighQuality;
+
+                    // 1. Create a square crop from the center of the original image
+                    int srcSize = Math.Min(original.Width, original.Height);
+                    if (srcSize <= 0)
                     {
-                        graphics.Clear(Color.Transparent);
-                        graphics.DrawImage(original, destRect, sourceRect, GraphicsUnit.Pixel);
+                        destBitmap.Dispose();
+                        return null;
                     }
-                    else
+                    int srcX = (original.Width - srcSize) / 2;
+                    int srcY = (original.Height - srcSize) / 2;
+                    var sourceRect = new Rectangle(srcX, srcY, srcSize, srcSize);
+                    var destRect = new Rectangle(0, 0, size, size);
+
+                    // For high-quality rounded/circular images, we use a TextureBrush.
+                    // This is more expensive but produces smooth anti-aliased edges.
+                    using (var scaledSourceBitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb))
+                    using (var scaledGraphics = Graphics.FromImage(scaledSourceBitmap))
                     {
-                        Bitmap scaledSourceBitmap = null;
-                        try
+                        scaledGraphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                        scaledGraphics.CompositingQuality = CompositingQuality.HighQuality;
+                        scaledGraphics.DrawImage(original, destRect, sourceRect, GraphicsUnit.Pixel);
+
+                        using (var textureBrush = new TextureBrush(scaledSourceBitmap, WrapMode.Clamp))
                         {
-                            scaledSourceBitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb);
-                            scaledSourceBitmap.SetResolution(original.HorizontalResolution, original.VerticalResolution);
-
-                            using (var scaledGraphics = Graphics.FromImage(scaledSourceBitmap))
+                            graphics.Clear(Color.Transparent); // Start with a transparent canvas
+                            if (isCircular)
                             {
-                                scaledGraphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                                scaledGraphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                                scaledGraphics.SmoothingMode = SmoothingMode.AntiAlias;
-                                scaledGraphics.CompositingQuality = CompositingQuality.HighQuality;
-
-                                var tempDestRect = new Rectangle(0, 0, size, size);
-
-                                scaledGraphics.DrawImage(original, tempDestRect, sourceRect, GraphicsUnit.Pixel);
-
-                            }
-
-                            using (var textureBrush = new TextureBrush(scaledSourceBitmap, WrapMode.Clamp))
-                            {
-                                graphics.Clear(Color.Transparent);
                                 graphics.FillEllipse(textureBrush, destRect);
                             }
-
-                        }
-                        finally
-                        {
-                            scaledSourceBitmap?.Dispose();
+                            else // Apply rounded corners
+                            {
+                                using (var path = GetRoundedRectPath(destRect, _artworkCornerRadius))
+                                {
+                                    graphics.FillPath(textureBrush, path);
+                                }
+                            }
                         }
                     }
                 }
-                catch (Exception ex)
-                {
-                    destBitmap?.Dispose();
-                    return null;
-                }
+            }
+            catch (Exception)
+            {
+                destBitmap?.Dispose();
+                return null;
             }
 
             return destBitmap;
