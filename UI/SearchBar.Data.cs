@@ -46,7 +46,7 @@ namespace MusicBeePlugin.UI
                     // Capture both the index and the result for validation
                     var result = resultsListBox.Items[i];
 
-                    int sizeToLoad = result.IsTopMatch ? topMatchImageSize : imageSize;
+                    int sizeToLoad = result.IsTopMatch ? resultsListBox.TopMatchImageSize : resultsListBox.NormalImageSize;
 
                     var loadTask = Task.Run(async () => {
                         if (imageService.GetCachedImage(result, sizeToLoad) == null)

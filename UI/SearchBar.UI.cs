@@ -146,8 +146,6 @@ namespace MusicBeePlugin.UI
             {
                 DpiScale = dpiScale,
                 Dock = DockStyle.Fill, // Use Fill to take up the remaining space
-                NormalImageSize = this.imageSize,
-                TopMatchImageSize = this.topMatchImageSize,
                 BackColor = searchUIConfig.BaseColor,
                 ForeColor = searchUIConfig.TextColor,
                 HighlightColor = searchUIConfig.ResultHighlightColor,

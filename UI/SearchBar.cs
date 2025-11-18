@@ -33,8 +33,6 @@ namespace MusicBeePlugin.UI
 
         // Configuration
         private readonly SearchUIConfig searchUIConfig;
-        private readonly int imageSize;
-        private readonly int topMatchImageSize;
         private readonly int iconSize;
 
         // State
@@ -101,8 +99,7 @@ namespace MusicBeePlugin.UI
 
             // The item height from config is for 96 DPI, scale it for the current DPI.
             int scaledItemHeight = (int)(searchUIConfig.ResultItemHeight * dpiScale);
-            imageSize = Math.Max(scaledItemHeight - (int)(12 * dpiScale), 5);
-            topMatchImageSize = Math.Max((scaledItemHeight * 2) - (int)(24 * dpiScale), 5);
+            int defaultImageSize = Math.Max(scaledItemHeight - (int)(12 * dpiScale), 5); // For ImageService optimization check
             iconSize = Math.Max(scaledItemHeight - (int)(20 * dpiScale), 5);
 
             this.musicBeeControl = musicBeeControl;
@@ -113,7 +110,7 @@ namespace MusicBeePlugin.UI
             searchService = new SearchService(musicBeeApi, searchUIConfig);
             if (searchUIConfig.ShowImages)
             {
-                imageService = new ImageService(musicBeeApi, searchService, searchUIConfig, imageSize);
+                imageService = new ImageService(musicBeeApi, searchService, searchUIConfig, defaultImageSize);
                 InitializeImageLoadingTimer();
             }
 

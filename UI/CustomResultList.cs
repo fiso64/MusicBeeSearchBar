@@ -52,11 +52,27 @@ namespace MusicBeePlugin.UI
         public Font ResultDetailFont { get; set; }
         public Font TopMatchResultFont { get; set; }
         public Font TopMatchResultDetailFont { get; set; }
-        public int NormalImageSize { get; set; }
-        public int TopMatchImageSize { get; set; }
         public ImageService ImageService { get; set; }
         public Dictionary<ResultType, Image> Icons { get; set; }
         public bool ShowTypeIcons { get; set; }
+
+        public int NormalImageSize
+        {
+            get
+            {
+                int imageVerticalMargin = (int)(6 * DpiScale);
+                return Math.Max(5, ItemHeight - (imageVerticalMargin * 2));
+            }
+        }
+
+        public int TopMatchImageSize
+        {
+            get
+            {
+                int imageVerticalMargin = (int)(12 * DpiScale);
+                return Math.Max(5, (ItemHeight * 2) - (imageVerticalMargin * 2));
+            }
+        }
 
         public List<SearchResult> Items
         {
@@ -408,6 +424,7 @@ namespace MusicBeePlugin.UI
 
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+            e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
 
             if (_items.Count == 0 || _itemYPositions.Count == 0) return;
 
@@ -562,7 +579,7 @@ namespace MusicBeePlugin.UI
 
         private void DrawResultImage(Graphics g, SearchResult resultItem, Rectangle imageArea, int availableHeight)
         {
-            int sizeToGet = resultItem.IsTopMatch ? TopMatchImageSize : NormalImageSize;
+            int sizeToGet = resultItem.IsTopMatch ? this.TopMatchImageSize : this.NormalImageSize;
             Image displayImage = ImageService?.GetCachedImage(resultItem, sizeToGet);
             bool isArtwork = displayImage != null;
 
