@@ -98,9 +98,9 @@ namespace MusicBeePlugin
             mbApi.MB_RegisterCommand("Modern Search Bar: Search Playlists", (a, b) => ShowSearchBar("p: "));
             mbApi.MB_RegisterCommand("Modern Search Bar: Search Commands", (a, b) => ShowSearchBar("> "));
 
-            mbApi.MB_RegisterCommand("Modern Search Bar: Selected: Artist Action", (a, b) => PerformActionOnSelected(ResultType.Artist));
-            mbApi.MB_RegisterCommand("Modern Search Bar: Selected: Album Action", (a, b) => PerformActionOnSelected(ResultType.Album));
-            mbApi.MB_RegisterCommand("Modern Search Bar: Selected: Song Action", (a, b) => PerformActionOnSelected(ResultType.Song));
+            mbApi.MB_RegisterCommand("Modern Search Bar: Selected (Main MB Window): Artist Action", (a, b) => PerformActionOnSelected(ResultType.Artist));
+            mbApi.MB_RegisterCommand("Modern Search Bar: Selected (Main MB Window): Album Action", (a, b) => PerformActionOnSelected(ResultType.Album));
+            mbApi.MB_RegisterCommand("Modern Search Bar: Selected (Main MB Window): Song Action", (a, b) => PerformActionOnSelected(ResultType.Song));
 
             LoadConfig();
 
