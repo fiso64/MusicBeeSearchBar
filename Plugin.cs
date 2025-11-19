@@ -125,7 +125,7 @@ namespace MusicBeePlugin
             startupComplete.Set();
 
 
-            mbApi.MB_RegisterCommand("Modern Search Bar: Selected: TEST TEST TEST", (a, b) => { ReflectionService.Instance.OpenMusicExplorerTab("Casiopea"); });
+            //mbApi.MB_RegisterCommand("Modern Search Bar: Selected: TEST TEST TEST", (a, b) => { ReflectionService.Instance.OpenMusicExplorerTab("Casiopea"); });
         }
 
         public static void LoadConfig()
