@@ -109,16 +109,32 @@ namespace MusicBeePlugin
                 var result = MessageBox.Show(
                     "It's recommended to adjust the search bar actions before use. Open settings now?",
                     "Modern Search Bar: First Time Setup",
-                    MessageBoxButtons.OKCancel,
+                    MessageBoxButtons.YesNo,
                     MessageBoxIcon.Question
                 );
 
                 config.FirstStartupComplete = true;
                 SaveConfig();
 
-                if (result == DialogResult.OK)
+                if (result == DialogResult.Yes)
                 {
                     ShowConfigDialog();
+                }
+
+                var result2 = MessageBox.Show(
+                    "To use the search bar, you must configure a keyboard shortcut.\n" +
+                    "Look for 'Modern Search Bar: Search' in the Hotkeys tab.\n\n" +
+                    "Open MusicBee Settings now?",
+                    "Modern Search Bar: First Time Setup",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question
+                );
+
+                if (result2 == DialogResult.Yes)
+                {
+                    var mbHwnd = mbApi.MB_GetWindowHandle();
+                    var mbControl = Control.FromHandle(mbHwnd);
+                    mbControl?.BeginInvoke((Action)(() => MusicBeeHelpers.InvokeCommand(ApplicationCommand.EditPreferences)));
                 }
             }
             
