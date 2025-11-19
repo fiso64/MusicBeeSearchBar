@@ -31,6 +31,7 @@ namespace MusicBeePlugin.UI
         private static readonly ActionDefinition QueueLast = new ActionDefinition("Queue Last", typeof(QueueLastActionData), () => new QueueLastActionData());
         private static readonly ActionDefinition SearchInTab = new ActionDefinition("Search In Tab", typeof(SearchInTabActionData), () => new SearchInTabActionData());
         private static readonly ActionDefinition OpenFilter = new ActionDefinition("Open Filter In Tab", typeof(OpenFilterInTabActionData), () => new OpenFilterInTabActionData());
+        private static readonly ActionDefinition OpenPlaylist = new ActionDefinition("Open Playlist In Tab", typeof(OpenPlaylistInTabActionData), () => new OpenPlaylistInTabActionData());
         private static readonly ActionDefinition MusicExplorer = new ActionDefinition("Open In Music Explorer", typeof(OpenInMusicExplorerActionData), () => new OpenInMusicExplorerActionData());
 
         public static List<ActionDefinition> GetActionsForType(ResultType type)
@@ -47,6 +48,10 @@ namespace MusicBeePlugin.UI
             if (type != ResultType.Playlist)
             {
                 actions.Add(OpenFilter);
+            }
+            else
+            {
+                actions.Add(OpenPlaylist);
             }
 
             // "Music Explorer" is specific to Artists

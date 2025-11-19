@@ -75,6 +75,12 @@ namespace MusicBeePlugin.Config
     {
     }
 
+    public class OpenPlaylistInTabActionData : BaseActionData
+    {
+        [JsonConverter(typeof(StringEnumConverter))]
+        public TabChoice TabChoice = 0;
+    }
+
     public class ActionConfig
     {
         [JsonConverter(typeof(ActionDataJsonConverter))]
@@ -125,7 +131,7 @@ namespace MusicBeePlugin.Config
 
             config.PlaylistAction = new ActionConfig
             {
-                Default = new PlayActionData(),
+                Default = new OpenPlaylistInTabActionData(),
                 Ctrl = new QueueLastActionData(),
                 Shift = new QueueNextActionData { ShufflePlay = true },
                 CtrlShift = new QueueNextActionData()

@@ -59,6 +59,10 @@ namespace MusicBeePlugin.Services
             {
                 await OpenFilter(result, filterAction);
             }
+            else if (action is OpenPlaylistInTabActionData playlistAction && result is PlaylistResult playlistResult)
+            {
+                await OpenPlaylist(playlistResult, playlistAction);
+            }
             else if (action is SearchInTabActionData searchAction)
             {
                 await Search(searchBoxText, result, searchAction);
@@ -241,6 +245,13 @@ namespace MusicBeePlugin.Services
 
             if (action.ToggleSearchEntireLibraryBeforeSearch)
                 MusicBeeHelpers.InvokeCommand(ApplicationCommand.GeneralToggleSearchScope);
+        }
+
+        private async Task OpenPlaylist(PlaylistResult result, OpenPlaylistInTabActionData action)
+        {
+            RestoreOrFocus();
+            await GotoTab(action.TabChoice, action);
+            ReflectionService.Instance.OpenPlaylistTab(result.PlaylistPath);
         }
 
         private async Task OpenFilter(SearchResult result, OpenFilterInTabActionData action)

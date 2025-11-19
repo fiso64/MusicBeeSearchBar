@@ -314,6 +314,19 @@ namespace MusicBeePlugin.UI
                 case OpenInMusicExplorerActionData _:
                     // No specific options for this action.
                     break;
+                case OpenPlaylistInTabActionData playlistAction:
+                    var plTabComboBox = new ComboBox
+                    {
+                        DropDownStyle = ComboBoxStyle.DropDownList,
+                        Width = 150
+                    };
+                    plTabComboBox.MouseWheel += (s, e) => ((HandledMouseEventArgs)e).Handled = true;
+                    plTabComboBox.Items.AddRange(Enum.GetNames(typeof(TabChoice)));
+                    plTabComboBox.SelectedIndex = (int)playlistAction.TabChoice;
+                    plTabComboBox.SelectedIndexChanged += (s, e) => playlistAction.TabChoice = (TabChoice)plTabComboBox.SelectedIndex;
+                    controls.Add(plTabComboBox);
+                    break;
+
                 case PlayActionData playAction:
                     var shufflePlayCheckBox = new CheckBox
                     {
