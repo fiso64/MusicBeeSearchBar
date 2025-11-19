@@ -314,13 +314,10 @@ namespace MusicBeePlugin.Services
         private void Play(SearchResult result, PlayActionData action)
         {
             mbApi.NowPlayingList_Clear();
-            var files = GetItemFiles(result);
+            var files = GetItemFiles(result, action.ShufflePlay);
 
             if (files.Length == 0)
                 return;
-
-            if (action.ShufflePlay)
-                files = files.OrderBy(x => Guid.NewGuid()).ToArray();
 
             if (files.Length > 1)
             {
@@ -335,9 +332,7 @@ namespace MusicBeePlugin.Services
 
         private void QueueNext(SearchResult result, QueueNextActionData action)
         {
-            var files = GetItemFiles(result);
-            if (action.ShufflePlay)
-                files = files.OrderBy(x => Guid.NewGuid()).ToArray();
+            var files = GetItemFiles(result, action.ShufflePlay);
             
             if (action.ClearQueueBeforeAdd)
                 mbApi.NowPlayingList_Clear();
@@ -350,14 +345,14 @@ namespace MusicBeePlugin.Services
 
         private void QueueLast(SearchResult result, QueueLastActionData action)
         {
-            var files = GetItemFiles(result);
-            if (action.ShufflePlay)
-                files = files.OrderBy(x => Guid.NewGuid()).ToArray();
+            var files = GetItemFiles(result, action.ShufflePlay);
             mbApi.NowPlayingList_QueueFilesLast(files);
         }
 
-        private string[] GetItemFiles(SearchResult result)
+        private string[] GetItemFiles(SearchResult result, bool shuffle)
         {
+            string[] files;
+
             if (result.Type == ResultType.Album || result.Type == ResultType.Artist)
             {
                 string query;
@@ -377,22 +372,86 @@ namespace MusicBeePlugin.Services
                 }
                 else query = "";
 
-                mbApi.Library_QueryFilesEx(query, out string[] files);
-                return files;
+                mbApi.Library_QueryFilesEx(query, out files);
             }
             else if (result is PlaylistResult playlistResult)
             {
-                mbApi.Playlist_QueryFilesEx(playlistResult.PlaylistPath, out string[] files);
-                return files;
+                mbApi.Playlist_QueryFilesEx(playlistResult.PlaylistPath, out files);
             }
             else if (result is SongResult songResult)
             {
-                return new string[] { songResult.Filepath };
+                files = new string[] { songResult.Filepath };
             }
             else
             {
-                return new string[] { };
+                files = new string[] { };
             }
+
+            if (files == null || files.Length == 0)
+                return new string[] { };
+
+            if (shuffle)
+            {
+                return files.OrderBy(x => Guid.NewGuid()).ToArray();
+            }
+
+            if (result.Type == ResultType.Album)
+            {
+                return files
+                    .Select(f => new { File = f, Disc = GetDiscNumber(f), Track = GetTrackNumber(f) })
+                    .OrderBy(x => x.Disc)
+                    .ThenBy(x => x.Track)
+                    .Select(x => x.File)
+                    .ToArray();
+            }
+            else if (result.Type == ResultType.Artist)
+            {
+                return files
+                    .Select(f => new {
+                        File = f,
+                        Year = GetYear(f),
+                        Album = mbApi.Library_GetFileTag(f, MetaDataType.Album),
+                        Disc = GetDiscNumber(f),
+                        Track = GetTrackNumber(f)
+                    })
+                    .OrderByDescending(x => x.Year)
+                    .ThenBy(x => x.Album)
+                    .ThenBy(x => x.Disc)
+                    .ThenBy(x => x.Track)
+                    .Select(x => x.File)
+                    .ToArray();
+            }
+
+            return files;
+        }
+
+        private int GetTrackNumber(string file)
+        {
+            string val = mbApi.Library_GetFileTag(file, MetaDataType.TrackNo);
+            if (string.IsNullOrEmpty(val)) return 999999;
+            int slashIndex = val.IndexOf('/');
+            if (slashIndex > 0) val = val.Substring(0, slashIndex);
+            if (int.TryParse(val, out int res)) return res;
+            return 999999;
+        }
+
+        private int GetDiscNumber(string file)
+        {
+            string val = mbApi.Library_GetFileTag(file, MetaDataType.DiscNo);
+            if (string.IsNullOrEmpty(val)) return 1;
+            int slashIndex = val.IndexOf('/');
+            if (slashIndex > 0) val = val.Substring(0, slashIndex);
+            if (int.TryParse(val, out int res)) return res;
+            return 1;
+        }
+
+        private int GetYear(string file)
+        {
+            string val = mbApi.Library_GetFileTag(file, MetaDataType.Year);
+            if (string.IsNullOrEmpty(val)) return 0;
+            if (val.Length >= 4 && int.TryParse(val.Substring(0, 4), out int year))
+                return year;
+            return 0;
         }
     }
 }
