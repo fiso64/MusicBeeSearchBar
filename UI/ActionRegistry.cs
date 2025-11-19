@@ -33,6 +33,7 @@ namespace MusicBeePlugin.UI
         private static readonly ActionDefinition OpenFilter = new ActionDefinition("Open Filter In Tab", typeof(OpenFilterInTabActionData), () => new OpenFilterInTabActionData());
         private static readonly ActionDefinition OpenPlaylist = new ActionDefinition("Open Playlist In Tab", typeof(OpenPlaylistInTabActionData), () => new OpenPlaylistInTabActionData());
         private static readonly ActionDefinition MusicExplorer = new ActionDefinition("Open In Music Explorer", typeof(OpenInMusicExplorerActionData), () => new OpenInMusicExplorerActionData());
+        private static readonly ActionDefinition MusicExplorerInTab = new ActionDefinition("Open In Music Explorer In Tab", typeof(OpenInMusicExplorerInTabActionData), () => new OpenInMusicExplorerInTabActionData());
 
         public static List<ActionDefinition> GetActionsForType(ResultType type)
         {
@@ -58,6 +59,7 @@ namespace MusicBeePlugin.UI
             if (type == ResultType.Artist)
             {
                 actions.Add(MusicExplorer);
+                actions.Add(MusicExplorerInTab);
             }
 
             return actions;

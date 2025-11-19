@@ -75,6 +75,12 @@ namespace MusicBeePlugin.Config
     {
     }
 
+    public class OpenInMusicExplorerInTabActionData : BaseActionData
+    {
+        [JsonConverter(typeof(StringEnumConverter))]
+        public TabChoice TabChoice = 0;
+    }
+
     public class OpenPlaylistInTabActionData : BaseActionData
     {
         [JsonConverter(typeof(StringEnumConverter))]

@@ -83,6 +83,12 @@ namespace MusicBeePlugin.Services
             {
                 MusicBeeHelpers.OpenArtistInMusicExplorer(artistResult.Artist);
             }
+            else if (action is OpenInMusicExplorerInTabActionData musicExplorerAction && result is ArtistResult artistResultInTab)
+            {
+                RestoreOrFocus();
+                await GotoTab(musicExplorerAction.TabChoice, musicExplorerAction);
+                ReflectionService.Instance.OpenMusicExplorerTab(artistResultInTab.Artist);
+            }
 
             action._actionExecuted = true;
 
