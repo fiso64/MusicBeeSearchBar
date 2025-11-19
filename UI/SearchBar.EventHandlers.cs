@@ -68,6 +68,14 @@ namespace MusicBeePlugin.UI
             {
                 Close();
             }
+            else if (e.KeyCode == Keys.F5)
+            {
+                isLoading = true;
+                loadingIndicator.Visible = true;
+                LoadTracksAsync();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
             else if (e.KeyCode == Keys.Down)
             {
                 if (resultsListBox.Visible && resultsListBox.Items.Count > 0)

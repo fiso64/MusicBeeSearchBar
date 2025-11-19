@@ -148,6 +148,7 @@ namespace MusicBeePlugin.UI
                     "  Ctrl+D            Toggle detached mode",
                     "  Ctrl+P            Open the settings dialog",
                     "  Ctrl+H            Open this help page",
+                    "  F5                Rebuild database",
                 })
             };
             helpTab.Controls.Add(helpTextBox);

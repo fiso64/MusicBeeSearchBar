@@ -89,11 +89,8 @@ namespace MusicBeePlugin.UI
                     BeginInvoke((Action)(() => {
                         loadingIndicator.Visible = false;
 
-                        // Only refresh results if there's a search in progress
-                        if (!string.IsNullOrWhiteSpace(searchBox.Text))
-                        {
-                            SearchBox_TextChanged(null, EventArgs.Empty);
-                        }
+                        // Refresh results
+                        SearchBox_TextChanged(null, EventArgs.Empty);
                     }));
                 }
             }
