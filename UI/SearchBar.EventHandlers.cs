@@ -2,6 +2,7 @@
 using System;
 using System.Drawing;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using static MusicBeePlugin.Plugin;
 
@@ -28,6 +29,19 @@ namespace MusicBeePlugin.UI
             {
                 Close();
                 musicBeeContext.Post(_ => Plugin.ShowConfigDialog(3), null);
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+            else if (e.Control && e.KeyCode == Keys.S)
+            {
+                if (resultsListBox.SelectedItem is SearchResult selectedResult && selectedResult.Type != ResultType.Command && selectedResult.Type != ResultType.Header)
+                {
+                    HandleResultSelection(selectedResult, e, () =>
+                    {
+                        actionService.PerformShufflePlay(selectedResult);
+                        return Task.CompletedTask;
+                    });
+                }
                 e.Handled = true;
                 e.SuppressKeyPress = true;
             }
@@ -190,7 +204,7 @@ namespace MusicBeePlugin.UI
             }
         }
 
-        private void HandleResultSelection(SearchResult selectedItem, KeyEventArgs e)
+        private void HandleResultSelection(SearchResult selectedItem, KeyEventArgs e, Func<Task> customAction = null)
         {
             if (!isDetached)
             {
@@ -208,7 +222,14 @@ namespace MusicBeePlugin.UI
                         Invoke((Action)(() => { if (!IsDisposed) TopMost = true; }));
                     }
 
-                    await resultAcceptAction(searchBox.Text, selectedItem, e);
+                    if (customAction != null)
+                    {
+                        await customAction();
+                    }
+                    else
+                    {
+                        await actionService.RunAction(searchBox.Text, selectedItem, e);
+                    }
                 }
                 finally
                 {

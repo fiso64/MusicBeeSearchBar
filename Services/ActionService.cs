@@ -23,6 +23,12 @@ namespace MusicBeePlugin.Services
             this.actionsConfig = actionsConfig;
         }
 
+        public void PerformShufflePlay(SearchResult result)
+        {
+            var playAction = new PlayActionData { ShufflePlay = true };
+            Play(result, playAction);
+        }
+
         public async Task<bool> RunAction(string searchBoxText, SearchResult result, KeyEventArgs keyEvent)
         {
             Debug.WriteLine($"RunAction called with result={result.DisplayTitle} of type={result.Type}");

@@ -168,7 +168,7 @@ namespace MusicBeePlugin
 
             Thread searchBarThread = new Thread(() =>
             {
-                var searchBarForm = new SearchBar(mbControl, mainContext, mbApi, actionService.RunAction, config.SearchUI, defaultText, startDetached);
+                var searchBarForm = new SearchBar(mbControl, mainContext, mbApi, actionService, config.SearchUI, defaultText, startDetached);
                 searchBarInstance = searchBarForm;
                 searchBarInstance.FormClosed += (s, args) => searchBarInstance = null;
                 Application.Run(searchBarInstance);

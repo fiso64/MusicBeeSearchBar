@@ -22,7 +22,7 @@ namespace MusicBeePlugin.UI
         private SynchronizationContext musicBeeContext;
         private SearchService searchService;
         private ImageService imageService;
-        private Func<string, SearchResult, KeyEventArgs, Task<bool>> resultAcceptAction;
+        private ActionService actionService;
 
         // UI Controls
         private TextBox searchBox;
@@ -197,7 +197,7 @@ namespace MusicBeePlugin.UI
             Control musicBeeControl,
             SynchronizationContext musicBeeContext,
             MusicBeeApiInterface musicBeeApi,
-            Func<string, SearchResult, KeyEventArgs, Task<bool>> resultAcceptAction,
+            ActionService actionService,
             SearchUIConfig searchUIConfig,
             string defaultText = null,
             bool startDetached = false
@@ -231,7 +231,7 @@ namespace MusicBeePlugin.UI
             this.musicBeeControl = musicBeeControl;
             this.musicBeeContext = musicBeeContext;
             mbApi = musicBeeApi;
-            this.resultAcceptAction = resultAcceptAction;
+            this.actionService = actionService;
             this.searchUIConfig = searchUIConfig;
             searchService = new SearchService(musicBeeApi, searchUIConfig);
             if (searchUIConfig.ShowImages)
