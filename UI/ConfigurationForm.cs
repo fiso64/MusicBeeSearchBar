@@ -68,10 +68,10 @@ namespace MusicBeePlugin.UI
             actionsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             actionsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-            actionsLayout.Controls.Add(CreateActionPanel("Artist Actions", _config.SearchActions.ArtistAction), 0, 0);
-            actionsLayout.Controls.Add(CreateActionPanel("Album Actions", _config.SearchActions.AlbumAction), 0, 1);
-            actionsLayout.Controls.Add(CreateActionPanel("Song Actions", _config.SearchActions.SongAction), 0, 2);
-            actionsLayout.Controls.Add(CreateActionPanel("Playlist Actions", _config.SearchActions.PlaylistAction), 0, 3);
+            actionsLayout.Controls.Add(CreateActionPanel("Artist Actions", _config.SearchActions.ArtistAction, Services.ResultType.Artist), 0, 0);
+            actionsLayout.Controls.Add(CreateActionPanel("Album Actions", _config.SearchActions.AlbumAction, Services.ResultType.Album), 0, 1);
+            actionsLayout.Controls.Add(CreateActionPanel("Song Actions", _config.SearchActions.SongAction, Services.ResultType.Song), 0, 2);
+            actionsLayout.Controls.Add(CreateActionPanel("Playlist Actions", _config.SearchActions.PlaylistAction, Services.ResultType.Playlist), 0, 3);
             
             var actionsScrollPanel = new Panel
             {
@@ -206,7 +206,7 @@ namespace MusicBeePlugin.UI
             };
         }
 
-        private GroupBox CreateActionPanel(string title, ActionConfig actionConfig)
+        private GroupBox CreateActionPanel(string title, ActionConfig actionConfig, Services.ResultType resultType)
         {
             GroupBox groupBox = new GroupBox
             {
@@ -230,13 +230,11 @@ namespace MusicBeePlugin.UI
             layout.Controls.Add(new Label { Text = "Shift+Enter:", AutoSize = true }, 0, 2);
             layout.Controls.Add(new Label { Text = "Ctrl+Shift+Enter:", AutoSize = true }, 0, 3);
 
-            bool isArtistActions = title.StartsWith("Artist");
-
             // Add action combo boxes with their corresponding options panels
-            var (defaultCombo, defaultOptions) = CreateActionControls(actionConfig.Default, actionConfig, isArtistActions);
-            var (ctrlCombo, ctrlOptions) = CreateActionControls(actionConfig.Ctrl, actionConfig, isArtistActions);
-            var (shiftCombo, shiftOptions) = CreateActionControls(actionConfig.Shift, actionConfig, isArtistActions);
-            var (ctrlShiftCombo, ctrlShiftOptions) = CreateActionControls(actionConfig.CtrlShift, actionConfig, isArtistActions);
+            var (defaultCombo, defaultOptions) = CreateActionControls(actionConfig.Default, actionConfig, resultType);
+            var (ctrlCombo, ctrlOptions) = CreateActionControls(actionConfig.Ctrl, actionConfig, resultType);
+            var (shiftCombo, shiftOptions) = CreateActionControls(actionConfig.Shift, actionConfig, resultType);
+            var (ctrlShiftCombo, ctrlShiftOptions) = CreateActionControls(actionConfig.CtrlShift, actionConfig, resultType);
 
             layout.Controls.Add(defaultCombo, 1, 0);
             layout.Controls.Add(ctrlCombo, 1, 1);
@@ -252,7 +250,7 @@ namespace MusicBeePlugin.UI
             return groupBox;
         }
 
-        private (ComboBox, Panel) CreateActionControls(BaseActionData currentAction, ActionConfig actionConfig, bool isArtistActions)
+        private (ComboBox, Panel) CreateActionControls(BaseActionData currentAction, ActionConfig actionConfig, Services.ResultType resultType)
         {
             ComboBox comboBox = new ComboBox
             {
@@ -267,24 +265,21 @@ namespace MusicBeePlugin.UI
                 Padding = new Padding(10, 0, 0, 0)
             };
 
-            var items = new List<string>
-            {
-                "Play Now",
-                "Queue Next",
-                "Queue Last",
-                "Search In Tab",
-                "Open Filter In Tab"
-            };
+            var availableActions = ActionRegistry.GetActionsForType(resultType);
+            comboBox.Items.AddRange(availableActions.ToArray());
 
-            if (isArtistActions)
+            // Select the current action in the combo box based on Type
+            ActionDefinition selectedDef = availableActions.FirstOrDefault(a => a.DataType == currentAction.GetType());
+            if (selectedDef != null)
             {
-                items.Add("Open In Music Explorer");
+                comboBox.SelectedItem = selectedDef;
+            }
+            else
+            {
+                // Fallback if config has an action not supported by the current type
+                comboBox.SelectedIndex = 0;
             }
 
-            comboBox.Items.AddRange(items.ToArray());
-
-            // Set the current selection and create option controls
-            comboBox.SelectedIndex = GetActionIndex(currentAction);
             UpdateOptionsPanel(optionsPanel, currentAction);
 
             // Store reference to which action we're modifying
@@ -295,11 +290,14 @@ namespace MusicBeePlugin.UI
             else if (currentAction == actionConfig.CtrlShift) updateAction = x => actionConfig.CtrlShift = x;
 
             // Add event handler to update options when selection changes
-            comboBox.SelectedIndexChanged += (sender, e) => 
+            comboBox.SelectedIndexChanged += (sender, e) =>
             {
-                var newAction = CreateActionFromComboBox(comboBox);
-                updateAction(newAction);  // Update the correct reference in the config
-                UpdateOptionsPanel(optionsPanel, newAction);
+                if (comboBox.SelectedItem is ActionDefinition def)
+                {
+                    var newAction = def.Factory();
+                    updateAction(newAction);
+                    UpdateOptionsPanel(optionsPanel, newAction);
+                }
             };
 
             return (comboBox, optionsPanel);
@@ -482,43 +480,6 @@ namespace MusicBeePlugin.UI
             }
         }
 
-        private BaseActionData CreateActionFromComboBox(ComboBox comboBox)
-        {
-            string selectedAction = comboBox.SelectedItem as string;
-            switch (selectedAction)
-            {
-                case "Play Now":
-                    return new PlayActionData();
-                case "Queue Next":
-                    return new QueueNextActionData();
-                case "Queue Last":
-                    return new QueueLastActionData();
-                case "Search In Tab":
-                    return new SearchInTabActionData();
-                case "Open Filter In Tab":
-                    return new OpenFilterInTabActionData();
-                case "Open In Music Explorer":
-                    return new OpenInMusicExplorerActionData();
-                default:
-                    return new PlayActionData();
-            }
-        }
-
-        private int GetActionIndex(BaseActionData action)
-        {
-            if (action is PlayActionData)
-                return 0;
-            if (action is QueueNextActionData)
-                return 1;
-            if (action is QueueLastActionData)
-                return 2;
-            if (action is SearchInTabActionData)
-                return 3;
-            if (action is OpenFilterInTabActionData)
-                return 4;
-            if (action is OpenInMusicExplorerActionData)
-                return 5;
-            return 0;
-        }
+        // CreateActionFromComboBox and GetActionIndex are no longer needed with the ActionRegistry pattern
     }
 }
