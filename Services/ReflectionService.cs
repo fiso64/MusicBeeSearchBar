@@ -29,7 +29,167 @@ namespace MusicBeePlugin.Services
         private MethodInfo _openArtistMethod;
         private bool _openArtistTried;
 
+        private MethodInfo _openTabMethod;
+        private Type _tabInfoType;
+        private Type _tabSpecificInfoType;
+        private Type _tabContextType;
+        private Type _tabTypeEnumType;
+        private Type _openTabParam3EnumType;
+        private object _defaultTabContext;
+        private bool _openTabTried;
+
         private ReflectionService() { }
+
+
+        // Opens a standard MusicBee tab that does not require specific content context (e.g. Music, Inbox, NowPlaying).
+        public void OpenTab(TabType type)
+        {
+            if (type == TabType.Playlist)
+                throw new ArgumentException($"The tab type '{type}' requires specific content. Use OpenPlaylistTab() instead.", nameof(type));
+
+            OpenTabInternal(type, null);
+        }
+
+        // Opens a specified playlist in the current tab.
+        public void OpenPlaylistTab(string playlistPath)
+        {
+            if (string.IsNullOrEmpty(playlistPath))
+                throw new ArgumentNullException(nameof(playlistPath));
+
+            OpenTabInternal(TabType.Playlist, playlistPath);
+        }
+
+        // Opens the Music Explorer in the current tab.
+        public void OpenMusicExplorerTab(string artist = null)
+        {
+            // This doesn't work! For some reason.
+
+            //string content = null;
+            //if (!string.IsNullOrEmpty(artist))
+            //    content = "artist://" + artist;
+            //OpenTabInternal(TabType.MusicExplorer, content);
+
+            // Instead, need to first open Music Explorer, then use the other method.
+            OpenTabInternal(TabType.MusicExplorer, null);
+            if (!string.IsNullOrEmpty(artist))
+                OpenArtistInMusicExplorer(artist);
+        }
+
+        private void OpenTabInternal(TabType type, string content)
+        {
+            EnsureOpenTabMethodLoaded();
+            if (_openTabMethod == null)
+                throw new FeatureUnavailableException("Open Tab", "Internal method not found.");
+
+            try
+            {
+                // Create Specific Info
+                object specificInfo = Activator.CreateInstance(_tabSpecificInfoType, content ?? "");
+
+                // Create Tab Type Enum
+                object tabTypeEnum = Enum.ToObject(_tabTypeEnumType, (int)type);
+
+                // Create Tab Info
+                object tabInfo = Activator.CreateInstance(_tabInfoType, tabTypeEnum, specificInfo, null);
+
+                // Param 3 Enum - Using 23 (Plugin) as seen in analysis
+                object param3 = Enum.ToObject(_openTabParam3EnumType, 23);
+
+                // Invoke
+                _openTabMethod.Invoke(null, new object[] {
+                    tabInfo,            // p0: Struct1 (TabInfo)
+                    true,               // p1: bool
+                    param3,             // p2: Enum
+                    null,               // p3: Class (null)
+                    false,              // p4: bool
+                    _defaultTabContext, // p5: Struct3 (TabContext)
+                    null,               // p6: Array
+                    true                // p7: bool
+                });
+            }
+            catch (Exception ex)
+            {
+                throw new FeatureUnavailableException("Open Tab", ex.Message);
+            }
+        }
+
+        private void EnsureOpenTabMethodLoaded()
+        {
+            if (_openTabTried) return;
+            _openTabTried = true;
+
+            try
+            {
+                var musicBeeAssembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "MusicBee");
+                if (musicBeeAssembly == null) return;
+
+                var targetType = FindMainMusicBeeType(musicBeeAssembly);
+                if (targetType == null) return;
+
+                var methods = targetType.GetMethods(BindingFlags.NonPublic | BindingFlags.Static);
+
+                foreach (var method in methods)
+                {
+                    if (method.ReturnType != typeof(void)) continue;
+                    var parameters = method.GetParameters();
+                    if (parameters.Length != 8) continue;
+
+                    // Check signature: Struct, bool, Enum, Class, bool, Struct, Array, bool
+                    if (parameters[1].ParameterType != typeof(bool)) continue;
+                    if (parameters[4].ParameterType != typeof(bool)) continue;
+                    if (parameters[7].ParameterType != typeof(bool)) continue;
+
+                    if (!parameters[0].ParameterType.IsValueType || parameters[0].ParameterType.IsPrimitive || parameters[0].ParameterType.IsEnum) continue; // Struct1
+                    if (!parameters[2].ParameterType.IsEnum) continue; // Enum
+                    if (!parameters[3].ParameterType.IsClass) continue; // Class
+                    if (!parameters[5].ParameterType.IsValueType || parameters[5].ParameterType.IsPrimitive || parameters[5].ParameterType.IsEnum) continue; // Struct2
+                    if (!parameters[6].ParameterType.IsArray) continue; // Array
+
+                    // Check Struct1 (TabInfo) has a field of Struct type (SpecificInfo) and Enum type (TabType)
+                    var tabInfoType = parameters[0].ParameterType;
+                    var fields = tabInfoType.GetFields(BindingFlags.Public | BindingFlags.Instance);
+
+                    Type tabTypeEnum = null;
+                    Type specificInfoType = null;
+
+                    foreach (var f in fields)
+                    {
+                        if (f.FieldType.IsEnum) tabTypeEnum = f.FieldType;
+                        else if (f.FieldType.IsValueType && !f.FieldType.IsPrimitive) specificInfoType = f.FieldType;
+                    }
+
+                    if (tabTypeEnum == null || specificInfoType == null) continue;
+
+                    // If we are here, we found it
+                    _openTabMethod = method;
+                    _tabInfoType = tabInfoType;
+                    _tabTypeEnumType = tabTypeEnum;
+                    _tabSpecificInfoType = specificInfoType;
+                    _openTabParam3EnumType = parameters[2].ParameterType;
+                    _tabContextType = parameters[5].ParameterType;
+
+                    // Create default TabContext
+                    // Struct3 constructor takes 1 param (ContentLayout enum/int)
+                    var contextCtor = _tabContextType.GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 1);
+                    if (contextCtor != null)
+                    {
+                        var layoutType = contextCtor.GetParameters()[0].ParameterType;
+                        var layoutVal = Enum.ToObject(layoutType, 0); // 0 = TrackDetail
+                        _defaultTabContext = contextCtor.Invoke(new object[] { layoutVal });
+                    }
+                    else
+                    {
+                        _defaultTabContext = Activator.CreateInstance(_tabContextType);
+                    }
+
+                    break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error loading OpenTab method: " + ex);
+            }
+        }
 
         private void EnsureInvokeCommandLoaded()
         {
@@ -188,6 +348,8 @@ namespace MusicBeePlugin.Services
             _openArtistMethod = FindOpenArtistMethod();
         }
 
+        // Same as clicking on an artist name in a track info panel. Opens the artist in a new Music Explorer tab,
+        // or an existing one if there are any.
         public void OpenArtistInMusicExplorer(string artistName)
         {
             EnsureOpenArtistMethodLoaded();
