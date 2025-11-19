@@ -782,30 +782,38 @@ namespace MusicBeePlugin.UI
             _animationTimer.Start();
         }
 
+        private bool _suppressClick = false;
+
         protected override void OnMouseDown(MouseEventArgs e)
         {
             base.OnMouseDown(e);
-            
-            if (_isThumbVisible && _scrollThumb.Contains(e.Location))
+            _suppressClick = false;
+
+            // Check if mouse is in scrollbar area (including track)
+            if (_isThumbVisible && e.X >= Width - SCROLLBAR_WIDTH)
             {
-                _isDraggingThumb = true;
-                _dragStartY = e.Y;
-                _dragStartScrollTop = _scrollTop;
-                _animationTimer.Stop(); // Stop any ongoing animation when dragging begins
-            }
-            else
-            {
-                int index = GetIndexFromY(e.Y);
-                if (index >= 0 && index < _items.Count)
+                _suppressClick = true;
+
+                if (_scrollThumb.Contains(e.Location))
                 {
-                    if (_items[index].Type != ResultType.Header)
-                    {
-                        SetSelectedIndex(index, animateScroll: false);
-                    }
-                    else
-                    {
-                        SetSelectedIndex(-1, animateScroll: false); // Deselect if a header is clicked
-                    }
+                    _isDraggingThumb = true;
+                    _dragStartY = e.Y;
+                    _dragStartScrollTop = _scrollTop;
+                    _animationTimer.Stop(); // Stop any ongoing animation when dragging begins
+                }
+                return;
+            }
+
+            int index = GetIndexFromY(e.Y);
+            if (index >= 0 && index < _items.Count)
+            {
+                if (_items[index].Type != ResultType.Header)
+                {
+                    SetSelectedIndex(index, animateScroll: false);
+                }
+                else
+                {
+                    SetSelectedIndex(-1, animateScroll: false); // Deselect if a header is clicked
                 }
             }
         }
@@ -833,10 +841,15 @@ namespace MusicBeePlugin.UI
             }
             else
             {
-                int index = GetIndexFromY(e.Y);
-                if (index >= _items.Count)
+                int index = -1;
+                // Only check for hover if we are NOT over the scrollbar area
+                if (!(_isThumbVisible && e.X >= Width - SCROLLBAR_WIDTH))
                 {
-                    index = -1; // outside of items
+                    index = GetIndexFromY(e.Y);
+                    if (index >= _items.Count)
+                    {
+                        index = -1; // outside of items
+                    }
                 }
 
                 if (_hoveredIndex != index)
@@ -859,6 +872,16 @@ namespace MusicBeePlugin.UI
                 // After dragging, re-evaluate which item is being hovered over
                 OnMouseMove(e);
             }
+        }
+
+        protected override void OnClick(EventArgs e)
+        {
+            if (_suppressClick)
+            {
+                _suppressClick = false;
+                return;
+            }
+            base.OnClick(e);
         }
 
         protected override void OnMouseLeave(EventArgs e)
