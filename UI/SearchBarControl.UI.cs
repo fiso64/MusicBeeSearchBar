@@ -17,11 +17,11 @@ namespace MusicBeePlugin.UI
         {
 
             int lineSize = 3;
-            songIcon = CreateIcon(Color.DarkGray, iconSize, iconSize, Services.ResultType.Song, lineSize);
-            albumIcon = CreateIcon(Color.DarkGray, iconSize, iconSize, Services.ResultType.Album, lineSize - 1);
-            artistIcon = CreateIcon(Color.Gray, iconSize, iconSize, Services.ResultType.Artist, lineSize);
-            playlistIcon = CreateIcon(Color.DarkGray, iconSize, iconSize, Services.ResultType.Playlist, lineSize);
-            commandIcon = CreateIcon(Color.DarkGray, iconSize, iconSize, Services.ResultType.Command, lineSize -1);
+            songIcon = CreateIcon(theme.Icon, iconSize, iconSize, Services.ResultType.Song, lineSize);
+            albumIcon = CreateIcon(theme.Icon, iconSize, iconSize, Services.ResultType.Album, lineSize - 1);
+            artistIcon = CreateIcon(theme.IconDimmed, iconSize, iconSize, Services.ResultType.Artist, lineSize);
+            playlistIcon = CreateIcon(theme.Icon, iconSize, iconSize, Services.ResultType.Playlist, lineSize);
+            commandIcon = CreateIcon(theme.Icon, iconSize, iconSize, Services.ResultType.Command, lineSize -1);
 
             BackColor = searchUIConfig.BaseColor;
 
@@ -92,6 +92,7 @@ namespace MusicBeePlugin.UI
                 ForeColor = searchUIConfig.TextColor,
                 HighlightColor = searchUIConfig.ResultHighlightColor,
                 HoverColor = hoverColor,
+                Theme = this.theme,
                 ItemHeight = (int)(searchUIConfig.ResultItemHeight * dpiScale),
                 Visible = false,
                 Height = 0,

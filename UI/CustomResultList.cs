@@ -46,6 +46,7 @@ namespace MusicBeePlugin.UI
         // Styling & Resources
         public int ItemHeight { get; set; } = 56;
         public int HeaderHeight => ResultFont != null ? (int)(ResultFont.Height * 1.5) : 24;
+        public Theme Theme { get; set; }
         public Color HighlightColor { get; set; }
         public Color HoverColor { get; set; }
         public Font ResultFont { get; set; }
@@ -473,7 +474,7 @@ namespace MusicBeePlugin.UI
 
             using (var headerFont = new Font(ResultFont.FontFamily, ResultFont.Size, FontStyle.Italic))
             {
-                var headerColor = Color.Gray;
+                var headerColor = Theme?.SecondaryText ?? Color.Gray;
                 TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.Left | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter;
 
                 int currentTopPadding = (index > 0) ? (int)(HEADER_TOP_PADDING * DpiScale) : 0;
@@ -694,18 +695,21 @@ namespace MusicBeePlugin.UI
 
                 // Define the rectangle for the detail text, positioned below the title.
                 var detailRect = new Rectangle(textBounds.X, y + titleLineHeight + lineSpacing, textBounds.Width, detailLineHeight);
-                TextRenderer.DrawText(g, detailText, detailFont, detailRect, Color.Gray, flags | TextFormatFlags.VerticalCenter);
+                TextRenderer.DrawText(g, detailText, detailFont, detailRect, Theme?.SecondaryText ?? Color.Gray, flags | TextFormatFlags.VerticalCenter);
             }
         }
 
         private void DrawScrollbar(Graphics g)
         {
-            using (var trackBrush = new SolidBrush(Color.FromArgb(20, Color.White)))
+            var trackColor = Theme?.ScrollBarTrack ?? Color.FromArgb(20, Color.White);
+            var thumbColor = Theme?.ScrollBarThumb ?? Color.FromArgb(100, Color.Gray);
+
+            using (var trackBrush = new SolidBrush(trackColor))
             {
                 g.FillRectangle(trackBrush, _scrollTrack);
             }
             
-            using (var thumbBrush = new SolidBrush(Color.FromArgb(100, Color.Gray)))
+            using (var thumbBrush = new SolidBrush(thumbColor))
             using (var path = new GraphicsPath())
             {
                 int cornerRadius = _scrollThumb.Width;

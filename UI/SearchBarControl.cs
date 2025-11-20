@@ -35,6 +35,7 @@ namespace MusicBeePlugin.UI
 
         // Configuration
         private readonly SearchUIConfig searchUIConfig;
+        private readonly Theme theme;
         private readonly int iconSize;
         private readonly bool _closeOnAccept;
 
@@ -130,6 +131,8 @@ namespace MusicBeePlugin.UI
             this.resultAcceptAction = resultAcceptAction;
             this.searchUIConfig = searchUIConfig;
             this._closeOnAccept = closeOnAccept;
+            this.theme = new Theme(searchUIConfig);
+
             searchService = new SearchService(musicBeeApi, searchUIConfig);
             if (searchUIConfig.ShowImages)
             {
@@ -157,6 +160,48 @@ namespace MusicBeePlugin.UI
             Debug.WriteLine("[SearchBarControl] OnLoad: Firing. Setting focus and calling SearchBoxSetDefaultResults.");
             searchBox.Focus();
             SearchBoxSetDefaultResults();
+        }
+
+        private GraphicsPath GetRoundedRectPath(Rectangle bounds, int radius)
+        {
+            GraphicsPath path = new GraphicsPath();
+            path.AddArc(bounds.X, bounds.Y, radius, radius, 180, 90);
+            path.AddArc(bounds.Right - radius, bounds.Y, radius, radius, 270, 90);
+            path.AddArc(bounds.Right - radius, bounds.Bottom - radius, radius, radius, 0, 90);
+            path.AddArc(bounds.X, bounds.Bottom - radius, radius, radius, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                cp.ExStyle |= 0x02000000;  // WS_EX_COMPOSITED
+                return cp;
+            }
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            // Don't draw a border for the main control in panel mode.
+
+            // Draw border for the search box
+            if (searchBox != null && searchBox.Parent != null)
+            {
+                var searchContainer = searchBox.Parent;
+                var rect = searchContainer.Bounds;
+                using (var pen = new Pen(theme.Border, 1))
+                using (var path = GetRoundedRectPath(new Rectangle(rect.X, rect.Y, rect.Width - 1, rect.Height - 1), 8))
+                {
+                    e.Graphics.DrawPath(pen, path);
+                }
+            }
         }
 
         protected override void Dispose(bool disposing)

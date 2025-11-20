@@ -34,6 +34,7 @@ namespace MusicBeePlugin.UI
 
         // Configuration
         private readonly SearchUIConfig searchUIConfig;
+        private readonly Theme theme;
         private readonly int iconSize;
 
         // State
@@ -233,6 +234,8 @@ namespace MusicBeePlugin.UI
             mbApi = musicBeeApi;
             this.actionService = actionService;
             this.searchUIConfig = searchUIConfig;
+            this.theme = new Theme(searchUIConfig);
+
             searchService = new SearchService(musicBeeApi, searchUIConfig);
             if (searchUIConfig.ShowImages)
             {
@@ -305,9 +308,10 @@ namespace MusicBeePlugin.UI
             base.OnPaint(e);
 
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            Color borderColor = theme.Border;
 
             // Draw the main form border
-            using (var pen = new Pen(Color.FromArgb(100, Color.Gray), 1))
+            using (var pen = new Pen(borderColor, 1))
             using (var path = GetRoundedRectPath(new Rectangle(0, 0, ClientSize.Width - 1, ClientSize.Height - 1), CORNER_RADIUS))
             {
                 e.Graphics.DrawPath(pen, path);
@@ -319,7 +323,7 @@ namespace MusicBeePlugin.UI
                 var searchContainer = searchBox.Parent;
                 var rect = searchContainer.Bounds;
                 // The container already has padding, so we draw the border around it.
-                using (var pen = new Pen(Color.FromArgb(100, Color.Gray), 1))
+                using (var pen = new Pen(borderColor, 1))
                 using (var path = GetRoundedRectPath(new Rectangle(rect.X, rect.Y, rect.Width - 1, rect.Height - 1), 8))
                 {
                     e.Graphics.DrawPath(pen, path);

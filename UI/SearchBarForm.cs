@@ -17,6 +17,7 @@ namespace MusicBeePlugin.UI
         private readonly MusicBeeApiInterface mbApi;
         private readonly Control musicBeeControl;
         private readonly SynchronizationContext musicBeeContext;
+        private readonly Theme theme;
 
         private OverlayForm overlay;
         private Panel dragPanel;
@@ -41,6 +42,7 @@ namespace MusicBeePlugin.UI
             this.mbApi = musicBeeApi;
             this.musicBeeControl = musicBeeControl;
             this.musicBeeContext = musicBeeContext;
+            this.theme = new Theme(searchUIConfig);
 
             InitializeComponent();
             
@@ -224,7 +226,7 @@ namespace MusicBeePlugin.UI
         {
             base.OnPaint(e);
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            using (var pen = new Pen(Color.FromArgb(100, Color.Gray), 1))
+            using (var pen = new Pen(theme.Border, 1))
             using (var path = GetRoundedRectPath(new Rectangle(0, 0, ClientSize.Width - 1, ClientSize.Height - 1), CORNER_RADIUS))
             {
                 e.Graphics.DrawPath(pen, path);
