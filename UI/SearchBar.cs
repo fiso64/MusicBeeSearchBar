@@ -339,6 +339,16 @@ namespace MusicBeePlugin.UI
             SearchBoxSetDefaultResults();
         }
 
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (!e.Cancel)
+            {
+                // Hide the form immediately to prevent visual artifacts (flashing unstyled window) during disposal
+                this.Visible = false;
+            }
+            base.OnFormClosing(e);
+        }
+
         protected override void Dispose(bool disposing)
         {
             if (disposing)

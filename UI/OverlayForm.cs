@@ -69,6 +69,15 @@ namespace MusicBeePlugin.UI
             }
         }
 
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (!e.Cancel)
+            {
+                this.Visible = false;
+            }
+            base.OnFormClosing(e);
+        }
+
         protected override void Dispose(bool disposing)
         {
             if (disposing && (_fadeTimer != null))
