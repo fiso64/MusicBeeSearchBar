@@ -103,27 +103,48 @@ namespace MusicBeePlugin.UI
         private void SearchBoxSetDefaultResults()
         {
             Debug.WriteLine("[SearchBar] SearchBoxSetDefaultResults: Fired.");
-            List<SearchResult> defaultItems = null;
 
-            switch (searchUIConfig.DefaultResults)
+            if (searchUIConfig.DefaultResults == SearchUIConfig.DefaultResultsChoice.None)
             {
-                case SearchUIConfig.DefaultResultsChoice.Playing:
-                    var playingItems = searchService.GetPlayingItems();
-                    Debug.WriteLine($"[SearchBar] SearchBoxSetDefaultResults: Found {playingItems?.Count ?? 0} 'Playing' items.");
-                    UpdateResultsList(playingItems);
-                    LoadImagesForVisibleResults();
-                    break;
-                case SearchUIConfig.DefaultResultsChoice.Selected:
-                    var selectedItems = searchService.GetSelectedTracks();
-                    Debug.WriteLine($"[SearchBar] SearchBoxSetDefaultResults: Found {selectedItems?.Count ?? 0} 'Selected' items.");
-                    UpdateResultsList(selectedItems);
-                    LoadImagesForVisibleResults();
-                    break;
-                default:
-                    Debug.WriteLine("[SearchBar] SearchBoxSetDefaultResults: Default results set to 'None'.");
-                    UpdateResultsList(null);
-                    break;
+                Debug.WriteLine("[SearchBar] SearchBoxSetDefaultResults: Default results set to 'None'.");
+                UpdateResultsList(null);
+                return;
             }
+
+            Task.Run(() =>
+            {
+                List<SearchResult> items = null;
+                try
+                {
+                    switch (searchUIConfig.DefaultResults)
+                    {
+                        case SearchUIConfig.DefaultResultsChoice.Playing:
+                            items = searchService.GetPlayingItems();
+                            Debug.WriteLine($"[SearchBar] SearchBoxSetDefaultResults: Found {items?.Count ?? 0} 'Playing' items.");
+                            break;
+                        case SearchUIConfig.DefaultResultsChoice.Selected:
+                            items = searchService.GetSelectedTracks();
+                            Debug.WriteLine($"[SearchBar] SearchBoxSetDefaultResults: Found {items?.Count ?? 0} 'Selected' items.");
+                            break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[SearchBar] Error fetching default results: {ex}");
+                }
+
+                if (!IsDisposed && IsHandleCreated)
+                {
+                    BeginInvoke((Action)(() =>
+                    {
+                        if (!IsDisposed && string.IsNullOrWhiteSpace(searchBox.Text))
+                        {
+                            UpdateResultsList(items);
+                            LoadImagesForVisibleResults();
+                        }
+                    }));
+                }
+            });
         }
 
         private async void SearchBox_TextChanged(object sender, EventArgs e)
