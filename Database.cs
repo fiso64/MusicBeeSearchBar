@@ -180,14 +180,14 @@ namespace MusicBeePlugin.Services
                         if (!string.IsNullOrEmpty(pair.Artist))
                         {
                             var idKey = GetIdKey(pair.Artist);
-                            var searchKey = GetSearchKeyFromId(idKey);
+                            var searchKey = GetSearchKey(idKey);
                             entity.AliasMap[searchKey] = pair;
                         }
 
                         if (!string.IsNullOrEmpty(pair.SortArtist))
                         {
                             var idKey = GetIdKey(pair.SortArtist);
-                            var searchKey = GetSearchKeyFromId(idKey);
+                            var searchKey = GetSearchKey(idKey);
                             // If sort artist normalizes to something different than the artist
                             if (!entity.AliasMap.ContainsKey(searchKey))
                             {
@@ -215,8 +215,8 @@ namespace MusicBeePlugin.Services
                     {
                         Albums.Add(new AlbumEntry(
                             track,
-                            GetSearchKeyFromId(albumId),
-                            GetSearchKeyFromId(artistId)
+                            GetSearchKey(albumId),
+                            GetSearchKey(artistId)
                         ));
                     }
                 }
@@ -231,8 +231,8 @@ namespace MusicBeePlugin.Services
                     // Deduplication for songs is handled by the input list (unique tracks)
                     Songs.Add(new SongEntry(
                         track,
-                        GetSearchKeyFromId(GetIdKey(track.TrackTitle)),
-                        GetSearchKeyFromId(GetIdKey(track.Artists))
+                        GetSearchKey(track.TrackTitle, bypassCache: true), // song titles are unlikely to benefit from caching
+                        GetSearchKey(GetIdKey(track.Artists)) // use the id as input for the caching in GetSearchKey to work
                     ));
                 }
             }
@@ -279,84 +279,58 @@ namespace MusicBeePlugin.Services
             if (string.IsNullOrEmpty(input)) return string.Empty;
             if (_idKeyCache.TryGetValue(input, out var cached)) return cached;
 
+            // Identity key is just trimmed and lowercased. 
+            // We KEEP diacritics here so "Björk" and "Bjork" are grouped as distinct entities in the UI.
             var result = input.Trim().ToLowerInvariant();
             _idKeyCache[input] = result;
             return result;
         }
 
-        private string GetSearchKeyFromId(string idKey)
+        // Note: Doesn't strictly require it, but it's better to call with id (lowercased+trimmed) inputs, for caching.
+        private string GetSearchKey(string idKey, bool bypassCache = false)
         {
             if (string.IsNullOrEmpty(idKey)) return string.Empty;
-            if (_searchKeyCache.TryGetValue(idKey, out var cached)) return cached;
+            
+            if (!bypassCache && _searchKeyCache.TryGetValue(idKey, out var cached))
+                return cached;
 
-            // Optimization: idKey is already lower case, just strip punctuation
-            var result = RemovePunctuation(idKey);
-            _searchKeyCache[idKey] = result;
+            // OPTIMIZATION:
+            // We use NormalizeString here. Even though idKey is already lowercase,
+            // NormalizeString applies the CharMap which handles:
+            // 1. Diacritic removal (ä -> a)
+            // 2. Punctuation removal
+            // 3. Space normalization
+            // All in one single pass.
+            var result = NormalizeString(idKey);
+
+            if (!bypassCache)
+                _searchKeyCache[idKey] = result;
+            
             return result;
         }
 
-        static readonly HashSet<char> punctuation = new HashSet<char>
-        {
-            '!', '?', '(', ')', '.', ',', '-', ':', ';', '[', ']',
-            '{', '}', '/', '\\', '+', '=', '*', '&', '#', '@', '$',
-            '%', '^', '|', '~', '<', '>', '`', '"'
-        };
-
-        // Assumes input is already lower case
-        private string RemovePunctuation(string input)
-        {
-            char[] outputChars = new char[input.Length];
-            int outputIndex = 0;
-            bool previousIsSpace = true;
-
-            for (int i = 0; i < input.Length; i++)
-            {
-                char c = input[i];
-
-                if (c == '\'') continue;
-
-                if (punctuation.Contains(c) || c == ' ')
-                {
-                    if (!previousIsSpace)
-                    {
-                        outputChars[outputIndex++] = ' ';
-                        previousIsSpace = true;
-                    }
-                }
-                else
-                {
-                    outputChars[outputIndex++] = c;
-                    previousIsSpace = false;
-                }
-            }
-
-            if (outputIndex > 0 && outputChars[outputIndex - 1] == ' ')
-                outputIndex--;
-
-            return new string(outputChars, 0, outputIndex);
-        }
-
-        // Helper for external use (like query string normalization)
         public static string NormalizeString(string input)
         {
             if (string.IsNullOrEmpty(input)) return string.Empty;
-            
-            // Replicate the logic: ToLower -> RemovePunctuation
-            // We implement the combined loop here to avoid allocating the intermediate string
-            
-            char[] outputChars = new char[input.Length];
-            int outputIndex = 0;
-            bool previousIsSpace = true;
 
-            for (int i = 0; i < input.Length; i++)
+            // Performance: Cache references to the static arrays to avoid field access overhead in the loop
+            char[] map = MusicBeePlugin.Utils.CharMap.Map;
+            bool[] isPunc = MusicBeePlugin.Utils.CharMap.IsPunctuation; // note: also includes space
+
+            int len = input.Length;
+            char[] outputChars = new char[len];
+            int outputIndex = 0;
+            bool previousIsSpace = true; // Start true to auto-trim leading symbols
+
+            for (int i = 0; i < len; i++)
             {
                 char c = input[i];
 
+                // 1. Special handling: Apostrophes are skipped entirely (O'Connor -> oconnor)
                 if (c == '\'') continue;
 
-                char current = char.ToLowerInvariant(c);
-
-                if (punctuation.Contains(current) || current == ' ')
+                // 2. Check Punctuation (Array Lookup)
+                if (isPunc[c])
                 {
                     if (!previousIsSpace)
                     {
@@ -366,11 +340,14 @@ namespace MusicBeePlugin.Services
                 }
                 else
                 {
-                    outputChars[outputIndex++] = current;
+                    // 3. Normalization (Array Lookup)
+                    // This converts Upper->Lower AND Diacritic->ASCII in one instruction
+                    outputChars[outputIndex++] = map[c];
                     previousIsSpace = false;
                 }
             }
 
+            // Trim trailing space if exists
             if (outputIndex > 0 && outputChars[outputIndex - 1] == ' ')
                 outputIndex--;
 
