@@ -190,228 +190,13 @@ namespace MusicBeePlugin.Services
         }
     }
 
-    public class ArtistEntity
-    {
-        // A representative name for the entity, mainly for grouping.
-        public string CanonicalArtistName { get; }
-
-        // Maps a normalized alias back to the original (Artist, SortArtist) pair it came from.
-        // Key: Normalized alias (e.g., "artist mr"), Value: original ("Mr. Artist", "Artist, Mr.")
-        public Dictionary<string, (string Artist, string SortArtist)> AliasMap { get; }
-
-        public ArtistEntity(string canonicalArtistName)
-        {
-            CanonicalArtistName = canonicalArtistName;
-            AliasMap = new Dictionary<string, (string Artist, string SortArtist)>();
-        }
-    }
-
-    public class Track
-    {
-        public string TrackTitle;
-        public string Artist; // artists with artist role, joined with ;
-        public string Artists; // all artists joined with ; (artist, performer, remixer, etc)
-        public string SortArtist;
-        public string Album;
-        public string AlbumArtist;
-        public string SortAlbumArtist;
-        public string Filepath;
-
-        static MetaDataType[] fields = new MetaDataType[]
-        {
-            MetaDataType.TrackTitle,
-            MetaDataType.ArtistsWithArtistRole,
-            MetaDataType.Artists,
-            MetaDataType.SortArtist,
-            MetaDataType.Album,
-            MetaDataType.AlbumArtist,
-            MetaDataType.SortAlbumArtist,
-
-            MetaDataType.ArtistsWithGuestRole,
-            MetaDataType.ArtistsWithPerformerRole,
-            MetaDataType.ArtistsWithRemixerRole,
-        };
-
-        public Track() { }
-
-        public Track(string filepath)
-        {
-            Filepath = filepath;
-            mbApi.Library_GetFileTags(filepath, fields, out string[] results);
-
-            if (results == null || results.Length != fields.Length)
-                return;
-
-            TrackTitle = results[0];
-            Artist = results[1];
-            SortArtist = results[3];
-            Album = results[4];
-            AlbumArtist = results[5];
-            SortAlbumArtist = results[6];
-
-            Artists = string.Join("; ", new[] { Artist, results[7], RemoveCustomRoles(results[8]), results[9] }.Where(s => !string.IsNullOrEmpty(s)));
-
-        }
-
-        public Track(Track other)
-        {
-            TrackTitle = other.TrackTitle;
-            Artist = other.Artist;
-            Artists = other.Artists;
-            SortArtist = other.SortArtist;
-            Album = other.Album;
-            AlbumArtist = other.AlbumArtist;
-            SortAlbumArtist = other.SortAlbumArtist;
-            Filepath = other.Filepath;
-        }
-
-        // Removes custom roles of the form "Artist (Role)"
-        private string RemoveCustomRoles(string performers)
-        {
-            if (string.IsNullOrEmpty(performers))
-                return performers;
-
-            var performerArr = performers.Split(';');
-
-            for (int i = 0; i < performerArr.Length; i++)
-            {
-                string cleaned = performerArr[i].Trim();
-                if (cleaned.Length >= 5 && cleaned[cleaned.Length - 1] == ')')
-                {
-                    int parenIndex = cleaned.LastIndexOf('(');
-                    if (parenIndex >= 2 && cleaned[parenIndex - 1] == ' ')
-                    {
-                        performerArr[i] = cleaned.Substring(0, parenIndex - 1);
-                    }
-                }
-                else
-                {
-                    performerArr[i] = cleaned;
-                }
-            }
-
-            return string.Join("; ", performerArr);
-        }
-    }
-
-    public class Database
-    {
-        public List<ArtistEntity> Artists;
-        public Dictionary<(string NormalizedAlbum, string NormalizedAlbumArtist), Track> Albums;
-        public Dictionary<Track, (string NormalizedTitle, string NormalizedArtists)> Songs;
-
-        public Database(IEnumerable<Track> tracks, ResultType enabledTypes, Func<string, string> normalizeFunc)
-        {
-            Artists = new List<ArtistEntity>();
-            Albums = new Dictionary<(string, string), Track>();
-            Songs = new Dictionary<Track, (string, string)>();
-
-            if ((enabledTypes & ResultType.Artist) != 0)
-            {
-                var tempArtistGroups = new Dictionary<string, HashSet<(string Artist, string SortArtist)>>();
-                foreach (var track in tracks)
-                {
-                    PopulateArtistGroups(track.Artists, track.SortArtist, normalizeFunc, tempArtistGroups);
-                    PopulateArtistGroups(track.AlbumArtist, track.SortAlbumArtist, normalizeFunc, tempArtistGroups);
-                }
-
-                foreach (var group in tempArtistGroups.Values)
-                {
-                    if (!group.Any()) continue;
-                    
-                    var canonicalArtistName = group.First().Artist;
-                    var entity = new ArtistEntity(canonicalArtistName);
-
-                    foreach (var pair in group)
-                    {
-                        if (!string.IsNullOrEmpty(pair.Artist))
-                        {
-                            entity.AliasMap[normalizeFunc(pair.Artist)] = pair;
-                        }
-
-                        if (!string.IsNullOrEmpty(pair.SortArtist))
-                        {
-                            var normalizedArtist = normalizeFunc(pair.Artist);
-                            var normalizedSortArtist = normalizeFunc(pair.SortArtist);
-                            if (normalizedArtist != normalizedSortArtist)
-                            {
-                                entity.AliasMap[normalizedSortArtist] = pair;
-                            }
-                        }
-                    }
-                    Artists.Add(entity);
-                }
-            }
-
-            if ((enabledTypes & ResultType.Album) != 0 || (enabledTypes & ResultType.Song) != 0)
-            {
-                foreach (var track in tracks)
-                {
-                    if ((enabledTypes & ResultType.Album) != 0 && !string.IsNullOrEmpty(track.Album))
-                    {
-                        var key = (
-                            NormalizedAlbum: normalizeFunc(track.Album),
-                            NormalizedAlbumArtist: normalizeFunc(track.AlbumArtist)
-                        );
-                        if (!Albums.ContainsKey(key))
-                        {
-                            Albums[key] = track;
-                        }
-                    }
-
-                    if ((enabledTypes & ResultType.Song) != 0 && !string.IsNullOrEmpty(track.TrackTitle))
-                    {
-                        var value = (
-                            NormalizedTitle: normalizeFunc(track.TrackTitle),
-                            NormalizedArtists: normalizeFunc(track.Artists)
-                        );
-                        Songs[track] = value;
-                    }
-                }
-            }
-        }
-
-
-        private void PopulateArtistGroups(string artists, string sortArtists, Func<string, string> getNormalizedFunc, Dictionary<string, HashSet<(string Artist, string SortArtist)>> artistGroups)
-        {
-            if (string.IsNullOrEmpty(artists)) return;
-
-            var splitArtists = artists.Split(';');
-
-            var splitSortArtists = !string.IsNullOrEmpty(sortArtists) ? sortArtists.Split(';') : null;
-
-            bool assignSortArtists = splitSortArtists != null && splitSortArtists.Length == splitArtists.Length;
-
-            for (int i = 0; i < splitArtists.Length; i++)
-            {
-                string artist = splitArtists[i]?.Trim();
-                if (string.IsNullOrEmpty(artist)) continue;
-
-                string sortArtist = null;
-                if (assignSortArtists)
-                {
-                    sortArtist = splitSortArtists[i]?.Trim();
-                }
-
-                string normalizedArtistKey = getNormalizedFunc(artist);
-
-                if (!artistGroups.TryGetValue(normalizedArtistKey, out var group))
-                {
-                    group = new HashSet<(string Artist, string SortArtist)>();
-                    artistGroups[normalizedArtistKey] = group;
-                }
-                
-                group.Add((artist, sortArtist));
-            }
-        }
-    }
+    // Track and Database classes moved to Services/Database.cs
 
     public class SearchService
     {
         private Database db;
         private MusicBeeApiInterface mbApi;
         private Config.SearchUIConfig config;
-        private readonly Dictionary<string, string> _normalizationCache = new Dictionary<string, string>();
         public bool IsLoaded { get; private set; } = false;
 
         public SearchService(MusicBeeApiInterface mbApi, Config.SearchUIConfig config)
@@ -440,7 +225,7 @@ namespace MusicBeePlugin.Services
                 Debug.WriteLine($"Tracks loaded in {sw.ElapsedMilliseconds}ms");
                 sw.Restart();
 
-                db = new Database(tracks, GetEnabledTypes(), (s) => NormalizeString(s));
+                db = new Database(tracks, GetEnabledTypes());
                 IsLoaded = true;
 
                 sw.Stop();
@@ -464,7 +249,7 @@ namespace MusicBeePlugin.Services
 
             return await Task.Run(async () => {
                 var results = new List<SearchResult>();
-                string normalizedQuery = NormalizeString(query, true);
+                string normalizedQuery = Database.NormalizeString(query);
                 string[] sortedQueryWords = normalizedQuery.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 Array.Sort(sortedQueryWords, (a, b) => b.Length.CompareTo(a.Length));
 
@@ -579,17 +364,17 @@ namespace MusicBeePlugin.Services
             var items = db.Albums.AsEnumerable();
 
             if (config.EnableContainsCheck)
-                items = items.Where(x => QueryMatchesWords(x.Key.NormalizedAlbumArtist + " " + x.Key.NormalizedAlbum, sortedQueryWords, normalizeText: false));
+                items = items.Where(x => QueryMatchesWords(x.NormalizedAlbumArtist + " " + x.NormalizedAlbumName, sortedQueryWords, normalizeText: false));
 
             return items
                 .Select(x => new
                 {
-                    Track = x.Value,
-                    Score = CalculateArtistAndTitleScore(x.Key.NormalizedAlbumArtist, x.Key.NormalizedAlbum, normalizedQuery, sortedQueryWords, normalizeStrings: false)
+                    Entry = x,
+                    Score = CalculateArtistAndTitleScore(x.NormalizedAlbumArtist, x.NormalizedAlbumName, normalizedQuery, sortedQueryWords, normalizeStrings: false)
                 })
                 .OrderByDescending(x => x.Score)
                 .Take(limit)
-                .Select(x => new AlbumResult(x.Track.Album, x.Track.AlbumArtist, x.Track.SortAlbumArtist, x.Score))
+                .Select(x => new AlbumResult(x.Entry.Track.Album, x.Entry.Track.AlbumArtist, x.Entry.Track.SortAlbumArtist, x.Score))
                 .ToList();
         }
 
@@ -598,17 +383,17 @@ namespace MusicBeePlugin.Services
             var items = db.Songs.AsEnumerable();
 
             if (config.EnableContainsCheck)
-                items = items.Where(x => QueryMatchesWords(x.Value.NormalizedArtists + " " + x.Value.NormalizedTitle, sortedQueryWords, normalizeText: false));
+                items = items.Where(x => QueryMatchesWords(x.NormalizedArtists + " " + x.NormalizedTitle, sortedQueryWords, normalizeText: false));
 
             return items
                 .Select(x => new
                 {
-                    Track = x.Key,
-                    Score = CalculateArtistAndTitleScore(x.Value.NormalizedArtists, x.Value.NormalizedTitle, normalizedQuery, sortedQueryWords, normalizeStrings: false)
+                    Entry = x,
+                    Score = CalculateArtistAndTitleScore(x.NormalizedArtists, x.NormalizedTitle, normalizedQuery, sortedQueryWords, normalizeStrings: false)
                 })
                 .OrderByDescending(x => x.Score)
                 .Take(limit)
-                .Select(x => new SongResult(x.Track, x.Score))
+                .Select(x => new SongResult(x.Entry.Track, x.Score))
                 .ToList();
         }
 
@@ -778,60 +563,10 @@ namespace MusicBeePlugin.Services
             return titleScore + artistScore * 0.3;
         }
 
-        static readonly HashSet<char> punctuation = new HashSet<char>
+        // NormalizeString logic moved to Database.cs
+        public string NormalizeString(string input)
         {
-            '!', '?', '(', ')', '.', ',', '-', ':', ';', '[', ']',
-            '{', '}', '/', '\\', '+', '=', '*', '&', '#', '@', '$',
-            '%', '^', '|', '~', '<', '>', '`', '"'
-        };
-
-        // Convert to lower, remove apostrophes, replace punctuation chars with space, remove consecutive spaces, trim. 
-        public string NormalizeString(string input, bool bypassCache = false)
-        {
-            if (string.IsNullOrEmpty(input))
-                return string.Empty;
-
-            if (!bypassCache && _normalizationCache.TryGetValue(input, out var cached))
-                return cached;
-
-            char[] inputChars = input.ToCharArray();
-            char[] outputChars = new char[input.Length];
-            int outputIndex = 0;
-            bool previousIsSpace = true;
-
-            for (int i = 0; i < inputChars.Length; i++)
-            {
-                char c = inputChars[i];
-
-                if (c == '\'')
-                    continue;
-
-                char current = char.ToLower(c);
-
-                if (punctuation.Contains(current) || current == ' ')
-                {
-                    if (!previousIsSpace)
-                    {
-                        outputChars[outputIndex++] = ' ';
-                        previousIsSpace = true;
-                    }
-                }
-                else
-                {
-                    outputChars[outputIndex++] = current;
-                    previousIsSpace = false;
-                }
-            }
-
-            if (outputIndex > 0 && outputChars[outputIndex - 1] == ' ')
-                outputIndex--;
-
-            var result = new string(outputChars, 0, outputIndex);
-            if (!bypassCache)
-            {
-                _normalizationCache[input] = result;
-            }
-            return result;
+             return Database.NormalizeString(input);
         }
 
         public List<SearchResult> GetPlayingItems()
@@ -1024,7 +759,7 @@ namespace MusicBeePlugin.Services
             }
             else
             {
-                string normalizedQuery = NormalizeString(commandQuery, true);
+                string normalizedQuery = Database.NormalizeString(commandQuery);
                 string[] sortedQueryWords = normalizedQuery.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 Array.Sort(sortedQueryWords, (a, b) => b.Length.CompareTo(a.Length));
 

@@ -102,6 +102,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Config\ActionDataJsonConverter.cs" />
+    <Compile Include="Database.cs" />
     <Compile Include="TabType.cs" />
     <Compile Include="Tests\SyntheticDataTests.cs" Condition="'$(Configuration)' == 'Debug'" />
     <Compile Include="Config\Config.cs" />
