@@ -229,7 +229,7 @@ namespace MusicBeePlugin.UI
                     // If detached, temporarily make the search bar topmost to keep it visible during the action.
                     if (isDetached && !IsDisposed)
                     {
-                        Invoke((Action)(() => { if (!IsDisposed) TopMost = true; }));
+                        BeginInvoke((Action)(() => { if (!IsDisposed) TopMost = true; }));
                     }
 
                     if (customAction != null)
@@ -246,7 +246,7 @@ namespace MusicBeePlugin.UI
                     // After the action, if still detached, revert TopMost and refocus the search bar.
                     if (isDetached && !IsDisposed)
                     {
-                        Invoke((Action)(() =>
+                        BeginInvoke((Action)(() =>
                         {
                             if (!IsDisposed && isDetached)
                             {
