@@ -162,7 +162,7 @@ namespace MusicBeePlugin
 
             if (searchBarInstance != null && !searchBarInstance.IsDisposed)
             {
-                searchBarInstance.Invoke((Action)(() =>
+                searchBarInstance.BeginInvoke((Action)(() =>
                 {
                     if (!searchBarInstance.IsDisposed)
                     {
