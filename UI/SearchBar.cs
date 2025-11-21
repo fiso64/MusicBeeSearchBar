@@ -47,47 +47,46 @@ namespace MusicBeePlugin.UI
         private bool isDragging = false;
         private Point dragCursorPoint;
         private Point dragFormPoint;
+        private bool _suppressDeactivate = false;
 
         // Timer to check if MusicBee window is still open in detached mode
         private System.Windows.Forms.Timer _mbWindowCheckTimer;
 
-        private void UpdateOverlayState(bool forInitialCreation = false)
+        private void UpdateOverlayState()
         {
             bool shouldShowOverlay = !isDetached && searchUIConfig.OverlayOpacity > 0;
-
-            if (forInitialCreation && !WinApiHelpers.IsWindowFocused(mbApi.MB_GetWindowHandle()))
-            {
-                shouldShowOverlay = false;
-            }
 
             if (shouldShowOverlay)
             {
                 if (overlay == null || overlay.IsDisposed)
                 {
-                    musicBeeContext.Post(_ =>
+                    if (musicBeeControl != null && musicBeeControl.IsHandleCreated)
                     {
-                        if (musicBeeControl != null && musicBeeControl.IsHandleCreated && (overlay == null || overlay.IsDisposed))
+                        _suppressDeactivate = true;
+                        try
                         {
                             overlay = new OverlayForm(musicBeeControl, searchUIConfig.OverlayOpacity, 0.08);
                             overlay.Show();
+                            // Ensure SearchBar stays on top of the overlay and keeps focus
+                            this.BringToFront();
+                            this.Activate();
                         }
-                    }, null);
+                        finally
+                        {
+                            _suppressDeactivate = false;
+                        }
+                    }
                 }
             }
             else // Should NOT show overlay
             {
                 if (overlay != null)
                 {
-                    var overlayToClose = overlay;
-                    overlay = null; 
-                    
-                    musicBeeContext.Post(__ =>
+                    if (!overlay.IsDisposed)
                     {
-                        if (overlayToClose != null && !overlayToClose.IsDisposed)
-                        {
-                            overlayToClose.Close();
-                        }
-                    }, null);
+                        overlay.Close();
+                    }
+                    overlay = null;
                 }
             }
         }
@@ -334,6 +333,7 @@ namespace MusicBeePlugin.UI
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
+            UpdateOverlayState();
             Debug.WriteLine("[SearchBar] OnShown: Firing. Setting focus and calling SearchBoxSetDefaultResults.");
             searchBox.Focus();
             SearchBoxSetDefaultResults();

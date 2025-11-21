@@ -15,20 +15,12 @@ namespace MusicBeePlugin.UI
     {
         private void InitializeUI(float dpiScale)
         {
-            UpdateOverlayState(forInitialCreation: true);
-
             FormClosed += (s, e) =>
             {
                 // This is our final cleanup. Ensure the overlay is gone when the search bar closes.
                 if (overlay != null && !overlay.IsDisposed)
                 {
-                    musicBeeContext.Post(__ =>
-                    {
-                        if (overlay != null && !overlay.IsDisposed)
-                        {
-                            overlay.Close();
-                        }
-                    }, null);
+                    overlay.Close();
                 }
             };
 

@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+using System;
 using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace MusicBeePlugin.UI
@@ -11,61 +7,110 @@ namespace MusicBeePlugin.UI
     public class OverlayForm : Form
     {
         private double _targetOpacity;
-        private double _fadeDurationSeconds;
         private System.Windows.Forms.Timer _fadeTimer;
         private double _opacityIncrement;
+        private Control _targetControl;
+
+        protected override bool ShowWithoutActivation => true;
 
         public OverlayForm(Control targetControl, double opacity, double fadeDurationSeconds)
         {
+            _targetControl = targetControl;
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
             BackColor = Color.Black;
             Opacity = 0;
             ShowInTaskbar = false;
-            Size = targetControl.Size;
-            Location = targetControl.PointToScreen(Point.Empty);
+
+            // Get initial bounds safely from the target control's thread
+            Rectangle bounds;
+            if (_targetControl.InvokeRequired)
+            {
+                bounds = (Rectangle)_targetControl.Invoke(new Func<Rectangle>(() =>
+                    new Rectangle(_targetControl.PointToScreen(Point.Empty), _targetControl.Size)));
+            }
+            else
+            {
+                bounds = new Rectangle(_targetControl.PointToScreen(Point.Empty), _targetControl.Size);
+            }
+
+            Size = bounds.Size;
+            Location = bounds.Location;
 
             _targetOpacity = opacity;
-            _fadeDurationSeconds = fadeDurationSeconds;
 
-            if (_fadeDurationSeconds > 0)
+            if (fadeDurationSeconds > 0)
             {
                 _fadeTimer = new System.Windows.Forms.Timer();
                 _fadeTimer.Interval = 30;
                 _fadeTimer.Tick += FadeTimer_Tick;
-                _opacityIncrement = (_targetOpacity / (_fadeDurationSeconds * 1000.0 / _fadeTimer.Interval));
+                _opacityIncrement = (_targetOpacity / (fadeDurationSeconds * 1000.0 / _fadeTimer.Interval));
+                _fadeTimer.Start();
             }
             else
             {
                 Opacity = _targetOpacity;
             }
 
-            if (_fadeTimer != null)
+            // Subscribe to events on target control's thread
+            if (_targetControl.InvokeRequired)
             {
-                _fadeTimer.Start();
+                _targetControl.BeginInvoke(new Action(() =>
+                {
+                    _targetControl.LocationChanged += TargetControl_LocationChanged;
+                    _targetControl.SizeChanged += TargetControl_SizeChanged;
+                }));
             }
-
-            targetControl.LocationChanged += (sender, e) =>
+            else
             {
-                Location = targetControl.PointToScreen(Point.Empty);
-            };
+                _targetControl.LocationChanged += TargetControl_LocationChanged;
+                _targetControl.SizeChanged += TargetControl_SizeChanged;
+            }
+        }
 
-            targetControl.SizeChanged += (sender, e) =>
+        private void TargetControl_LocationChanged(object sender, EventArgs e)
+        {
+            // Runs on target control thread
+            if (IsDisposed || _targetControl == null || _targetControl.IsDisposed) return;
+            try
             {
-                Size = targetControl.Size;
-            };
+                var loc = _targetControl.PointToScreen(Point.Empty);
+                BeginInvoke(new Action(() =>
+                {
+                    if (!IsDisposed) Location = loc;
+                }));
+            }
+            catch { }
+        }
+
+        private void TargetControl_SizeChanged(object sender, EventArgs e)
+        {
+            // Runs on target control thread
+            if (IsDisposed || _targetControl == null || _targetControl.IsDisposed) return;
+            try
+            {
+                var sz = _targetControl.Size;
+                BeginInvoke(new Action(() =>
+                {
+                    if (!IsDisposed) Size = sz;
+                }));
+            }
+            catch { }
         }
 
         private void FadeTimer_Tick(object sender, EventArgs e)
         {
-            Opacity += _opacityIncrement;
-
-            if (Opacity >= _targetOpacity)
+            double newOpacity = Opacity + _opacityIncrement;
+            if (newOpacity >= _targetOpacity)
             {
                 Opacity = _targetOpacity;
                 _fadeTimer.Stop();
                 _fadeTimer.Dispose();
                 _fadeTimer = null;
+            }
+            else
+            {
+                Opacity = newOpacity;
             }
         }
 
@@ -80,24 +125,40 @@ namespace MusicBeePlugin.UI
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (_fadeTimer != null))
+            if (disposing)
             {
-                _fadeTimer.Stop();
-                _fadeTimer.Dispose();
-                _fadeTimer = null;
+                if (_fadeTimer != null)
+                {
+                    _fadeTimer.Stop();
+                    _fadeTimer.Dispose();
+                    _fadeTimer = null;
+                }
+
+                if (_targetControl != null)
+                {
+                    // Unsubscribe on target control thread to avoid cross-thread operation exceptions or leaks
+                    var ctrl = _targetControl;
+                    if (ctrl.InvokeRequired)
+                    {
+                        try
+                        {
+                            ctrl.BeginInvoke(new Action(() =>
+                            {
+                                ctrl.LocationChanged -= TargetControl_LocationChanged;
+                                ctrl.SizeChanged -= TargetControl_SizeChanged;
+                            }));
+                        }
+                        catch { }
+                    }
+                    else
+                    {
+                        ctrl.LocationChanged -= TargetControl_LocationChanged;
+                        ctrl.SizeChanged -= TargetControl_SizeChanged;
+                    }
+                    _targetControl = null;
+                }
             }
             base.Dispose(disposing);
-        }
-
-        protected override void OnHandleDestroyed(EventArgs e)
-        {
-            if (_fadeTimer != null)
-            {
-                _fadeTimer.Stop();
-                _fadeTimer.Dispose();
-                _fadeTimer = null;
-            }
-            base.OnHandleDestroyed(e);
         }
     }
 }

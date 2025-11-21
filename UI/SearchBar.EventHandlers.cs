@@ -148,6 +148,8 @@ namespace MusicBeePlugin.UI
 
         private void HandleFormDeactivate(object sender, EventArgs e)
         {
+            if (_suppressDeactivate) return;
+
             // Use BeginInvoke to marshal the Close call to the UI thread
             if (!IsDisposed && !Disposing)
             {
