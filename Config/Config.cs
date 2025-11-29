@@ -153,7 +153,10 @@ namespace MusicBeePlugin.Config
         [ConfigProperty("Group Results by Type", Category = "Search")]
         public bool GroupResultsByType { get; set; } = true;
 
-        [ConfigProperty("Filter Results Using Contains Check", "If disabled, all items are shown and only sorted by relevance. May impact performance.", Category = "Search")]
+        [ConfigProperty("Show Top Match", "Shows the best matching result as a larger item at the top.", Category = "Search")]
+        public bool ShowTopMatch { get; set; } = true;
+
+        [ConfigProperty("Filter Results Using Contains Check", "If disabled, all items are shown and only sorted by relevance.", Category = "Search")]
         public bool EnableContainsCheck { get; set; } = true;
 
         [ConfigProperty("Artist Result Limit", Category = "Search")]
@@ -172,6 +175,22 @@ namespace MusicBeePlugin.Config
         [Range(0, 10000)]
         public int PlaylistResultLimit { get; set; } = 100;
 
+        [ConfigProperty("Artist Score Multiplier", Category = "Search")]
+        [Range(0, 10)]
+        public double ArtistScoreMultiplier { get; set; } = 1.25;
+
+        [ConfigProperty("Album Score Multiplier", Category = "Search")]
+        [Range(0, 10)]
+        public double AlbumScoreMultiplier { get; set; } = 1.0;
+
+        [ConfigProperty("Song Score Multiplier", Category = "Search")]
+        [Range(0, 10)]
+        public double SongScoreMultiplier { get; set; } = 1.0;
+
+        [ConfigProperty("Playlist Score Multiplier", Category = "Search")]
+        [Range(0, 10)]
+        public double PlaylistScoreMultiplier { get; set; } = 1.25;
+
         public enum DefaultResultsChoice { Playing, Selected, None };
         [ConfigProperty("Default Results on Empty Search", Category = "Search")]
         public DefaultResultsChoice DefaultResults { get; set; } = DefaultResultsChoice.Playing;
@@ -188,9 +207,6 @@ namespace MusicBeePlugin.Config
 
         [ConfigProperty("Show Type Icons", "Shows result type icons on the right side of each item.", Category = "Appearance")]
         public bool ShowTypeIcons { get; set; } = false;
-
-        [ConfigProperty("Show Top Match", "Shows the best matching result as a larger item at the top.", Category = "Appearance")]
-        public bool ShowTopMatch { get; set; } = true;
 
         [ConfigProperty("Use MusicBee's Image Cache", "Faster, uses MusicBee's internal cache for album covers.", Category = "Appearance")]
         public bool UseMusicBeeCacheForCovers { get; set; } = true;

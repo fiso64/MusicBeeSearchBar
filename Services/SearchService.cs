@@ -349,6 +349,9 @@ namespace MusicBeePlugin.Services
 
                 if (bestScore > 0 && winningAlias != null)
                 {
+                    if (config.ArtistScoreMultiplier != 1.0)
+                        bestScore *= config.ArtistScoreMultiplier;
+
                     scoredArtists.Add(new ArtistResult(entity.AliasMap[winningAlias].Artist, entity.AliasMap[winningAlias].SortArtist, bestScore));
                 }
             }
@@ -362,6 +365,7 @@ namespace MusicBeePlugin.Services
         private List<AlbumResult> SearchAlbums(string[] sortedQueryWords, string normalizedQuery, int limit)
         {
             var items = db.Albums.AsEnumerable();
+            double multiplier = config.AlbumScoreMultiplier;
 
             if (config.EnableContainsCheck)
                 items = items.Where(x => QueryMatchesWords(x.NormalizedAlbumArtist + " " + x.NormalizedAlbumName, sortedQueryWords, normalizeText: false));
@@ -370,7 +374,7 @@ namespace MusicBeePlugin.Services
                 .Select(x => new
                 {
                     Entry = x,
-                    Score = CalculateArtistAndTitleScore(x.NormalizedAlbumArtist, x.NormalizedAlbumName, normalizedQuery, sortedQueryWords, normalizeStrings: false)
+                    Score = CalculateArtistAndTitleScore(x.NormalizedAlbumArtist, x.NormalizedAlbumName, normalizedQuery, sortedQueryWords, normalizeStrings: false) * (multiplier != 1.0 ? multiplier : 1.0)
                 })
                 .OrderByDescending(x => x.Score)
                 .Take(limit)
@@ -381,6 +385,7 @@ namespace MusicBeePlugin.Services
         private List<SongResult> SearchSongs(string[] sortedQueryWords, string normalizedQuery, int limit)
         {
             var items = db.Songs.AsEnumerable();
+            double multiplier = config.SongScoreMultiplier;
 
             if (config.EnableContainsCheck)
                 items = items.Where(x => QueryMatchesWords(x.NormalizedArtists + " " + x.NormalizedTitle, sortedQueryWords, normalizeText: false));
@@ -389,7 +394,7 @@ namespace MusicBeePlugin.Services
                 .Select(x => new
                 {
                     Entry = x,
-                    Score = CalculateArtistAndTitleScore(x.NormalizedArtists, x.NormalizedTitle, normalizedQuery, sortedQueryWords, normalizeStrings: false)
+                    Score = CalculateArtistAndTitleScore(x.NormalizedArtists, x.NormalizedTitle, normalizedQuery, sortedQueryWords, normalizeStrings: false) * (multiplier != 1.0 ? multiplier : 1.0)
                 })
                 .OrderByDescending(x => x.Score)
                 .Take(limit)
@@ -400,6 +405,7 @@ namespace MusicBeePlugin.Services
         private List<PlaylistResult> SearchPlaylists(string[] sortedQueryWords, string normalizedQuery, int limit)
         {
             var items = GetAllPlaylists().AsEnumerable();
+            double multiplier = config.PlaylistScoreMultiplier;
 
             if (config.EnableContainsCheck)
                 items = items.Where(p => QueryMatchesWords(p.Name, sortedQueryWords));
@@ -408,7 +414,7 @@ namespace MusicBeePlugin.Services
                 .Select(p => new
                 {
                     Playlist = p,
-                    Score = CalculateGeneralItemScore(p.Name, normalizedQuery, sortedQueryWords)
+                    Score = CalculateGeneralItemScore(p.Name, normalizedQuery, sortedQueryWords) * (multiplier != 1.0 ? multiplier : 1.0)
                 })
                 .OrderByDescending(x => x.Score)
                 .Take(limit)

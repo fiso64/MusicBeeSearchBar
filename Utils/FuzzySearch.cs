@@ -15,63 +15,88 @@ namespace MusicBeePlugin.Utils
             const int NGRAM_SIZE = 2; // Use bigrams
             double score = 0;
 
-            // special case for short queries 
-            if (queryWords.Length == 1 && queryWords[0].Length < NGRAM_SIZE)
+            // 1. Phrase Match Bonus
+            // If the text contains the full query phrase (e.g. "time tra" inside "time traveller"),
+            // this is a very strong signal.
+            if (text.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                if (text.StartsWith(queryWords[0]))
-                    return 2.0;
-                else if (text.Contains(queryWords[0]))
-                    return 1.0;
-                else
-                    return 0;
-            }
-
-            // Create n-grams for the text
-            var textNgrams = new HashSet<string>();
-            for (int i = 0; i < text.Length - NGRAM_SIZE + 1; i++)
-            {
-                textNgrams.Add(text.Substring(i, NGRAM_SIZE));
+                score += 2.0;
             }
 
             foreach (string word in queryWords)
             {
+                if (string.IsNullOrEmpty(word)) continue;
+
+                // Handle short words with direct containment check
                 if (word.Length < NGRAM_SIZE)
                 {
-                    // Handle short words with direct containment check
-                    if (text.Contains(word))
+                    if (text.IndexOf(word, StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         score += 1.0;
                     }
                     continue;
                 }
 
-                // Create n-grams for the query word
-                var wordNgrams = new HashSet<string>();
-                for (int i = 0; i < word.Length - NGRAM_SIZE + 1; i++)
+                // OPTIMIZATION: 
+                // Instead of creating a HashSet for the target 'text' (which allocates memory for every single track),
+                // we calculate the n-grams for the 'query word' and scan the text for them.
+                // This is mathematically equivalent to (QueryNgrams Intersect TextNgrams) / QueryNgrams.Count,
+                // but avoids thousands of string allocations per search.
+
+                int wordBigramCount = word.Length - NGRAM_SIZE + 1;
+                int matchCount = 0;
+
+                // We use a small HashSet just for the query word to ensure we don't double-count 
+                // if the query has repeating bigrams (e.g. "baba" -> "ba", "ab", "ba").
+                // Since query words are short, this struct-based allocation is negligible.
+                var uniqueQueryBigrams = new HashSet<string>();
+
+                for (int i = 0; i < wordBigramCount; i++)
                 {
-                    wordNgrams.Add(word.Substring(i, NGRAM_SIZE));
+                    uniqueQueryBigrams.Add(word.Substring(i, NGRAM_SIZE));
                 }
 
-                // Calculate Dice coefficient
-                var intersectionCount = textNgrams.Intersect(wordNgrams).Count();
-                if (intersectionCount > 0)
+                foreach (var bigram in uniqueQueryBigrams)
                 {
-                    var diceCoefficient = (2.0 * intersectionCount) / (textNgrams.Count + wordNgrams.Count);
-                    score += diceCoefficient;
-
-                    // Bonus for prefix matches (helps with partial word matches)
-                    if (text.StartsWith(word))
+                    // Check if the text contains this bigram
+                    if (text.IndexOf(bigram, StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        score += 0.5;
+                        matchCount++;
+                    }
+                }
+
+                if (matchCount > 0)
+                {
+                    // Overlap Coefficient
+                    // Calculates percentage of the QUERY WORD found in the TEXT.
+                    double matchQuality = (double)matchCount / uniqueQueryBigrams.Count;
+
+                    if (matchQuality > 1.0) matchQuality = 1.0;
+                    score += matchQuality;
+
+                    // Word Boundary Bonus
+                    // Check if the word starts at index 0 OR is preceded by a space
+                    int index = text.IndexOf(word, StringComparison.OrdinalIgnoreCase);
+                    if (index > -1)
+                    {
+                        // If it starts the string or starts a word within the string
+                        if (index == 0 || text[index - 1] == ' ')
+                        {
+                            score += 0.5;
+                        }
                     }
                 }
             }
 
             // Bonus for exact matches
-            if (text == query)
+            if (text.Length == query.Length && text.Equals(query, StringComparison.OrdinalIgnoreCase))
             {
                 score *= 2;
             }
+
+            // Apply a small penalty for longer text to prioritize concise matches
+            // We use Log to ensure longer titles aren't penalized too heavily, just enough to break ties
+            score *= (1.0 / (1.0 + 0.1 * Math.Log(text.Length + 1)));
 
             return score;
         }
