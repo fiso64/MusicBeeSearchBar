@@ -353,24 +353,41 @@ namespace MusicBeePlugin.UI
         {
             if (disposing)
             {
+                _mbWindowCheckTimer?.Stop();
                 _mbWindowCheckTimer?.Dispose();
-                imageService?.Dispose();
+                imageLoadDebounceTimer?.Stop();
                 imageLoadDebounceTimer?.Dispose();
+                _currentSearchCts?.Cancel();
                 _currentSearchCts?.Dispose();
+
+                if (overlay != null && !overlay.IsDisposed)
+                {
+                    overlay.Close();
+                    overlay = null;
+                }
+
+                base.Dispose(disposing);
+
+                imageService?.Dispose();
+                
                 songIcon?.Dispose();
                 albumIcon?.Dispose();
                 artistIcon?.Dispose();
                 playlistIcon?.Dispose();
-                commandIcon?.Dispose(); // Dispose the new command icon
+                commandIcon?.Dispose(); 
+
                 loadingIndicator?.Image?.Dispose();
-                loadingIndicator?.Dispose();
+                
                 searchBoxFont?.Dispose();
                 resultFont?.Dispose();
                 resultDetailFont?.Dispose();
                 topMatchResultFont?.Dispose();
                 topMatchResultDetailFont?.Dispose();
             }
-            base.Dispose(disposing);
+            else
+            {
+                base.Dispose(disposing);
+            }
         }
     }
 }
