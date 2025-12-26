@@ -115,6 +115,7 @@ namespace MusicBeePlugin.UI
                 Dock = DockStyle.Fill,
                 ReadOnly = true,
                 Multiline = true,
+                ScrollBars = ScrollBars.Vertical,
                 BorderStyle = BorderStyle.None,
                 BackColor = this.BackColor,
                 Font = new Font("Consolas", 10),
@@ -149,6 +150,12 @@ namespace MusicBeePlugin.UI
                     "  Ctrl+P            Open the settings dialog",
                     "  Ctrl+H            Open this help page",
                     "  F5                Rebuild database",
+                    "",
+                    "External Control (IPC)",
+                    "Send strings to named pipe 'MusicBeeSearchBarIPC' to trigger actions:",
+                    "  Artist|<Name>",
+                    "  Album|<Name>|<Artist>",
+                    "  Song|<FilePath>",
                 })
             };
             helpTab.Controls.Add(helpTextBox);
