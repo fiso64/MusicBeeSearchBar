@@ -22,11 +22,13 @@ namespace MusicBeePlugin
 
         public static MusicBeeApiInterface mbApi;
         private static Config.Config config;
+        public static Config.Config GetConfig() => config;
         
         private PluginInfo about = new PluginInfo();
 
     private static readonly ManualResetEvent startupComplete = new ManualResetEvent(false);
     private static SearchBar searchBarInstance;
+    private IpcService ipcService;
 
     public Plugin()
         {
@@ -140,8 +142,16 @@ namespace MusicBeePlugin
             
             startupComplete.Set();
 
+            var ipcHwnd = mbApi.MB_GetWindowHandle();
+            var ipcControl = Control.FromHandle(ipcHwnd);
+            ipcService = new IpcService(ipcControl);
 
             //mbApi.MB_RegisterCommand("Modern Search Bar: Selected: TEST TEST TEST", (a, b) => { ReflectionService.Instance.OpenMusicExplorerTab("Casiopea"); });
+        }
+
+        public void Close(PluginCloseReason reason)
+        {
+            ipcService?.Dispose();
         }
 
         public static void LoadConfig()
