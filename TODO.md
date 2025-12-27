@@ -1,15 +1,4 @@
 
-### (FINAL)
-
-- what if two distinct artists are normalized to the same key?
-  - In the current code, the last one wins (bad!)
-  - Instead, let's only deduplicate when only case differs (i.e. Artist = artist), not when they conincide in full normalization.
-  - Same issue is present for albums!
-- ignore diacritics
-- improve colors for icons and detail text in terrible setups like https://github.com/fiso64/MusicBeeSearchBar/issues/4
-
----
-
 - add a way to customize opened filter. prompt:
 ```
 for the open filter in tab action settings, add a new checkbox Use Custom Filter, as well as a button "Customize Filter" at the bottom (button should be greyed out when the checkbox is off). Clicking it should bring up a new customization form, where users can customize up to two filters. Everything should be completely customizable.
