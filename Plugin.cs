@@ -47,13 +47,17 @@ namespace MusicBeePlugin
 
                 try
                 {
-                    return Assembly.LoadFile(targetPath);
+                    if (File.Exists(targetPath))
+                    {
+                        return Assembly.LoadFile(targetPath);
+                    }
                 }
                 catch (Exception ex)
                 {
                     Logger.Error($"Failed to load assembly {args.Name}", ex);
-                    return null;
                 }
+
+                return null;
             };
         }
 

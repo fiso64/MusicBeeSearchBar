@@ -254,6 +254,9 @@ namespace MusicBeePlugin.UI
                 else
                 {
                     var results = await searchService.SearchIncrementalAsync(query, filter, _currentSearchCts.Token, null, resultLimits);
+                    
+                    if (IsDisposed || !IsHandleCreated) return;
+
                     if (!_currentSearchCts.Token.IsCancellationRequested && searchSequence == _currentSearchSequence)
                     {
                         try
@@ -279,6 +282,11 @@ namespace MusicBeePlugin.UI
             catch (OperationCanceledException)
             {
                 // Search was cancelled, ignore
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("Error during search", ex);
+                loadingIndicator.Visible = false;
             }
 
             // Reset image loading timer (only if not a command search)
