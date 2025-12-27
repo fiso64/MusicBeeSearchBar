@@ -1,5 +1,6 @@
 ﻿using MusicBeePlugin.Config;
 using MusicBeePlugin.Services;
+using MusicBeePlugin.Utils;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -71,7 +72,7 @@ namespace MusicBeePlugin.UI
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error loading images: {ex}");
+                Logger.Error("Error loading images", ex);
             }
         }
 
@@ -95,7 +96,7 @@ namespace MusicBeePlugin.UI
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error loading tracks: {ex}");
+                Logger.Error("Error loading tracks", ex);
             }
         }
 
@@ -129,7 +130,7 @@ namespace MusicBeePlugin.UI
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"[SearchBar] Error fetching default results: {ex}");
+                    Logger.Error("Error fetching default results", ex);
                 }
 
                 if (!IsDisposed && IsHandleCreated)
@@ -259,7 +260,10 @@ namespace MusicBeePlugin.UI
                         {
                             BeginInvoke((Action)(() => UpdateResultsList(results)));
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            Logger.Error("Error updating results list", ex);
+                        }
                     }
                 }
 

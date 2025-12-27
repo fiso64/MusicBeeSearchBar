@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using MusicBeePlugin.Services;
+using MusicBeePlugin.Utils;
 
 namespace MusicBeePlugin.Services
 {
@@ -38,9 +39,9 @@ namespace MusicBeePlugin.Services
                     }
                 }
                 catch (OperationCanceledException) { break; }
-                catch (Exception) 
-                { 
-                    // Ignore errors to keep loop running
+                catch (Exception ex) 
+                {
+                    Logger.Error("Error in IPC server loop", ex);
                 }
             }
         }
@@ -92,7 +93,7 @@ namespace MusicBeePlugin.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"IPC HandleAction Error: {ex}");
+                Logger.Error("IPC HandleAction Error", ex);
             }
         }
 

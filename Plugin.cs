@@ -13,6 +13,7 @@ using MusicBeePlugin.Utils;
 using MusicBeePlugin.Config;
 using MusicBeePlugin.Services;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace MusicBeePlugin
 {
@@ -50,6 +51,7 @@ namespace MusicBeePlugin
                 }
                 catch (Exception ex)
                 {
+                    Logger.Error($"Failed to load assembly {args.Name}", ex);
                     return null;
                 }
             };
@@ -87,6 +89,28 @@ namespace MusicBeePlugin
 
         private void Startup()
         {
+            // 1. Catch exceptions on background threads
+            AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+            {
+                if (args.ExceptionObject is Exception ex)
+                {
+                    Logger.Error("AppDomain Unhandled Exception", ex);
+                }
+            };
+
+            // 2. Catch exceptions on the UI thread
+            Application.ThreadException += (sender, args) =>
+            {
+                Logger.Error("Application Thread Exception", args.Exception);
+            };
+
+            // 3. Catch ignored Task exceptions
+            TaskScheduler.UnobservedTaskException += (sender, args) =>
+            {
+                Logger.Error("TaskScheduler Unobserved Exception", args.Exception);
+                args.SetObserved(); // Prevent process crash
+            };
+
             if (!LAZY_LOAD)
                 MusicBeeHelpers.LoadInvokeCommandMethod();
 
@@ -156,7 +180,12 @@ namespace MusicBeePlugin
 
         public static void LoadConfig()
         {
-            var configPath = Path.Combine(mbApi.Setting_GetPersistentStoragePath(), "ModernSearchBar", "config.json");
+            var storagePath = Path.Combine(mbApi.Setting_GetPersistentStoragePath(), "ModernSearchBar");
+            var configPath = Path.Combine(storagePath, "config.json");
+            var logPath = Path.Combine(storagePath, "error.log");
+            
+            Logger.Initialize(logPath);
+
             config = Config.Config.LoadFromPath(configPath, mbApi);
         }
 
@@ -167,6 +196,18 @@ namespace MusicBeePlugin
         }
 
         public void ShowSearchBar(string defaultText = null, bool startDetached = false)
+        {
+            try
+            {
+                ShowSearchBarInternal(defaultText, startDetached);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("Error starting SearchBar", ex);
+            }
+        }
+
+        private void ShowSearchBarInternal(string defaultText = null, bool startDetached = false)
         {
             startupComplete.WaitOne();
 
@@ -194,10 +235,17 @@ namespace MusicBeePlugin
 
             Thread searchBarThread = new Thread(() =>
             {
-                var searchBarForm = new SearchBar(mbControl, mainContext, mbApi, actionService, config.SearchUI, defaultText, startDetached);
-                searchBarInstance = searchBarForm;
-                searchBarInstance.FormClosed += (s, args) => searchBarInstance = null;
-                Application.Run(searchBarInstance);
+                try
+                {
+                    var searchBarForm = new SearchBar(mbControl, mainContext, mbApi, actionService, config.SearchUI, defaultText, startDetached);
+                    searchBarInstance = searchBarForm;
+                    searchBarInstance.FormClosed += (s, args) => searchBarInstance = null;
+                    Application.Run(searchBarInstance);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error("CRITICAL: Error in SearchBar UI Thread", ex);
+                }
             });
 
             searchBarThread.SetApartmentState(ApartmentState.STA);
@@ -206,30 +254,37 @@ namespace MusicBeePlugin
 
         public async void PerformActionOnSelected(ResultType actionType)
         {
-            var modifiers = Keys.None;
-            if (Control.ModifierKeys.HasFlag(Keys.Control)) modifiers |= Keys.Control;
-            if (Control.ModifierKeys.HasFlag(Keys.Shift)) modifiers |= Keys.Shift;
-
-            var path = MusicBeeHelpers.GetFirstSelectedTrack().path;
-            var track = new Track(path);
-
-            SearchResult result = null;
-
-            if (actionType == ResultType.Song)
+            try
             {
-                result = new SongResult(new Track(path));
-            }
-            else if (actionType == ResultType.Artist)
-            {
-                result = new ArtistResult(track.Artist.Split(';')[0].Trim(), track.SortArtist);
-            }
-            else if (actionType == ResultType.Album)
-            {
-                result = new AlbumResult(track.Album, track.AlbumArtist, track.SortAlbumArtist);
-            }
+                var modifiers = Keys.None;
+                if (Control.ModifierKeys.HasFlag(Keys.Control)) modifiers |= Keys.Control;
+                if (Control.ModifierKeys.HasFlag(Keys.Shift)) modifiers |= Keys.Shift;
 
-            var actionService = new ActionService(config.SearchActions);
-            await actionService.RunAction(result.DisplayTitle, result, new KeyEventArgs(modifiers));
+                var path = MusicBeeHelpers.GetFirstSelectedTrack().path;
+                var track = new Track(path);
+
+                SearchResult result = null;
+
+                if (actionType == ResultType.Song)
+                {
+                    result = new SongResult(new Track(path));
+                }
+                else if (actionType == ResultType.Artist)
+                {
+                    result = new ArtistResult(track.Artist.Split(';')[0].Trim(), track.SortArtist);
+                }
+                else if (actionType == ResultType.Album)
+                {
+                    result = new AlbumResult(track.Album, track.AlbumArtist, track.SortAlbumArtist);
+                }
+
+                var actionService = new ActionService(config.SearchActions);
+                await actionService.RunAction(result.DisplayTitle, result, new KeyEventArgs(modifiers));
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("Error performing action on selected item", ex);
+            }
         }
 
         public bool Configure(IntPtr panelHandle)

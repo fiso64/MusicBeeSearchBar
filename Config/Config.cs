@@ -303,6 +303,7 @@ namespace MusicBeePlugin.Config
             }
             catch (Exception ex)
             {
+                Logger.Error("Error loading configuration file", ex);
                 System.Windows.Forms.MessageBox.Show(
                     $"Error loading configuration file:\n{ex.Message}",
                     "Configuration Error",
@@ -331,6 +332,7 @@ namespace MusicBeePlugin.Config
             }
             catch (Exception ex)
             {
+                Logger.Error("Error saving configuration file", ex);
                 System.Windows.Forms.MessageBox.Show(
                     $"Error saving configuration file:\n{ex.Message}",
                     "Configuration Error",

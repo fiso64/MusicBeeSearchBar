@@ -132,6 +132,7 @@
     <Compile Include="Utils\ApplicationCommand.cs" />
     <Compile Include="Utils\CharMap.cs" />
     <Compile Include="Utils\FuzzySearch.cs" />
+    <Compile Include="Utils\Logger.cs" />
     <Compile Include="Utils\MusicBeeHelpers.cs" />
     <Compile Include="MusicBeeInterface.cs" />
     <Compile Include="Plugin.cs" />
@@ -178,11 +179,12 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent>del /S /Q "mb_SearchBar"
-mkdir "mb_SearchBar"
-mkdir "mb_SearchBar\SearchBar\"
-copy /Y "$(TargetPath)" "mb_SearchBar"
-for %25%25f in ("$(TargetDir)*.dll") do if /I not "%25%25~nxf"=="$(TargetFileName)" copy /Y "%25%25f" "mb_SearchBar\SearchBar\"
-xcopy /Y "$(TargetDir)\mb_SearchBar" "C:\Programs\MusicBee\Plugins\" /e</PostBuildEvent>
+    mkdir "mb_SearchBar"
+    mkdir "mb_SearchBar\SearchBar\"
+    copy /Y "$(TargetPath)" "mb_SearchBar"
+    copy /Y "$(TargetDir)$(TargetName).pdb" "mb_SearchBar"
+    for %25%25f in ("$(TargetDir)*.dll") do if /I not "%25%25~nxf"=="$(TargetFileName)" copy /Y "%25%25f" "mb_SearchBar\SearchBar\"
+    xcopy /Y "$(TargetDir)\mb_SearchBar" "C:\Programs\MusicBee\Plugins\" /e</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

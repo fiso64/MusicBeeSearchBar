@@ -109,6 +109,7 @@ namespace MusicBeePlugin.Services
             }
             catch (Exception ex)
             {
+                Logger.Error("Reflection error: OpenTab", ex);
                 throw new FeatureUnavailableException("Open Tab", ex.Message);
             }
         }
@@ -187,7 +188,7 @@ namespace MusicBeePlugin.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error loading OpenTab method: " + ex);
+                Logger.Error("Error loading OpenTab method", ex);
             }
         }
 
@@ -240,7 +241,7 @@ namespace MusicBeePlugin.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error loading InvokeCommand: " + ex);
+                Logger.Error("Error loading InvokeCommand", ex);
             }
         }
 
@@ -264,6 +265,7 @@ namespace MusicBeePlugin.Services
                 }
                 catch (Exception ex)
                 {
+                    Logger.Error($"Error executing command {command}", ex);
                     throw new FeatureUnavailableException($"Invoke Command: {command}", $"Error executing command: {ex.InnerException?.Message ?? ex.Message}");
                 }
             }
@@ -288,6 +290,7 @@ namespace MusicBeePlugin.Services
             }
             catch (Exception ex)
             {
+                Logger.Error($"Error executing plugin command {commandName}", ex);
                 throw new FeatureUnavailableException($"Invoke Plugin Command: {commandName}", $"Error executing plugin command: {ex.InnerException?.Message ?? ex.Message}");
             }
         }
@@ -334,8 +337,9 @@ namespace MusicBeePlugin.Services
             {
                 return (List<KeyValuePair<string, EventHandler>>)_pluginCommandsField.GetValue(null);
             }
-            catch
+            catch (Exception ex)
             {
+                Logger.Error("Error getting plugin commands", ex);
                 return new List<KeyValuePair<string, EventHandler>>();
             }
         }
@@ -366,6 +370,7 @@ namespace MusicBeePlugin.Services
             }
             catch (Exception ex)
             {
+                Logger.Error("Error invoking OpenArtistInMusicExplorer", ex);
                 throw new FeatureUnavailableException("Open in Music Explorer", $"Error invoking method: {ex.InnerException?.Message ?? ex.Message}");
             }
         }

@@ -1,4 +1,5 @@
 ﻿using MusicBeePlugin.Services;
+using MusicBeePlugin.Utils;
 using System;
 using System.Drawing;
 using System.Linq;
@@ -240,6 +241,10 @@ namespace MusicBeePlugin.UI
                     {
                         await actionService.RunAction(searchBox.Text, selectedItem, e);
                     }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error($"Error executing action for {selectedItem.DisplayTitle}", ex);
                 }
                 finally
                 {

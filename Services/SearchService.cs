@@ -751,7 +751,7 @@ namespace MusicBeePlugin.Services
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error fetching plugin commands: {ex.Message}");
+                Logger.Error("Error fetching plugin commands", ex);
             }
 
 

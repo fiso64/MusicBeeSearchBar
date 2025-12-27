@@ -64,8 +64,9 @@ namespace MusicBeePlugin.Services
                         return null;
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Logger.Error("Error in GetImageAsync", ex);
                 return null;
             }
         }
@@ -101,8 +102,9 @@ namespace MusicBeePlugin.Services
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Logger.Error($"Error getting artist image for {artist}", ex);
                 thumb?.Dispose();
                 return null;
             }
@@ -225,7 +227,7 @@ namespace MusicBeePlugin.Services
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error getting internal cache image path: {ex.Message}");
+                Logger.Error("Error getting internal cache image path", ex);
             }
 
             return null;
@@ -244,8 +246,9 @@ namespace MusicBeePlugin.Services
                     return new Size(img.Width, img.Height);
                 }
             }
-            catch (Exception) // FromStream can throw various exceptions for invalid/unsupported formats.
+            catch (Exception ex)
             {
+                Logger.Error($"Error getting image dimensions for {path}", ex);
                 return Size.Empty;
             }
         }
@@ -296,8 +299,9 @@ namespace MusicBeePlugin.Services
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Logger.Error($"Error getting album image for {albumArtist} - {album}", ex);
                 thumb?.Dispose();
                 return null;
             }
@@ -368,8 +372,9 @@ namespace MusicBeePlugin.Services
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Logger.Error($"Error getting file image for {filepath}", ex);
                 thumb?.Dispose();
                 return null;
             }
@@ -491,8 +496,9 @@ namespace MusicBeePlugin.Services
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Logger.Error("Error creating square thumb", ex);
                 destBitmap?.Dispose();
                 return null;
             }
@@ -528,8 +534,9 @@ namespace MusicBeePlugin.Services
                         return null;
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Logger.Error("Error in GetImageAsync", ex);
                 return null;
             }
         }
