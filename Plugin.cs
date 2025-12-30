@@ -72,7 +72,7 @@ namespace MusicBeePlugin
             about.TargetApplication = "";
             about.Type = PluginType.General;
             about.VersionMajor = 1;
-            about.VersionMinor = 11;
+            about.VersionMinor = 12;
             about.Revision = 0;
             about.MinInterfaceVersion = MinInterfaceVersion;
             about.MinApiRevision = MinApiRevision;
