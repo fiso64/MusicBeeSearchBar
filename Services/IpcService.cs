@@ -39,9 +39,17 @@ namespace MusicBeePlugin.Services
                     }
                 }
                 catch (OperationCanceledException) { break; }
+                catch (IOException)
+                {
+                    // Likely "All pipe instances are busy" because another instance is running.
+                    // Wait a while before retrying to prevent log spam and CPU usage.
+                    Logger.Error("Error in IPC server loop: IOException");
+                    try { await Task.Delay(5000, _cts.Token); } catch { break; }
+                }
                 catch (Exception ex) 
                 {
                     Logger.Error("Error in IPC server loop", ex);
+                    try { await Task.Delay(1000, _cts.Token); } catch { break; }
                 }
             }
         }
