@@ -73,6 +73,8 @@ namespace MusicBeePlugin.Services
 
         private Image GetCachedImage(string identifier, ResultType type, int size)
         {
+            if (disposed) return null;
+
             string cacheKey = GetCacheKey(identifier, type, size);
             lock (_cacheLock)
             {

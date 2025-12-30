@@ -619,7 +619,19 @@ namespace MusicBeePlugin.UI
 
             // The image from ImageService is now pre-processed with the correct shape (circular or rounded).
             // We can just draw it directly.
-            g.DrawImage(displayImage, imageBounds);
+            try
+            {
+                g.DrawImage(displayImage, imageBounds);
+            }
+            catch (ArgumentException)
+            {
+                // This occurs if 'displayImage' was disposed by ImageService (e.g. form closing) 
+                // while OnPaint was mid-execution. We swallow the error to prevent a crash.
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("Error drawing image in CustomResultList", ex);
+            }
         }
         
         private void DrawRightIcon(Graphics g, ResultType type, Rectangle iconArea, float opacity)
