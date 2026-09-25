@@ -27,11 +27,31 @@ namespace MusicBeePlugin
         
         private PluginInfo about = new PluginInfo();
 
-    private static readonly ManualResetEvent startupComplete = new ManualResetEvent(false);
-    private static SearchBar searchBarInstance;
-    private IpcService ipcService;
+        private static readonly ManualResetEvent startupComplete = new ManualResetEvent(false);
+        private static SearchBar searchBarInstance;
+        private IpcService ipcService;
 
-    public Plugin()
+        public PluginInfo Initialise(IntPtr apiInterfacePtr)
+        {
+            mbApi = new MusicBeeApiInterface();
+            mbApi.Initialise(apiInterfacePtr);
+            about.PluginInfoVersion = PluginInfoVersion;
+            about.Name = "Modern Search Bar";
+            about.Description = "Adds a customizable modern search bar";
+            about.Author = "fiso64";
+            about.TargetApplication = "";
+            about.Type = PluginType.General;
+            about.VersionMajor = 1;
+            about.VersionMinor = 13;
+            about.Revision = 0;
+            about.MinInterfaceVersion = MinInterfaceVersion;
+            about.MinApiRevision = MinApiRevision;
+            about.ReceiveNotifications = ReceiveNotificationFlags.StartupOnly;
+            about.ConfigurationPanelHeight = 0;
+            return about;
+        }
+
+        public Plugin()
         {
             // taken from https://github.com/sll552/DiscordBee/blob/master/DiscordBee.cs
             AppDomain.CurrentDomain.AssemblyResolve += (object _, ResolveEventArgs args) =>
@@ -59,26 +79,6 @@ namespace MusicBeePlugin
 
                 return null;
             };
-        }
-
-        public PluginInfo Initialise(IntPtr apiInterfacePtr)
-        {
-            mbApi = new MusicBeeApiInterface();
-            mbApi.Initialise(apiInterfacePtr);
-            about.PluginInfoVersion = PluginInfoVersion;
-            about.Name = "Modern Search Bar";
-            about.Description = "Adds a customizable modern search bar";
-            about.Author = "fiso64";
-            about.TargetApplication = "";
-            about.Type = PluginType.General;
-            about.VersionMajor = 1;
-            about.VersionMinor = 12;
-            about.Revision = 0;
-            about.MinInterfaceVersion = MinInterfaceVersion;
-            about.MinApiRevision = MinApiRevision;
-            about.ReceiveNotifications = ReceiveNotificationFlags.StartupOnly;
-            about.ConfigurationPanelHeight = 0; 
-            return about;
         }
 
         public void ReceiveNotification(string sourceFileUrl, NotificationType type)
