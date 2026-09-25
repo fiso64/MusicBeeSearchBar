@@ -134,6 +134,7 @@
     <Compile Include="Utils\FuzzySearch.cs" />
     <Compile Include="Utils\Logger.cs" />
     <Compile Include="Utils\MusicBeeHelpers.cs" />
+    <Compile Include="Utils\SvgPathParser.cs" />
     <Compile Include="MusicBeeInterface.cs" />
     <Compile Include="Plugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

@@ -264,6 +264,16 @@ namespace MusicBeePlugin.UI
             }, null);
         }
 
+        private void ResultsListBox_ActionButtonClicked(object sender, ResultActionEventArgs e)
+        {
+            // customAction is always supplied here, so the KeyEventArgs is never actually read.
+            HandleResultSelection(e.Result, null, () =>
+            {
+                actionService.PerformAction(e.ActionType, e.Result);
+                return Task.CompletedTask;
+            });
+        }
+
         private void DragPanel_MouseDown(object sender, MouseEventArgs e)
         {
             isDragging = true;
@@ -283,6 +293,110 @@ namespace MusicBeePlugin.UI
         private void DragPanel_MouseUp(object sender, MouseEventArgs e)
         {
             isDragging = false;
+        }
+
+        private void BeginWidthResize(bool fromLeft, Control grip)
+        {
+            _isResizingWidth = true;
+            _resizeFromLeft = fromLeft;
+            _resizeStartCursorPos = Cursor.Position;
+            _resizeStartWidth = Width;
+            _resizeStartLeft = Left;
+            _resizeMaxWidth = Screen.FromControl(this).WorkingArea.Width;
+
+            // Capture the mouse so MouseUp still reaches this grip even once the cursor
+            // slips past its (few-pixels-wide) bounds or outside the window entirely.
+            grip.Capture = true;
+
+            // Drop the rounded-corner clip region for the duration of the drag (see
+            // OnResize) and switch the result list to cheap rendering - both get restored
+            // once in EndWidthResize.
+            Region = null;
+            resultsListBox.IsInteractiveResizing = true;
+        }
+
+        private void ApplyResizeFromCursor()
+        {
+            if (!_isResizingWidth) return;
+
+            int deltaX = Cursor.Position.X - _resizeStartCursorPos.X;
+            int minWidth = (int)(MIN_WIDTH_UNSCALED * dpiScale);
+
+            int newWidth = _resizeFromLeft ? _resizeStartWidth - deltaX : _resizeStartWidth + deltaX;
+            newWidth = Math.Max(minWidth, Math.Min(_resizeMaxWidth, newWidth));
+
+            // Nothing to do once clamped at the min/max - skip the SetBounds/Update below
+            // so dragging past either edge doesn't keep forcing pointless synchronous paints.
+            if (newWidth == Width) return;
+
+            int newLeft = _resizeFromLeft ? _resizeStartLeft - (newWidth - _resizeStartWidth) : Left;
+
+            // A single SetBounds call is one native resize + one layout pass, instead of
+            // the two of each that separate Left/Width assignments used to cause.
+            SetBounds(newLeft, Top, newWidth, Height);
+
+            // WM_PAINT sits at the bottom of the message queue's priority and is only
+            // generated once the queue has no other pending input - so as long as MouseMove
+            // keeps arriving, the window keeps resizing (that part is synchronous) but never
+            // gets to actually repaint until the cursor stops and the queue drains. That's
+            // the "only updates once the mouse stops" symptom. Update() forces the already-
+            // invalidated region to flush right now instead of waiting for that. Any
+            // MouseMove that arrives while this is running is coalesced by Windows into a
+            // single fresh one waiting for us when we return to the message loop, so this
+            // doesn't add a backlog - it just makes each processed move visible immediately.
+            Update();
+            resultsListBox.Update();
+        }
+
+        private void ResizeGrip_MouseMove(object sender, MouseEventArgs e) => ApplyResizeFromCursor();
+
+        private void ResizeGrip_MouseUp(object sender, MouseEventArgs e)
+        {
+            if (sender is Control grip) EndWidthResize(grip);
+        }
+
+        // Also wired to MouseCaptureChanged: capture can be revoked by Windows without a
+        // matching MouseUp ever reaching us (Alt-Tab mid-drag, a modal dialog appearing, the
+        // workstation locking, ...). Without this guard, _isResizingWidth would stay stuck
+        // true. Guarded to be a no-op if the drag already ended normally via MouseUp.
+        private void ResizeGrip_MouseCaptureChanged(object sender, EventArgs e)
+        {
+            if (sender is Control grip) EndWidthResize(grip);
+        }
+
+        private void EndWidthResize(Control grip)
+        {
+            if (!_isResizingWidth) return;
+
+            // Apply the exact final cursor position once more, in case the last MouseMove
+            // landed slightly before this.
+            ApplyResizeFromCursor();
+            _isResizingWidth = false;
+
+            // Releasing capture here (when it isn't already released) re-enters this method
+            // via MouseCaptureChanged, but _isResizingWidth is already false by that point,
+            // so the guard above makes it a no-op.
+            grip.Capture = false;
+
+            resultsListBox.IsInteractiveResizing = false;
+            resultsListBox.Invalidate();
+            if (this.ClientRectangle.Width > 0 && this.ClientRectangle.Height > 0)
+            {
+                using (var path = GetRoundedRectPath(this.ClientRectangle, CORNER_RADIUS))
+                {
+                    this.Region = new Region(path);
+                }
+            }
+
+            PersistWindowWidth();
+        }
+
+        private void PersistWindowWidth()
+        {
+            if (searchUIConfig.InitialSize.Width == Width) return;
+
+            searchUIConfig.InitialSize = new Size(Width, searchUIConfig.InitialSize.Height);
+            SaveConfig();
         }
 
         private async void ResultsListBox_Scrolled(object sender, EventArgs e)

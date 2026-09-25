@@ -31,11 +31,14 @@ namespace MusicBeePlugin.UI
         private PictureBox loadingIndicator;
         private Panel spacerPanel;
         private Panel dragPanel;
+        private Panel resizeGripLeft;
+        private Panel resizeGripRight;
 
         // Configuration
         private readonly SearchUIConfig searchUIConfig;
         private readonly Theme theme;
         private readonly int iconSize;
+        private readonly float dpiScale;
 
         // State
         private bool isLoading = true;
@@ -48,6 +51,15 @@ namespace MusicBeePlugin.UI
         private Point dragCursorPoint;
         private Point dragFormPoint;
         private bool _suppressDeactivate = false;
+
+        // Manual width-resize state (the form is borderless, so there's no native resize border)
+        private bool _isResizingWidth = false;
+        private bool _resizeFromLeft = false;
+        private Point _resizeStartCursorPos;
+        private int _resizeStartWidth;
+        private int _resizeStartLeft;
+        private int _resizeMaxWidth;
+        private const int MIN_WIDTH_UNSCALED = 300;
 
         // Timer to check if MusicBee window is still open in detached mode
         private System.Windows.Forms.Timer _mbWindowCheckTimer;
@@ -212,6 +224,7 @@ namespace MusicBeePlugin.UI
             {
                 dpiScale = g.DpiX / 96.0f;
             }
+            this.dpiScale = dpiScale;
 
             // --- Scale UI metrics based on DPI ---
             searchBoxHeight = (int)(34 * dpiScale);
@@ -250,6 +263,7 @@ namespace MusicBeePlugin.UI
             _mbWindowCheckTimer.Tick += MbWindowCheckTimer_Tick;
 
             InitializeUI(dpiScale);
+            InitializeResizeGrips(dpiScale);
             InitializeHotkeys();
 
             // Start loading tracks asynchronously
@@ -283,6 +297,14 @@ namespace MusicBeePlugin.UI
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
+
+            // Rebuilding the rounded-corner region calls into SetWindowRgn, which forces a
+            // full recomposite of this WS_EX_COMPOSITED window - expensive enough that doing
+            // it on every pixel of an interactive width drag is what makes growing lag behind
+            // the cursor. Skip it while dragging (square corners for the moment) and restore
+            // the real shape once in ResizeGrip_MouseUp.
+            if (_isResizingWidth) return;
+
             if (this.ClientRectangle.Width > 0 && this.ClientRectangle.Height > 0)
             {
                 using (var path = GetRoundedRectPath(this.ClientRectangle, CORNER_RADIUS))

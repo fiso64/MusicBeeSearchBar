@@ -14,6 +14,25 @@ using static MusicBeePlugin.Plugin;
 
 namespace MusicBeePlugin.Services
 {
+    public enum ResultActionType
+    {
+        PlayNow,
+        QueueNext,
+        QueueLast
+    }
+
+    public class ResultActionEventArgs : EventArgs
+    {
+        public SearchResult Result { get; }
+        public ResultActionType ActionType { get; }
+
+        public ResultActionEventArgs(SearchResult result, ResultActionType actionType)
+        {
+            Result = result;
+            ActionType = actionType;
+        }
+    }
+
     public class ActionService
     {
         private SearchActionsConfig actionsConfig;
@@ -27,6 +46,30 @@ namespace MusicBeePlugin.Services
         {
             var playAction = new PlayActionData { ShufflePlay = true };
             Play(result, playAction);
+        }
+
+        // Directly runs the fundamental play/queue action on a result, bypassing the
+        // per-type/modifier action configuration. Used by the result list's hover buttons.
+        public void PerformAction(ResultActionType actionType, SearchResult result)
+        {
+            switch (actionType)
+            {
+                case ResultActionType.PlayNow:
+                    Play(result, new PlayActionData());
+                    break;
+                case ResultActionType.QueueNext:
+                    QueueNext(result, new QueueNextActionData());
+                    break;
+                case ResultActionType.QueueLast:
+                    QueueLast(result, new QueueLastActionData());
+                    break;
+            }
+        }
+
+        public static bool SupportsQuickActions(ResultType type)
+        {
+            return type == ResultType.Song || type == ResultType.Album ||
+                   type == ResultType.Artist || type == ResultType.Playlist;
         }
 
         public async Task<bool> RunAction(string searchBoxText, SearchResult result, KeyEventArgs keyEvent)
