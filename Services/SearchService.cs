@@ -199,6 +199,71 @@ namespace MusicBeePlugin.Services
         private Config.SearchUIConfig config;
         public bool IsLoaded { get; private set; } = false;
 
+        // Incremental-narrowing cache: while EnableContainsCheck is on and the user keeps
+        // extending the same query (pure append), each extra character only makes the
+        // per-word substring check stricter - so anything that already failed to contain the
+        // shorter query can never contain the longer one. That lets each keystroke re-filter
+        // just the previous keystroke's surviving candidates instead of rescanning the whole
+        // library. Falls back to a full scan whenever the query isn't a simple extension of
+        // the cached one (an edit, a paste, backspacing, ...) or the library was reloaded.
+        //
+        // Each cache is tagged with the exact Database instance it was built from (captured
+        // once per search, not read live off the `db` field) rather than relying on a reset
+        // at reload time. A reload doesn't cancel a search that's already in flight, so
+        // without this a stale search could finish after the reset and repopulate the cache
+        // with entries from the just-replaced library.
+        private class CandidateCache<T>
+        {
+            public Database Db;
+            public string Query;
+            public List<T> Candidates;
+        }
+
+        private readonly object _cacheLock = new object();
+        private readonly CandidateCache<ArtistEntry> _artistCache = new CandidateCache<ArtistEntry>();
+        private readonly CandidateCache<AlbumEntry> _albumCache = new CandidateCache<AlbumEntry>();
+        private readonly CandidateCache<SongEntry> _songCache = new CandidateCache<SongEntry>();
+        private readonly CandidateCache<(string Name, string Path)> _playlistCache = new CandidateCache<(string Name, string Path)>();
+
+        // Returns the cached candidates for `scanDb`/`normalizedQuery` if they're usable,
+        // or null if this search needs to fall back to a full scan.
+        private List<T> TryGetCandidateSource<T>(CandidateCache<T> cache, Database scanDb, string normalizedQuery)
+        {
+            lock (_cacheLock)
+            {
+                if (config.EnableContainsCheck
+                    && cache.Db == scanDb
+                    && cache.Query != null
+                    && normalizedQuery.StartsWith(cache.Query, StringComparison.Ordinal))
+                {
+                    return cache.Candidates;
+                }
+                return null;
+            }
+        }
+
+        // Tags the cache with the Database this scan actually ran against (not whatever
+        // `db` currently is - a concurrent reload may have already moved it on) so a later
+        // search can never mistake candidates from a different library generation as valid.
+        private void UpdateCandidateCache<T>(CandidateCache<T> cache, Database scanDb, List<T> matched, string normalizedQuery)
+        {
+            lock (_cacheLock)
+            {
+                if (config.EnableContainsCheck)
+                {
+                    cache.Db = scanDb;
+                    cache.Query = normalizedQuery;
+                    cache.Candidates = matched;
+                }
+                else
+                {
+                    cache.Db = null;
+                    cache.Query = null;
+                    cache.Candidates = null;
+                }
+            }
+        }
+
         public SearchService(MusicBeeApiInterface mbApi, Config.SearchUIConfig config)
         {
             this.mbApi = mbApi;
@@ -228,6 +293,18 @@ namespace MusicBeePlugin.Services
                 db = new Database(tracks, GetEnabledTypes());
                 IsLoaded = true;
 
+                // Not strictly required for correctness (each cache entry is tagged with the
+                // Database it was built from, so a stale one is simply never matched again),
+                // but drops the old lists promptly instead of waiting for them to be
+                // overwritten by the next contains-check search.
+                lock (_cacheLock)
+                {
+                    _artistCache.Db = null; _artistCache.Query = null; _artistCache.Candidates = null;
+                    _albumCache.Db = null; _albumCache.Query = null; _albumCache.Candidates = null;
+                    _songCache.Db = null; _songCache.Query = null; _songCache.Candidates = null;
+                    _playlistCache.Db = null; _playlistCache.Query = null; _playlistCache.Candidates = null;
+                }
+
                 sw.Stop();
                 Debug.WriteLine($"Database created in {sw.ElapsedMilliseconds}ms");
             });
@@ -256,7 +333,7 @@ namespace MusicBeePlugin.Services
                 if (enabledTypes.HasFlag(ResultType.Artist) && GetResultLimit(ResultType.Artist, out var limit, resultLimits))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var artistResults = SearchArtists(sortedQueryWords, normalizedQuery, limit);
+                    var artistResults = SearchArtists(sortedQueryWords, normalizedQuery, limit, cancellationToken);
                     results.AddRange(artistResults);
                     onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
@@ -264,7 +341,7 @@ namespace MusicBeePlugin.Services
                 if (enabledTypes.HasFlag(ResultType.Album) && GetResultLimit(ResultType.Album, out limit, resultLimits))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var albumResults = SearchAlbums(sortedQueryWords, normalizedQuery, limit);
+                    var albumResults = SearchAlbums(sortedQueryWords, normalizedQuery, limit, cancellationToken);
                     results.AddRange(albumResults);
                     onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
@@ -272,7 +349,7 @@ namespace MusicBeePlugin.Services
                 if (enabledTypes.HasFlag(ResultType.Song) && GetResultLimit(ResultType.Song, out limit, resultLimits))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var songResults = SearchSongs(sortedQueryWords, normalizedQuery, limit);
+                    var songResults = SearchSongs(sortedQueryWords, normalizedQuery, limit, cancellationToken);
                     results.AddRange(songResults);
                     onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
@@ -280,7 +357,7 @@ namespace MusicBeePlugin.Services
                 if (enabledTypes.HasFlag(ResultType.Playlist) && GetResultLimit(ResultType.Playlist, out limit, resultLimits))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var playlistResults = SearchPlaylists(sortedQueryWords, normalizedQuery, limit);
+                    var playlistResults = SearchPlaylists(sortedQueryWords, normalizedQuery, limit, cancellationToken);
                     results.AddRange(playlistResults);
                     onResultsUpdate?.Invoke(OrderResults(results, normalizedQuery));
                 }
@@ -324,14 +401,26 @@ namespace MusicBeePlugin.Services
             return finalList;
         }
 
-        private List<ArtistResult> SearchArtists(string[] sortedQueryWords, string normalizedQuery, int limit)
+        private List<ArtistResult> SearchArtists(string[] sortedQueryWords, string normalizedQuery, int limit, CancellationToken cancellationToken)
         {
             var scoredArtists = new List<ArtistResult>();
 
-            foreach (var entity in db.Artists)
+            // Snapshot db once: a reload landing mid-scan must not change which library
+            // generation this search (or its cache write below) is considered to belong to.
+            var scanDb = db;
+            List<ArtistEntry> searchSource = TryGetCandidateSource(_artistCache, scanDb, normalizedQuery) ?? scanDb.Artists;
+            List<ArtistEntry> matchedEntities = config.EnableContainsCheck ? new List<ArtistEntry>() : null;
+
+            foreach (var entity in searchSource)
             {
+                // A superseded search (the user kept typing) must actually stop scanning
+                // rather than run to completion on its thread-pool thread - otherwise fast
+                // typing piles up multiple full-library scans running concurrently.
+                cancellationToken.ThrowIfCancellationRequested();
+
                 double bestScore = 0;
                 string winningAlias = null;
+                bool anyAliasMatched = false;
 
                 var aliasesToScore = entity.AliasMap.Keys.AsEnumerable();
                 if (config.EnableContainsCheck)
@@ -339,6 +428,7 @@ namespace MusicBeePlugin.Services
 
                 foreach (var alias in aliasesToScore)
                 {
+                    anyAliasMatched = true;
                     double currentScore = CalculateGeneralItemScore(alias, normalizedQuery, sortedQueryWords, normalizeStrings: false);
                     if (currentScore > bestScore)
                     {
@@ -346,6 +436,8 @@ namespace MusicBeePlugin.Services
                         winningAlias = alias;
                     }
                 }
+
+                if (anyAliasMatched) matchedEntities?.Add(entity);
 
                 if (bestScore > 0 && winningAlias != null)
                 {
@@ -356,25 +448,50 @@ namespace MusicBeePlugin.Services
                 }
             }
 
+            UpdateCandidateCache(_artistCache, scanDb, matchedEntities, normalizedQuery);
+
             return scoredArtists
                 .OrderByDescending(x => x.Score)
                 .Take(limit)
                 .ToList();
         }
 
-        private List<AlbumResult> SearchAlbums(string[] sortedQueryWords, string normalizedQuery, int limit)
+        private List<AlbumResult> SearchAlbums(string[] sortedQueryWords, string normalizedQuery, int limit, CancellationToken cancellationToken)
         {
-            var items = db.Albums.AsEnumerable();
             double multiplier = config.AlbumScoreMultiplier;
 
-            if (config.EnableContainsCheck)
-                items = items.Where(x => QueryMatchesWords(x.NormalizedAlbumArtist + " " + x.NormalizedAlbumName, sortedQueryWords, normalizeText: false));
+            var scanDb = db;
+            IReadOnlyList<AlbumEntry> searchSource = TryGetCandidateSource(_albumCache, scanDb, normalizedQuery) ?? scanDb.Albums;
+            IEnumerable<AlbumEntry> filtered = searchSource;
 
-            return items
-                .Select(x => new
+            if (config.EnableContainsCheck)
+            {
+                var matched = new List<AlbumEntry>();
+                foreach (var x in searchSource)
                 {
-                    Entry = x,
-                    Score = CalculateArtistAndTitleScore(x.NormalizedAlbumArtist, x.NormalizedAlbumName, normalizedQuery, sortedQueryWords, normalizeStrings: false) * (multiplier != 1.0 ? multiplier : 1.0)
+                    // See SearchArtists: lets a superseded search stop scanning immediately
+                    // instead of scoring the rest of the library for a result nobody will see.
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (QueryMatchesWords(x.NormalizedAlbumArtist + " " + x.NormalizedAlbumName, sortedQueryWords, normalizeText: false))
+                        matched.Add(x);
+                }
+                filtered = matched;
+                UpdateCandidateCache(_albumCache, scanDb, matched, normalizedQuery);
+            }
+            else
+            {
+                UpdateCandidateCache(_albumCache, scanDb, null, normalizedQuery);
+            }
+
+            return filtered
+                .Select(x =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return new
+                    {
+                        Entry = x,
+                        Score = CalculateArtistAndTitleScore(x.NormalizedAlbumArtist, x.NormalizedAlbumName, normalizedQuery, sortedQueryWords, normalizeStrings: false) * (multiplier != 1.0 ? multiplier : 1.0)
+                    };
                 })
                 .OrderByDescending(x => x.Score)
                 .Take(limit)
@@ -382,19 +499,40 @@ namespace MusicBeePlugin.Services
                 .ToList();
         }
 
-        private List<SongResult> SearchSongs(string[] sortedQueryWords, string normalizedQuery, int limit)
+        private List<SongResult> SearchSongs(string[] sortedQueryWords, string normalizedQuery, int limit, CancellationToken cancellationToken)
         {
-            var items = db.Songs.AsEnumerable();
             double multiplier = config.SongScoreMultiplier;
 
-            if (config.EnableContainsCheck)
-                items = items.Where(x => QueryMatchesWords(x.NormalizedArtists + " " + x.NormalizedTitle, sortedQueryWords, normalizeText: false));
+            var scanDb = db;
+            IReadOnlyList<SongEntry> searchSource = TryGetCandidateSource(_songCache, scanDb, normalizedQuery) ?? scanDb.Songs;
+            IEnumerable<SongEntry> filtered = searchSource;
 
-            return items
-                .Select(x => new
+            if (config.EnableContainsCheck)
+            {
+                var matched = new List<SongEntry>();
+                foreach (var x in searchSource)
                 {
-                    Entry = x,
-                    Score = CalculateArtistAndTitleScore(x.NormalizedArtists, x.NormalizedTitle, normalizedQuery, sortedQueryWords, normalizeStrings: false) * (multiplier != 1.0 ? multiplier : 1.0)
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (QueryMatchesWords(x.NormalizedArtists + " " + x.NormalizedTitle, sortedQueryWords, normalizeText: false))
+                        matched.Add(x);
+                }
+                filtered = matched;
+                UpdateCandidateCache(_songCache, scanDb, matched, normalizedQuery);
+            }
+            else
+            {
+                UpdateCandidateCache(_songCache, scanDb, null, normalizedQuery);
+            }
+
+            return filtered
+                .Select(x =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return new
+                    {
+                        Entry = x,
+                        Score = CalculateArtistAndTitleScore(x.NormalizedArtists, x.NormalizedTitle, normalizedQuery, sortedQueryWords, normalizeStrings: false) * (multiplier != 1.0 ? multiplier : 1.0)
+                    };
                 })
                 .OrderByDescending(x => x.Score)
                 .Take(limit)
@@ -402,19 +540,45 @@ namespace MusicBeePlugin.Services
                 .ToList();
         }
 
-        private List<PlaylistResult> SearchPlaylists(string[] sortedQueryWords, string normalizedQuery, int limit)
+        private List<PlaylistResult> SearchPlaylists(string[] sortedQueryWords, string normalizedQuery, int limit, CancellationToken cancellationToken)
         {
-            var items = GetAllPlaylists().AsEnumerable();
             double multiplier = config.PlaylistScoreMultiplier;
 
-            if (config.EnableContainsCheck)
-                items = items.Where(p => QueryMatchesWords(p.Name, sortedQueryWords));
+            // Playlists aren't part of Database, but are tagged against it anyway so a
+            // library reload also refreshes the playlist cache, matching prior behavior.
+            var scanDb = db;
 
-            return items
-                .Select(p => new
+            // On a cache hit this also skips re-querying MusicBee's playlist list via COM
+            // interop for every keystroke, not just the fuzzy-matching cost.
+            List<(string Name, string Path)> searchSource = TryGetCandidateSource(_playlistCache, scanDb, normalizedQuery) ?? GetAllPlaylists();
+            IEnumerable<(string Name, string Path)> filtered = searchSource;
+
+            if (config.EnableContainsCheck)
+            {
+                var matched = new List<(string Name, string Path)>();
+                foreach (var p in searchSource)
                 {
-                    Playlist = p,
-                    Score = CalculateGeneralItemScore(p.Name, normalizedQuery, sortedQueryWords) * (multiplier != 1.0 ? multiplier : 1.0)
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (QueryMatchesWords(p.Name, sortedQueryWords))
+                        matched.Add(p);
+                }
+                filtered = matched;
+                UpdateCandidateCache(_playlistCache, scanDb, matched, normalizedQuery);
+            }
+            else
+            {
+                UpdateCandidateCache(_playlistCache, scanDb, null, normalizedQuery);
+            }
+
+            return filtered
+                .Select(p =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return new
+                    {
+                        Playlist = p,
+                        Score = CalculateGeneralItemScore(p.Name, normalizedQuery, sortedQueryWords) * (multiplier != 1.0 ? multiplier : 1.0)
+                    };
                 })
                 .OrderByDescending(x => x.Score)
                 .Take(limit)
