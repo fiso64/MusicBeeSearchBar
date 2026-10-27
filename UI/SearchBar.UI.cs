@@ -56,6 +56,25 @@ namespace MusicBeePlugin.UI
             dragPanel.MouseDown += DragPanel_MouseDown;
             dragPanel.MouseMove += DragPanel_MouseMove;
             dragPanel.MouseUp += DragPanel_MouseUp;
+            dragPanel.Paint += (s, e) =>
+            {
+                float dotSize = Math.Max(1.5f, 2.5f * dpiScale);
+                float dotSpacing = 5f * dpiScale;
+                float centerX = dragPanel.ClientSize.Width / 2f;
+                float centerY = (dragPanel.ClientSize.Height - 1) / 2f - dpiScale;
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using (var brush = new SolidBrush(theme.IconDimmed))
+                {
+                    for (int i = 0; i < 6; i++)
+                    {
+                        float dotX = centerX + (i % 3 - 1) * dotSpacing;
+                        float dotY = centerY + (i / 3 - 0.5f) * dotSpacing;
+                        e.Graphics.FillEllipse(brush, dotX - dotSize / 2f,
+                            dotY - dotSize / 2f, dotSize, dotSize);
+                    }
+                }
+            };
+            dragPanel.SizeChanged += (s, e) => dragPanel.Invalidate();
 
             var searchBoxContainer = new Panel
             {
