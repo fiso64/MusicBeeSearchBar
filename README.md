@@ -1,55 +1,37 @@
 # MusicBee Search Bar
 
-A modern, customizable search bar plugin for MusicBee that provides unified search across your music library.
-Also functions as a command palette that can search MusicBee and plugin commands.
+A customizable search bar for MusicBee. Search your library for artists, albums, songs, and playlists, or use it as a command palette for MusicBee and plugin commands.
+
+<img width="500" alt="image" src="https://github.com/user-attachments/assets/6192983a-9d04-420e-a033-05d71a0069b7" />
 
 <video src="https://github.com/user-attachments/assets/4fe9b580-27c5-44c8-a494-9ef1749a5854" width="800" autoplay loop muted playsinline></video>
 
 ## Features
 
-- **Unified Search**: Search for artists, albums, and songs all in one place
-- **Fuzzy Search**: Intelligent matching that always prioritizes the best results
-- **Filtering**: Use prefixes to filter results:
-  - `a:` for artists
-  - `l:` for albums
-  - `s:` for songs
-  - `p:` for playlists
-  - `>`  for commands
-- **Customizable Actions**: Configure different actions for each result type:
-  - Default click / Enter
-  - Ctrl + click / Enter
-  - etc.
-- **Action Types**:
-  - Play (with optional shuffle)
-  - Queue Next
-  - Open Album/Artist
-  - etc.
-- **Quick Launcher**: Can also be used as a quick song/album selector while MusicBee is hidden
+- Search across your library in one place, with fuzzy matching to help find what you're looking for.
+- Filter results using the toolbar or a prefix: `a:` for artists, `l:` for albums, `s:` for songs, `p:` for playlists, and `>` for commands.
+- Choose what happens when you select a result, and configure alternative actions for modifier keys such as Ctrl and Shift.
+- Resize the search window, customize its appearance, and use it in detached mode while MusicBee is hidden.
 
 ## Installation
 
-1. Download the the latest release [here](https://github.com/fiso64/MusicBeeSearchBar/releases/latest).
-2. Extract the files into the MusicBee Plugins folder (usually located at `MusicBee\Plugins`).
-3. Restart MusicBee
-4. Set up a hotkey in MusicBee's preferences to show the search bar.
+1. Download the [latest release](https://github.com/fiso64/MusicBeeSearchBar/releases/latest).
+2. Extract the zip into your MusicBee Plugins folder (`MusicBee\Plugins`).
+3. Restart MusicBee.
+4. In MusicBee's preferences, assign a hotkey to show the search bar.
 
-## Keyboard Shortcuts
+## Keyboard shortcuts
 
-- `Alt+R`: Execute artist action for current result
-- `Alt+A`: Execute album action for current result
-- `Ctrl+P`: Open configuration
-- `Enter`: Execute action
-- `Ctrl/Shift + Enter`: Execute alternative actions
-- For the full list of shortcuts, see the help (`Ctrl+H`)
+Some common shortcuts:
 
-## Command Palette Notes
-The command palette feature (activated with the `>` prefix) can be used to search and execute built-in or plugin commands. Note:
-- Some commands may fail to execute, or give an error
-- Some command names might differ from how they appear in MusicBee's context menus
+- `Ctrl+Enter` / `Shift+Enter`: Run an alternative action.
+- `Ctrl+P`: Open settings.
+- `Ctrl+H`: Open help and see the full list of shortcuts.
 
-If you find inconsistent command names or broken commands, you can create an issue [here](https://github.com/fiso64/MusicBeeSearchBar/issues).
+## Command palette
 
+Use the commands filter or start a search with `>` to find and run MusicBee and plugin commands. Some commands may not work or may have different names from those shown in MusicBee's menus. If you find one, please [open an issue](https://github.com/fiso64/MusicBeeSearchBar/issues).
 
-## Performance Note
-If you experience any slowness (i.e., either the startup or the search after a character is typed does not complete instantly), then please create an issue on [github](https://github.com/fiso64/MusicBeeSearchBar/issues) (also mention your library statistics).
-There are a few easy ways to make it faster which I haven't bothered to implement because the performance on my small personal library (~11000 tracks) as well as on a synthetic library of 1000000 tracks is good.
+## Performance
+
+If startup or searching feels slow, please [open an issue](https://github.com/fiso64/MusicBeeSearchBar/issues) and include your library size and any details about when the slowdown occurs.
