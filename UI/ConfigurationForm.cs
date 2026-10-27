@@ -144,6 +144,7 @@ namespace MusicBeePlugin.UI
                     "  Ctrl+Enter        Execute alternative action",
                     "  Shift+Enter       Execute alternative action",
                     "  Ctrl+Shift+Enter  Execute alternative action",
+                    "  Tab / Shift+Tab   Cycle search filters",
                     "  Alt+R             Execute artist action for selected result",
                     "  Alt+A             Execute album action for selected result",
                     "  Ctrl+S            Shuffle play selected result",

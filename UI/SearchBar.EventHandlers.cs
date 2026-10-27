@@ -12,6 +12,27 @@ namespace MusicBeePlugin.UI
 {
     public partial class SearchBar
     {
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (searchBox != null && searchBox.Focused
+                && (keyData == Keys.Tab || keyData == (Keys.Shift | Keys.Tab)))
+            {
+                string oldText = searchBox.Text;
+                int oldContentStart = SearchToolbar.ContentStart(oldText);
+                int selectionStart = searchBox.SelectionStart;
+                int selectionEnd = selectionStart + searchBox.SelectionLength;
+                string prefix = SearchToolbar.NextPrefix(oldText, keyData == (Keys.Shift | Keys.Tab));
+                string newText = SearchToolbar.ReplacePrefix(oldText, prefix);
+                int newContentStart = SearchToolbar.ContentStart(newText);
+                int newStart = Math.Min(newText.Length, newContentStart + Math.Max(0, selectionStart - oldContentStart));
+                int newEnd = Math.Min(newText.Length, newContentStart + Math.Max(0, selectionEnd - oldContentStart));
+                searchBox.Text = newText;
+                searchBox.Select(newStart, newEnd - newStart);
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
         private void HandleSearchBoxKeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Back && (e.Modifiers == Keys.Control || e.Modifiers == Keys.Alt))
@@ -28,8 +49,7 @@ namespace MusicBeePlugin.UI
             }
             else if (e.Control && e.KeyCode == Keys.P)
             {
-                Close();
-                musicBeeContext.Post(_ => Plugin.ShowConfigDialog(), null);
+                OpenSearchSettings();
                 e.Handled = true;
                 e.SuppressKeyPress = true;
             }
@@ -152,6 +172,12 @@ namespace MusicBeePlugin.UI
                 e.Handled = true;
                 e.SuppressKeyPress = true;
             }
+        }
+
+        private void OpenSearchSettings()
+        {
+            Close();
+            musicBeeContext.Post(_ => Plugin.ShowConfigDialog(), null);
         }
 
         private void DeletePreviousSearchWord()

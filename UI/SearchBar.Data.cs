@@ -161,6 +161,7 @@ namespace MusicBeePlugin.UI
 
         private void SearchBox_TextChanged(object sender, EventArgs e)
         {
+            searchToolbar?.SetActivePrefix(searchBox.Text);
             RunSearch(false);
         }
 
@@ -282,6 +283,8 @@ namespace MusicBeePlugin.UI
                     { ResultType.Song, suffixLimit ?? searchUIConfig.SongResultLimit },
                     { ResultType.Playlist, suffixLimit ?? searchUIConfig.PlaylistResultLimit }
                 };
+                if (filter != ResultType.All)
+                    initialLimits[filter] = Math.Max(30, initialLimits[filter]);
                 var visibleLimits = new Dictionary<ResultType, int>();
                 var fetchLimits = new Dictionary<ResultType, int>();
                 foreach (var type in PageableResultTypes)
@@ -478,7 +481,9 @@ namespace MusicBeePlugin.UI
             if (searchContainer == null) return;
 
             // Calculate height based on actual, scaled control dimensions.
-            int nonListHeight = searchContainer.Height + spacerPanel.Height + mainPanel.Padding.Vertical;
+            int nonListHeight = searchContainer.Height + spacerPanel.Height + mainPanel.Padding.Vertical
+                + (searchUIConfig.ShowSearchToolbar ? searchToolbar.Height : 0)
+                + (isDetached ? dragPanel.Height : 0);
 
             int listHeight = 0;
             int visibleItemCount = 0;

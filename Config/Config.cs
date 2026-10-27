@@ -199,8 +199,11 @@ namespace MusicBeePlugin.Config
         [ConfigProperty("Show Type Headers", "Requires 'Group Results' to be enabled.", Category = "Appearance")]
         public bool ShowTypeHeaders { get; set; } = true;
 
-        [ConfigProperty("Show Placeholder Text", Category = "Appearance")]
+        [ConfigProperty("Show Placeholder Text (\"Search\")", Category = "Appearance")]
         public bool ShowPlaceholderText { get; set; } = true;
+
+        [ConfigProperty("Show Search Toolbar", "Shows result-type filters and a settings button below the search box.", Category = "Appearance")]
+        public bool ShowSearchToolbar { get; set; } = true;
 
         [ConfigProperty("Show Images in Results", Category = "Appearance")]
         public bool ShowImages { get; set; } = true;

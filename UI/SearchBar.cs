@@ -30,6 +30,7 @@ namespace MusicBeePlugin.UI
         private OverlayForm overlay;
         private PictureBox loadingIndicator;
         private Panel spacerPanel;
+        private SearchToolbar searchToolbar;
         private Panel dragPanel;
         private Panel resizeGripLeft;
         private Panel resizeGripRight;
@@ -191,7 +192,9 @@ namespace MusicBeePlugin.UI
         {
             _attachmentVersion++;
             isDetached = !isDetached;
+            searchToolbar?.SetDetached(isDetached);
             dragPanel.Visible = isDetached;
+            Height += isDetached ? dragPanel.Height : -dragPanel.Height;
             TopMost = !isDetached;
 
             if (isDetached)

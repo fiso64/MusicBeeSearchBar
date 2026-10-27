@@ -129,6 +129,7 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="UI\Theme.cs" />
+    <Compile Include="UI\SearchToolbar.cs" />
     <Compile Include="UI\TooltipWindow.cs" />
     <Compile Include="Utils\ApplicationCommand.cs" />
     <Compile Include="Utils\CharMap.cs" />

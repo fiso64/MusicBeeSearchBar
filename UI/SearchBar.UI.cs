@@ -108,10 +108,24 @@ namespace MusicBeePlugin.UI
                 {
                     if (searchBox.IsHandleCreated)
                     {
-                        WinApiHelpers.SetCueBanner(searchBox.Handle, "Search or type a prefix a: l: s: p: >...");
+                        WinApiHelpers.SetCueBanner(searchBox.Handle, "Search");
                     }
                 };
             }
+
+            searchToolbar = new SearchToolbar(theme, dpiScale, resultDetailFont)
+            {
+                Dock = DockStyle.Top,
+                Visible = searchUIConfig.ShowSearchToolbar
+            };
+            searchToolbar.PrefixSelected += prefix =>
+            {
+                searchBox.Text = SearchToolbar.ReplacePrefix(searchBox.Text, prefix);
+                searchBox.Select(searchBox.Text.Length, 0);
+                searchBox.Focus();
+            };
+            searchToolbar.SettingsClicked += (s, e) => OpenSearchSettings();
+            searchToolbar.DetachClicked += (s, e) => ToggleDetachedMode();
 
             spacerPanel = new Panel
             {
@@ -166,9 +180,13 @@ namespace MusicBeePlugin.UI
             // Add controls to main panel in correct order for docking
             mainPanel.Controls.Add(resultsListBox); // Fills remaining space
             mainPanel.Controls.Add(spacerPanel);
+            mainPanel.Controls.Add(searchToolbar);
             mainPanel.Controls.Add(searchBoxContainer);
             mainPanel.Controls.Add(dragPanel); // At the very top
             Controls.Add(mainPanel);
+            if (searchUIConfig.ShowSearchToolbar)
+                Height = Math.Max(Height + searchToolbar.Height,
+                    searchBoxContainer.Height + searchToolbar.Height + mainPanel.Padding.Vertical);
 
             searchBox.Focus(); // Set focus to searchBox initially
 

@@ -303,7 +303,8 @@ namespace MusicBeePlugin.Services
                 Debug.WriteLine($"Tracks loaded in {sw.ElapsedMilliseconds}ms");
                 sw.Restart();
 
-                db = new Database(tracks, GetEnabledTypes());
+                // A zero unfiltered limit still permits an explicit type filter.
+                db = new Database(tracks, ResultType.All);
                 IsLoaded = true;
 
                 // Not strictly required for correctness (each cache entry is tagged with the
@@ -882,22 +883,6 @@ namespace MusicBeePlugin.Services
                 }
             }
             return res;
-        }
-
-        private ResultType GetEnabledTypes()
-        {
-            ResultType types = 0;
-            
-            if (config.ArtistResultLimit > 0)
-                types |= ResultType.Artist;
-            if (config.AlbumResultLimit > 0)
-                types |= ResultType.Album;
-            if (config.SongResultLimit > 0)
-                types |= ResultType.Song;
-            if (config.PlaylistResultLimit > 0)
-                types |= ResultType.Playlist;
-        
-            return types;
         }
 
         public List<SearchResult> SearchCommands(string commandQuery, CancellationToken cancellationToken)
