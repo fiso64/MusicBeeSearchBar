@@ -166,8 +166,7 @@ namespace MusicBeePlugin.Services
 
         private void RestoreOrFocus()
         {
-            if (!WinApiHelpers.IsWindowFocused(mbApi.MB_GetWindowHandle()))
-                MusicBeeHelpers.MinimiseRestoreOrFocus();
+            MusicBeeHelpers.RestoreAndFocus();
         }
 
         private async Task GotoTab(TabChoice tab, BaseActionData action)
@@ -213,6 +212,13 @@ namespace MusicBeePlugin.Services
 
             RestoreOrFocus();
             await GotoTab(action.TabChoice, action);
+
+            RestoreOrFocus();
+            if (!WinApiHelpers.IsWindowFocused(mbApi.MB_GetWindowHandle()))
+            {
+                Logger.Error("Unable to focus MusicBee for search in tab.");
+                return;
+            }
 
             if (action.ToggleSearchEntireLibraryBeforeSearch)
                 MusicBeeHelpers.InvokeCommand(ApplicationCommand.GeneralToggleSearchScope);
@@ -271,29 +277,34 @@ namespace MusicBeePlugin.Services
 
                 await Task.Delay(50);
 
-                WinApiHelpers.SendKey(Keys.Home);
-
-                SendKeys.SendWait("="); // type a character to reveal the search box
-
                 int count = 0;
                 IntPtr searchBar = IntPtr.Zero;
 
-                while (count++ < 20)
+                if (WinApiHelpers.IsWindowFocused(mbApi.MB_GetWindowHandle()))
                 {
-                    await Task.Delay(50);
-                    searchBar = WinApiHelpers.GetFocus();
-                    if (WinApiHelpers.IsEdit(searchBar))
-                        break;
+                    WinApiHelpers.SendKey(Keys.Home);
+                    SendKeys.SendWait("="); // type a character to reveal the search box
+
+                    while (count++ < 20)
+                    {
+                        await Task.Delay(50);
+                        if (!WinApiHelpers.IsWindowFocused(mbApi.MB_GetWindowHandle()))
+                            break;
+                        searchBar = WinApiHelpers.GetFocus();
+                        if (WinApiHelpers.IsEdit(searchBar))
+                            break;
+                    }
                 }
 
-                if (searchBar != IntPtr.Zero)
+                if (WinApiHelpers.IsWindowFocused(mbApi.MB_GetWindowHandle()) && WinApiHelpers.IsEdit(searchBar))
                 {
                     WinApiHelpers.SetEditText(searchBar, query);
 
                     if (action.ClearSearchBarTextAfterSearch)
                     {
                         await Task.Delay(50);
-                        WinApiHelpers.SendKey(Keys.Escape);
+                        if (WinApiHelpers.IsWindowFocused(mbApi.MB_GetWindowHandle()))
+                            WinApiHelpers.SendKey(Keys.Escape);
                     }
                 }
             }

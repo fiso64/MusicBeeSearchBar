@@ -67,21 +67,21 @@ namespace MusicBeePlugin.Utils
         {
             FocusSearchBox();
             System.Threading.Thread.Sleep(50);
-            WinApiHelpers.SendKey(Keys.Tab);
+            if (WinApiHelpers.IsWindowFocused(mbApi.MB_GetWindowHandle()))
+                WinApiHelpers.SendKey(Keys.Tab);
         }
 
-        public static void MinimiseRestoreOrFocus()
+        public static void RestoreAndFocus()
         {
             IntPtr hwnd = mbApi.MB_GetWindowHandle();
-            var state = WinApiHelpers.WinGetMinMax(hwnd);
-            if (state == WinApiHelpers.WindowState.None && !WinApiHelpers.GetForegroundWindow().Equals(hwnd))
-            {
+            if (hwnd == IntPtr.Zero || !WinApiHelpers.IsWindow(hwnd)) return;
+
+            if (WinApiHelpers.WinGetMinMax(hwnd) == WinApiHelpers.WindowState.Minimized
+                || !WinApiHelpers.IsWindowVisible(hwnd))
+                WinApiHelpers.WinRestore(hwnd);
+
+            if (!WinApiHelpers.IsWindowFocused(hwnd))
                 WinApiHelpers.SetForegroundWindow(hwnd);
-            }
-            else
-            {
-                InvokeCommand(ApplicationCommand.ViewApplicationMinimise);
-            }
         }
 
         public static string ConstructLibraryQuery(params (MetaDataType Field, ComparisonType Comparison, string Value)[] conditions)

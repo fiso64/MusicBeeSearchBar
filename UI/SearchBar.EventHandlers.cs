@@ -308,9 +308,15 @@ namespace MusicBeePlugin.UI
                 return;
             }
 
+            string actionSearchText = searchBox.Text;
             if (!isDetached)
             {
                 Close();
+            }
+            else if (!IsDisposed)
+            {
+                // Set this before dispatching so it cannot race with the action focusing MusicBee.
+                TopMost = true;
             }
 
             // Fire-and-forget the async action on the MusicBee UI thread.
@@ -318,19 +324,13 @@ namespace MusicBeePlugin.UI
             {
                 try
                 {
-                    // If detached, temporarily make the search bar topmost to keep it visible during the action.
-                    if (isDetached && !IsDisposed)
-                    {
-                        BeginInvoke((Action)(() => { if (!IsDisposed) TopMost = true; }));
-                    }
-
                     if (customAction != null)
                     {
                         await customAction();
                     }
                     else
                     {
-                        await actionService.RunAction(searchBox.Text, selectedItem, e);
+                        await actionService.RunAction(actionSearchText, selectedItem, e);
                     }
                 }
                 catch (Exception ex)
