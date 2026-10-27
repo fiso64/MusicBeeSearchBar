@@ -150,6 +150,9 @@ namespace MusicBeePlugin.Config
     public class SearchUIConfig // should be split into two configs, one for the search UI and one for the search behavior
     {
         // --- Search Settings ---
+        [ConfigProperty("Auto Hide Search Bar on Focus Loss", Category = "Search")]
+        public bool AutoHideOnFocusLoss { get; set; } = false;
+
         [ConfigProperty("Group Results by Type", Category = "Search")]
         public bool GroupResultsByType { get; set; } = true;
 

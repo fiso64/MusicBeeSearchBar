@@ -55,12 +55,12 @@ namespace MusicBeePlugin.UI
                             if (image != null && !IsDisposed)
                             {
                                 // Invalidate the whole list as items might move
-                                BeginInvoke((Action)(() => {
+                                PostToUi(() => {
                                     if (!IsDisposed)
                                     {
                                         resultsListBox.Invalidate();
                                     }
-                                }));
+                                });
                             }
                         }
                     });
@@ -86,12 +86,12 @@ namespace MusicBeePlugin.UI
                 // Update UI on completion
                 if (!IsDisposed)
                 {
-                    BeginInvoke((Action)(() => {
+                    PostToUi(() => {
                         loadingIndicator.Visible = false;
 
                         // Refresh results
                         SearchBox_TextChanged(null, EventArgs.Empty);
-                    }));
+                    });
                 }
             }
             catch (Exception ex)
@@ -135,20 +135,22 @@ namespace MusicBeePlugin.UI
 
                 if (!IsDisposed && IsHandleCreated)
                 {
-                    BeginInvoke((Action)(() =>
+                    PostToUi(() =>
                     {
                         if (!IsDisposed && string.IsNullOrWhiteSpace(searchBox.Text))
                         {
                             UpdateResultsList(items);
                             LoadImagesForVisibleResults();
                         }
-                    }));
+                    });
                 }
             });
         }
 
         private async void SearchBox_TextChanged(object sender, EventArgs e)
         {
+            if (_resourcesDisposed || IsDisposed || Disposing) return;
+
             string query = searchBox.Text; // Trim later, depending on command/search path
 
             if (string.IsNullOrWhiteSpace(query.Trim()))
@@ -167,6 +169,7 @@ namespace MusicBeePlugin.UI
             // Cancel any ongoing search/command listing
             _currentSearchCts?.Cancel();
             _currentSearchCts = new CancellationTokenSource();
+            var searchToken = _currentSearchCts.Token;
 
             // Increment sequence number for this search
             long searchSequence = Interlocked.Increment(ref _currentSearchSequence);
@@ -179,10 +182,10 @@ namespace MusicBeePlugin.UI
                 {
                     string commandQuery = query.TrimStart().Substring(1);
                     // Call the synchronous method from SearchService
-                    var commandResults = searchService.SearchCommands(commandQuery, _currentSearchCts.Token);
-                    if (!_currentSearchCts.Token.IsCancellationRequested && searchSequence == _currentSearchSequence)
+                    var commandResults = searchService.SearchCommands(commandQuery, searchToken);
+                    if (!searchToken.IsCancellationRequested && searchSequence == _currentSearchSequence)
                     {
-                        BeginInvoke((Action)(() => UpdateResultsList(commandResults)));
+                        PostToUi(() => UpdateResultsList(commandResults));
                         loadingIndicator.Visible = false;
                     }
                     return; // Command search handled, exit here
@@ -235,17 +238,17 @@ namespace MusicBeePlugin.UI
                     await searchService.SearchIncrementalAsync(
                         query,
                         filter,
-                        _currentSearchCts.Token,
+                        searchToken,
                         results => {
-                            if (!_currentSearchCts.Token.IsCancellationRequested)
+                            if (!searchToken.IsCancellationRequested)
                             {
-                                BeginInvoke((Action)(() => {
+                                PostToUi(() => {
                                     // Only update if this is still the most recent search
                                     if (searchSequence == _currentSearchSequence)
                                     {
                                         UpdateResultsList(results);
                                     }
-                                }));
+                                });
                             }
                         },
                         resultLimits
@@ -253,15 +256,15 @@ namespace MusicBeePlugin.UI
                 }
                 else
                 {
-                    var results = await searchService.SearchIncrementalAsync(query, filter, _currentSearchCts.Token, null, resultLimits);
+                    var results = await searchService.SearchIncrementalAsync(query, filter, searchToken, null, resultLimits);
                     
-                    if (IsDisposed || !IsHandleCreated) return;
+                    if (_resourcesDisposed || IsDisposed || Disposing || !IsHandleCreated) return;
 
-                    if (!_currentSearchCts.Token.IsCancellationRequested && searchSequence == _currentSearchSequence)
+                    if (!searchToken.IsCancellationRequested && searchSequence == _currentSearchSequence)
                     {
                         try
                         {
-                            BeginInvoke((Action)(() => UpdateResultsList(results)));
+                            PostToUi(() => UpdateResultsList(results));
                         }
                         catch (Exception ex)
                         {
@@ -274,7 +277,7 @@ namespace MusicBeePlugin.UI
                 Debug.WriteLine($"Search took {stopwatch.ElapsedMilliseconds} ms.");
 
                 // Hide loading indicator if this is still the current search
-                if (!_currentSearchCts.Token.IsCancellationRequested && searchSequence == _currentSearchSequence)
+                if (!searchToken.IsCancellationRequested && searchSequence == _currentSearchSequence)
                 {
                     loadingIndicator.Visible = false;
                 }
@@ -286,8 +289,10 @@ namespace MusicBeePlugin.UI
             catch (Exception ex)
             {
                 Logger.Error("Error during search", ex);
-                loadingIndicator.Visible = false;
+                if (!_resourcesDisposed && !IsDisposed && !Disposing) loadingIndicator.Visible = false;
             }
+
+            if (_resourcesDisposed || IsDisposed || Disposing) return;
 
             // Reset image loading timer (only if not a command search)
             if (searchUIConfig.ShowImages && (query.TrimStart().Length == 0 || !query.TrimStart().StartsWith(">")))

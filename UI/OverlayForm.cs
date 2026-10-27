@@ -10,8 +10,34 @@ namespace MusicBeePlugin.UI
         private System.Windows.Forms.Timer _fadeTimer;
         private double _opacityIncrement;
         private Control _targetControl;
+        private readonly object _subscriptionLock = new object();
+        private bool _subscriptionsDisposed;
 
         protected override bool ShowWithoutActivation => true;
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                const int WS_EX_NOACTIVATE = 0x08000000;
+                var parameters = base.CreateParams;
+                parameters.ExStyle |= WS_EX_NOACTIVATE;
+                return parameters;
+            }
+        }
+
+        // Clicking the backdrop must not activate it or move it above the search bar.
+        protected override void WndProc(ref Message m)
+        {
+            const int WM_MOUSEACTIVATE = 0x0021;
+            const int MA_NOACTIVATE = 3;
+            if (m.Msg == WM_MOUSEACTIVATE)
+            {
+                m.Result = (IntPtr)MA_NOACTIVATE;
+                return;
+            }
+            base.WndProc(ref m);
+        }
 
         public OverlayForm(Control targetControl, double opacity, double fadeDurationSeconds)
         {
@@ -52,29 +78,31 @@ namespace MusicBeePlugin.UI
                 Opacity = _targetOpacity;
             }
 
-            // Subscribe to events on target control's thread
-            if (_targetControl.InvokeRequired)
+            // Capture the control: disposal may clear the field before this callback runs.
+            var target = _targetControl;
+            Action subscribe = () =>
             {
-                _targetControl.BeginInvoke(new Action(() =>
+                lock (_subscriptionLock)
                 {
-                    _targetControl.LocationChanged += TargetControl_LocationChanged;
-                    _targetControl.SizeChanged += TargetControl_SizeChanged;
-                }));
-            }
+                    if (_subscriptionsDisposed || target.IsDisposed) return;
+                    target.LocationChanged += TargetControl_LocationChanged;
+                    target.SizeChanged += TargetControl_SizeChanged;
+                }
+            };
+            if (target.InvokeRequired)
+                target.BeginInvoke(subscribe);
             else
-            {
-                _targetControl.LocationChanged += TargetControl_LocationChanged;
-                _targetControl.SizeChanged += TargetControl_SizeChanged;
-            }
+                subscribe();
         }
 
         private void TargetControl_LocationChanged(object sender, EventArgs e)
         {
             // Runs on target control thread
-            if (IsDisposed || _targetControl == null || _targetControl.IsDisposed) return;
+            var target = sender as Control;
+            if (IsDisposed || Disposing || target == null || target.IsDisposed) return;
             try
             {
-                var loc = _targetControl.PointToScreen(Point.Empty);
+                var loc = target.PointToScreen(Point.Empty);
                 BeginInvoke(new Action(() =>
                 {
                     if (!IsDisposed) Location = loc;
@@ -86,10 +114,11 @@ namespace MusicBeePlugin.UI
         private void TargetControl_SizeChanged(object sender, EventArgs e)
         {
             // Runs on target control thread
-            if (IsDisposed || _targetControl == null || _targetControl.IsDisposed) return;
+            var target = sender as Control;
+            if (IsDisposed || Disposing || target == null || target.IsDisposed) return;
             try
             {
-                var sz = _targetControl.Size;
+                var sz = target.Size;
                 BeginInvoke(new Action(() =>
                 {
                     if (!IsDisposed) Size = sz;
@@ -137,7 +166,13 @@ namespace MusicBeePlugin.UI
                 if (_targetControl != null)
                 {
                     // Unsubscribe on target control thread to avoid cross-thread operation exceptions or leaks
-                    var ctrl = _targetControl;
+                    Control ctrl;
+                    lock (_subscriptionLock)
+                    {
+                        _subscriptionsDisposed = true;
+                        ctrl = _targetControl;
+                        _targetControl = null;
+                    }
                     if (ctrl.InvokeRequired)
                     {
                         try
@@ -155,7 +190,6 @@ namespace MusicBeePlugin.UI
                         ctrl.LocationChanged -= TargetControl_LocationChanged;
                         ctrl.SizeChanged -= TargetControl_SizeChanged;
                     }
-                    _targetControl = null;
                 }
             }
             base.Dispose(disposing);

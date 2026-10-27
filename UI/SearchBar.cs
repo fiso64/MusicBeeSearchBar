@@ -51,6 +51,8 @@ namespace MusicBeePlugin.UI
         private Point dragCursorPoint;
         private Point dragFormPoint;
         private bool _suppressDeactivate = false;
+        private int _attachmentVersion;
+        private volatile bool _resourcesDisposed = false;
 
         // Manual width-resize state (the form is borderless, so there's no native resize border)
         private bool _isResizingWidth = false;
@@ -78,10 +80,18 @@ namespace MusicBeePlugin.UI
                         try
                         {
                             overlay = new OverlayForm(musicBeeControl, searchUIConfig.OverlayOpacity, 0.08);
+                            overlay.MouseDown += (sender, e) =>
+                            {
+                                if (!isDetached && !_resourcesDisposed && searchUIConfig.AutoHideOnFocusLoss) Close();
+                            };
+                            var newOverlay = overlay;
+                            overlay.Activated += (sender, e) => RestoreFocusFromOverlay(newOverlay);
                             overlay.Show();
+                            overlay.AddOwnedForm(this);
                             // Ensure SearchBar stays on top of the overlay and keeps focus
                             this.BringToFront();
                             this.Activate();
+                            RestoreFocusFromOverlay(newOverlay);
                         }
                         finally
                         {
@@ -92,15 +102,51 @@ namespace MusicBeePlugin.UI
             }
             else // Should NOT show overlay
             {
-                if (overlay != null)
-                {
-                    if (!overlay.IsDisposed)
-                    {
-                        overlay.Close();
-                    }
-                    overlay = null;
-                }
+                CloseOverlay();
             }
+        }
+
+        private void RestoreFocusFromOverlay(OverlayForm expectedOverlay)
+        {
+            int attachmentVersion = _attachmentVersion;
+            PostToUi(() =>
+            {
+                if (isDetached || attachmentVersion != _attachmentVersion || overlay != expectedOverlay
+                    || expectedOverlay.IsDisposed || !expectedOverlay.IsHandleCreated
+                    || WinApiHelpers.GetForegroundWindow() != expectedOverlay.Handle)
+                    return;
+
+                Activate();
+                searchBox.Focus();
+            });
+        }
+
+        private void PostToUi(Action action)
+        {
+            if (_resourcesDisposed || IsDisposed || Disposing || !IsHandleCreated) return;
+            try
+            {
+                BeginInvoke((Action)(() =>
+                {
+                    if (!_resourcesDisposed && !IsDisposed && !Disposing) action();
+                }));
+            }
+            catch (InvalidOperationException)
+            {
+                // The handle can be destroyed between the check and BeginInvoke.
+            }
+        }
+
+        private void CloseOverlay()
+        {
+            var currentOverlay = overlay;
+            overlay = null;
+            if (currentOverlay == null || currentOverlay.IsDisposed) return;
+
+            // The backdrop owns this form for stacking. Unlink it before closing
+            // the backdrop so it cannot re-enter the search bar's close/dispose path.
+            currentOverlay.RemoveOwnedForm(this);
+            currentOverlay.Close();
         }
 
         // Timers
@@ -140,6 +186,7 @@ namespace MusicBeePlugin.UI
 
         private void ToggleDetachedMode()
         {
+            _attachmentVersion++;
             isDetached = !isDetached;
             dragPanel.Visible = isDetached;
             TopMost = !isDetached;
@@ -373,8 +420,9 @@ namespace MusicBeePlugin.UI
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing)
+            if (disposing && !_resourcesDisposed)
             {
+                _resourcesDisposed = true;
                 _mbWindowCheckTimer?.Stop();
                 _mbWindowCheckTimer?.Dispose();
                 imageLoadDebounceTimer?.Stop();
@@ -382,11 +430,7 @@ namespace MusicBeePlugin.UI
                 _currentSearchCts?.Cancel();
                 _currentSearchCts?.Dispose();
 
-                if (overlay != null && !overlay.IsDisposed)
-                {
-                    overlay.Close();
-                    overlay = null;
-                }
+                CloseOverlay();
 
                 base.Dispose(disposing);
 

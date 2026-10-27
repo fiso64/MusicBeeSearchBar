@@ -149,20 +149,31 @@ namespace MusicBeePlugin.UI
 
         private void HandleFormDeactivate(object sender, EventArgs e)
         {
-            if (_suppressDeactivate) return;
+            if (isDetached || _suppressDeactivate || !searchUIConfig.AutoHideOnFocusLoss) return;
 
-            // Use BeginInvoke to marshal the Close call to the UI thread
-            if (!IsDisposed && !Disposing)
+            int attachmentVersion = _attachmentVersion;
+
+            PostToUi(() =>
             {
-                try
+                // Detaching may have happened since deactivation queued this callback.
+                if (attachmentVersion == _attachmentVersion && !isDetached
+                    && !_suppressDeactivate && searchUIConfig.AutoHideOnFocusLoss)
                 {
-                    BeginInvoke((Action)Close);
+                    var foregroundWindow = WinApiHelpers.GetForegroundWindow();
+                    if (foregroundWindow == Handle) return;
+
+                    // An activation of our own backdrop is not an external focus loss.
+                    if (overlay != null && !overlay.IsDisposed && overlay.IsHandleCreated
+                        && foregroundWindow == overlay.Handle)
+                    {
+                        RestoreFocusFromOverlay(overlay);
+                    }
+                    else
+                    {
+                        Close();
+                    }
                 }
-                catch (InvalidOperationException)
-                {
-                    // Ignore if the form is already being disposed or handle is already gone
-                }
-            }
+            });
         }
 
         private void HandleFormKeyDown(object sender, KeyEventArgs e)
