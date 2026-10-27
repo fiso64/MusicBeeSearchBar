@@ -55,14 +55,15 @@ namespace MusicBeePlugin.UI
             // Configure Actions tab
             var actionsLayout = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill,
+                Dock = DockStyle.Top,
                 Padding = new Padding(10),
                 ColumnCount = 1,
                 RowCount = 4,
                 AutoSize = true,
-                AutoScroll = true
+                AutoSizeMode = AutoSizeMode.GrowAndShrink
             };
 
+            actionsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             actionsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             actionsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             actionsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -222,41 +223,84 @@ namespace MusicBeePlugin.UI
                 Text = title,
                 Dock = DockStyle.Fill,
                 AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 Padding = new Padding(10)
             };
 
             TableLayoutPanel layout = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill,
-                ColumnCount = 3,
-                RowCount = 4,
-                AutoSize = true
+                Dock = DockStyle.Top,
+                ColumnCount = 1,
+                RowCount = 3,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink
             };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-            // Add row headers
-            layout.Controls.Add(new Label { Text = "Enter:", AutoSize = true }, 0, 0);
-            layout.Controls.Add(new Label { Text = "Ctrl+Enter:", AutoSize = true }, 0, 1);
-            layout.Controls.Add(new Label { Text = "Shift+Enter:", AutoSize = true }, 0, 2);
-            layout.Controls.Add(new Label { Text = "Ctrl+Shift+Enter:", AutoSize = true }, 0, 3);
-
-            // Add action combo boxes with their corresponding options panels
+            var defaultLayout = CreateActionRowsLayout(1);
+            defaultLayout.Controls.Add(new Label { Text = "Enter / click:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
             var (defaultCombo, defaultOptions) = CreateActionControls(actionConfig.Default, actionConfig, resultType);
+            defaultLayout.Controls.Add(defaultCombo, 1, 0);
+            defaultLayout.Controls.Add(defaultOptions, 2, 0);
+
+            var alternativesLayout = CreateActionRowsLayout(3);
+            alternativesLayout.Visible = false;
+            alternativesLayout.Controls.Add(new Label { Text = "Ctrl+Enter:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
+            alternativesLayout.Controls.Add(new Label { Text = "Shift+Enter:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
+            alternativesLayout.Controls.Add(new Label { Text = "Ctrl+Shift+Enter:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 2);
+
             var (ctrlCombo, ctrlOptions) = CreateActionControls(actionConfig.Ctrl, actionConfig, resultType);
             var (shiftCombo, shiftOptions) = CreateActionControls(actionConfig.Shift, actionConfig, resultType);
             var (ctrlShiftCombo, ctrlShiftOptions) = CreateActionControls(actionConfig.CtrlShift, actionConfig, resultType);
+            alternativesLayout.Controls.Add(ctrlCombo, 1, 0);
+            alternativesLayout.Controls.Add(shiftCombo, 1, 1);
+            alternativesLayout.Controls.Add(ctrlShiftCombo, 1, 2);
+            alternativesLayout.Controls.Add(ctrlOptions, 2, 0);
+            alternativesLayout.Controls.Add(shiftOptions, 2, 1);
+            alternativesLayout.Controls.Add(ctrlShiftOptions, 2, 2);
 
-            layout.Controls.Add(defaultCombo, 1, 0);
-            layout.Controls.Add(ctrlCombo, 1, 1);
-            layout.Controls.Add(shiftCombo, 1, 2);
-            layout.Controls.Add(ctrlShiftCombo, 1, 3);
+            var alternativesLink = new LinkLabel
+            {
+                Text = "Show alternative actions (Ctrl / Shift)",
+                AutoSize = true,
+                Margin = new Padding(0, 5, 0, 5)
+            };
+            alternativesLink.LinkClicked += (sender, e) =>
+            {
+                alternativesLayout.Visible = !alternativesLayout.Visible;
+                alternativesLink.Text = alternativesLayout.Visible
+                    ? "Hide alternative actions"
+                    : "Show alternative actions (Ctrl / Shift)";
+            };
 
-            layout.Controls.Add(defaultOptions, 2, 0);
-            layout.Controls.Add(ctrlOptions, 2, 1);
-            layout.Controls.Add(shiftOptions, 2, 2);
-            layout.Controls.Add(ctrlShiftOptions, 2, 3);
+            layout.Controls.Add(defaultLayout, 0, 0);
+            layout.Controls.Add(alternativesLink, 0, 1);
+            layout.Controls.Add(alternativesLayout, 0, 2);
 
             groupBox.Controls.Add(layout);
             return groupBox;
+        }
+
+        private static TableLayoutPanel CreateActionRowsLayout(int rowCount)
+        {
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                ColumnCount = 3,
+                RowCount = rowCount,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                Margin = Padding.Empty
+            };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 205));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            for (int i = 0; i < rowCount; i++)
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            return layout;
         }
 
         private (ComboBox, Panel) CreateActionControls(BaseActionData currentAction, ActionConfig actionConfig, Services.ResultType resultType)
