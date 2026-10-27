@@ -29,6 +29,13 @@ namespace MusicBeePlugin
 
         private static readonly ManualResetEvent startupComplete = new ManualResetEvent(false);
         private static SearchBar searchBarInstance;
+        private static readonly object searchBarLock = new object();
+        private static bool searchBarReserved;
+        private static bool searchBarReady;
+        private static bool searchBarRefreshScheduled;
+        private static bool searchBarRefreshPending;
+        private static bool searchBarTextPending;
+        private static string searchBarPendingText;
         private IpcService ipcService;
 
         public PluginInfo Initialise(IntPtr apiInterfacePtr)
@@ -215,45 +222,133 @@ namespace MusicBeePlugin
         {
             startupComplete.WaitOne();
 
-            if (searchBarInstance != null && !searchBarInstance.IsDisposed)
+            lock (searchBarLock)
             {
-                searchBarInstance.BeginInvoke((Action)(() =>
+                if (searchBarReserved)
                 {
-                    if (!searchBarInstance.IsDisposed)
+                    searchBarRefreshPending = true;
+                    if (defaultText != null)
                     {
-                        searchBarInstance.Activate();
-                        if (defaultText != null)
-                        {
-                            searchBarInstance.SetSearchText(defaultText);
-                        }
+                        searchBarPendingText = defaultText;
+                        searchBarTextPending = true;
                     }
-                }));
-                return;
+                    if (searchBarReady) ScheduleSearchBarRefresh();
+                    return;
+                }
+
+                // Reserve the slot before creating the UI thread. Calls made while the
+                // form is being constructed are merged into a pending refresh.
+                searchBarReserved = true;
             }
 
-            var mbHwnd = mbApi.MB_GetWindowHandle();
-            var mbControl = Control.FromHandle(mbHwnd);
-            SynchronizationContext mainContext = SynchronizationContext.Current;
-
-            var actionService = new ActionService(config.SearchActions);
-
-            Thread searchBarThread = new Thread(() =>
+            try
             {
-                try
-                {
-                    var searchBarForm = new SearchBar(mbControl, mainContext, mbApi, actionService, config.SearchUI, defaultText, startDetached);
-                    searchBarInstance = searchBarForm;
-                    searchBarInstance.FormClosed += (s, args) => searchBarInstance = null;
-                    Application.Run(searchBarInstance);
-                }
-                catch (Exception ex)
-                {
-                    Logger.Error("CRITICAL: Error in SearchBar UI Thread", ex);
-                }
-            });
+                var mbHwnd = mbApi.MB_GetWindowHandle();
+                var mbControl = Control.FromHandle(mbHwnd);
+                SynchronizationContext mainContext = SynchronizationContext.Current;
+                var actionService = new ActionService(config.SearchActions);
 
-            searchBarThread.SetApartmentState(ApartmentState.STA);
-            searchBarThread.Start();
+                Thread searchBarThread = new Thread(() =>
+                {
+                    SearchBar searchBarForm = null;
+                    try
+                    {
+                        searchBarForm = new SearchBar(mbControl, mainContext, mbApi, actionService, config.SearchUI, defaultText, startDetached);
+                        lock (searchBarLock)
+                        {
+                            searchBarInstance = searchBarForm;
+                        }
+                        searchBarForm.Shown += (s, args) =>
+                        {
+                            lock (searchBarLock)
+                            {
+                                if (searchBarInstance != searchBarForm) return;
+                                searchBarReady = true;
+                                if (searchBarRefreshPending) ScheduleSearchBarRefresh();
+                            }
+                        };
+                        Application.Run(searchBarForm);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error("CRITICAL: Error in SearchBar UI Thread", ex);
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            if (searchBarForm != null && !searchBarForm.IsDisposed)
+                                searchBarForm.Dispose();
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Error("Error disposing SearchBar", ex);
+                        }
+                        finally
+                        {
+                            lock (searchBarLock)
+                            {
+                                searchBarInstance = null;
+                                searchBarReserved = false;
+                                searchBarReady = false;
+                                searchBarRefreshScheduled = false;
+                                searchBarRefreshPending = false;
+                                searchBarTextPending = false;
+                                searchBarPendingText = null;
+                            }
+                        }
+                    }
+                });
+
+                searchBarThread.SetApartmentState(ApartmentState.STA);
+                searchBarThread.Start();
+            }
+            catch
+            {
+                lock (searchBarLock)
+                {
+                    searchBarReserved = false;
+                    searchBarRefreshPending = false;
+                    searchBarTextPending = false;
+                    searchBarPendingText = null;
+                }
+                throw;
+            }
+        }
+
+        // Called with searchBarLock held; BeginInvoke never waits for the UI thread.
+        private static void ScheduleSearchBarRefresh()
+        {
+            var form = searchBarInstance;
+            if (searchBarRefreshScheduled || !searchBarReady || form == null) return;
+            searchBarRefreshScheduled = true;
+            try
+            {
+                form.BeginInvoke((Action)(() =>
+                {
+                    string text;
+                    bool updateText;
+                    lock (searchBarLock)
+                    {
+                        if (searchBarInstance != form) return;
+                        searchBarRefreshScheduled = false;
+                        searchBarRefreshPending = false;
+                        updateText = searchBarTextPending;
+                        text = searchBarPendingText;
+                        searchBarTextPending = false;
+                        searchBarPendingText = null;
+                    }
+
+                    if (form.IsDisposed || form.Disposing || !form.Visible) return;
+                    form.Activate();
+                    if (updateText) form.SetSearchText(text);
+                }));
+            }
+            catch (InvalidOperationException)
+            {
+                // The form is closing or its handle has already been destroyed.
+                searchBarRefreshScheduled = false;
+            }
         }
 
         public async void PerformActionOnSelected(ResultType actionType)

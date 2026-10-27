@@ -20,8 +20,9 @@ namespace MusicBeePlugin.UI
             get
             {
                 const int WS_EX_NOACTIVATE = 0x08000000;
+                const int WS_EX_TOOLWINDOW = 0x00000080;
                 var parameters = base.CreateParams;
-                parameters.ExStyle |= WS_EX_NOACTIVATE;
+                parameters.ExStyle |= WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
                 return parameters;
             }
         }

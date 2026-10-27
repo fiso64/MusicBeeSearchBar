@@ -149,15 +149,14 @@ namespace MusicBeePlugin.UI
 
         private void HandleFormDeactivate(object sender, EventArgs e)
         {
-            if (isDetached || _suppressDeactivate || !searchUIConfig.AutoHideOnFocusLoss) return;
+            if (_closing || isDetached || _suppressDeactivate) return;
 
             int attachmentVersion = _attachmentVersion;
 
             PostToUi(() =>
             {
                 // Detaching may have happened since deactivation queued this callback.
-                if (attachmentVersion == _attachmentVersion && !isDetached
-                    && !_suppressDeactivate && searchUIConfig.AutoHideOnFocusLoss)
+                if (!_closing && attachmentVersion == _attachmentVersion && !isDetached && !_suppressDeactivate)
                 {
                     var foregroundWindow = WinApiHelpers.GetForegroundWindow();
                     if (foregroundWindow == Handle) return;
@@ -166,9 +165,16 @@ namespace MusicBeePlugin.UI
                     if (overlay != null && !overlay.IsDisposed && overlay.IsHandleCreated
                         && foregroundWindow == overlay.Handle)
                     {
+                        _seenMusicBeeForeground = true;
                         RestoreFocusFromOverlay(overlay);
                     }
-                    else
+                    else if (foregroundWindow != IntPtr.Zero
+                        && WinApiHelpers.AreWindowsInSameProcess(foregroundWindow, Handle) == true)
+                    {
+                        _seenMusicBeeForeground = true;
+                    }
+                    else if (foregroundWindow != IntPtr.Zero
+                        && WinApiHelpers.AreWindowsInSameProcess(foregroundWindow, Handle) == false)
                     {
                         Close();
                     }

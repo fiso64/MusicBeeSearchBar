@@ -53,6 +53,8 @@ namespace MusicBeePlugin.UI
         private bool _suppressDeactivate = false;
         private int _attachmentVersion;
         private volatile bool _resourcesDisposed = false;
+        private bool _closing;
+        private bool _seenMusicBeeForeground;
 
         // Manual width-resize state (the form is borderless, so there's no native resize border)
         private bool _isResizingWidth = false;
@@ -65,6 +67,7 @@ namespace MusicBeePlugin.UI
 
         // Timer to check if MusicBee window is still open in detached mode
         private System.Windows.Forms.Timer _mbWindowCheckTimer;
+        private System.Windows.Forms.Timer _foregroundCheckTimer;
 
         private void UpdateOverlayState()
         {
@@ -80,11 +83,12 @@ namespace MusicBeePlugin.UI
                         try
                         {
                             overlay = new OverlayForm(musicBeeControl, searchUIConfig.OverlayOpacity, 0.08);
-                            overlay.MouseDown += (sender, e) =>
-                            {
-                                if (!isDetached && !_resourcesDisposed && searchUIConfig.AutoHideOnFocusLoss) Close();
-                            };
                             var newOverlay = overlay;
+                            newOverlay.MouseClick += (sender, e) =>
+                            {
+                                if (!isDetached && !_closing && !_resourcesDisposed && overlay == newOverlay)
+                                    Close();
+                            };
                             overlay.Activated += (sender, e) => RestoreFocusFromOverlay(newOverlay);
                             overlay.Show();
                             overlay.AddOwnedForm(this);
@@ -111,7 +115,7 @@ namespace MusicBeePlugin.UI
             int attachmentVersion = _attachmentVersion;
             PostToUi(() =>
             {
-                if (isDetached || attachmentVersion != _attachmentVersion || overlay != expectedOverlay
+                if (_closing || isDetached || attachmentVersion != _attachmentVersion || overlay != expectedOverlay
                     || expectedOverlay.IsDisposed || !expectedOverlay.IsHandleCreated
                     || WinApiHelpers.GetForegroundWindow() != expectedOverlay.Handle)
                     return;
@@ -204,6 +208,34 @@ namespace MusicBeePlugin.UI
             }
 
             UpdateOverlayState();
+            UpdateForegroundTracking();
+        }
+
+        private void UpdateForegroundTracking()
+        {
+            if (_foregroundCheckTimer == null) return;
+            _foregroundCheckTimer.Stop();
+            _seenMusicBeeForeground = false;
+            if (Visible && !isDetached)
+            {
+                CheckForegroundWindow();
+                if (!IsDisposed && !Disposing) _foregroundCheckTimer.Start();
+            }
+        }
+
+        private void CheckForegroundWindow()
+        {
+            if (_closing || _resourcesDisposed || IsDisposed || Disposing || isDetached
+                || _suppressDeactivate || !IsHandleCreated)
+                return;
+
+            var foreground = WinApiHelpers.GetForegroundWindow();
+            if (foreground == IntPtr.Zero) return;
+            var sameProcess = WinApiHelpers.AreWindowsInSameProcess(foreground, Handle);
+            if (sameProcess == true)
+                _seenMusicBeeForeground = true;
+            else if (sameProcess == false && _seenMusicBeeForeground)
+                Close();
         }
 
         private void MbWindowCheckTimer_Tick(object sender, EventArgs e)
@@ -308,6 +340,8 @@ namespace MusicBeePlugin.UI
                 Interval = 500
             };
             _mbWindowCheckTimer.Tick += MbWindowCheckTimer_Tick;
+            _foregroundCheckTimer = new System.Windows.Forms.Timer { Interval = 200 };
+            _foregroundCheckTimer.Tick += (s, e) => CheckForegroundWindow();
 
             InitializeUI(dpiScale);
             InitializeResizeGrips(dpiScale);
@@ -367,6 +401,7 @@ namespace MusicBeePlugin.UI
             {
                 CreateParams cp = base.CreateParams;
                 cp.ExStyle |= 0x02000000;  // WS_EX_COMPOSITED
+                cp.ExStyle |= 0x00000080;  // WS_EX_TOOLWINDOW: omit from Alt+Tab
                 return cp;
             }
         }
@@ -403,6 +438,7 @@ namespace MusicBeePlugin.UI
         {
             base.OnShown(e);
             UpdateOverlayState();
+            UpdateForegroundTracking();
             Debug.WriteLine("[SearchBar] OnShown: Firing. Setting focus and calling SearchBoxSetDefaultResults.");
             searchBox.Focus();
             SearchBoxSetDefaultResults();
@@ -410,12 +446,14 @@ namespace MusicBeePlugin.UI
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            _closing = true;
             if (!e.Cancel)
             {
                 // Hide the form immediately to prevent visual artifacts (flashing unstyled window) during disposal
                 this.Visible = false;
             }
             base.OnFormClosing(e);
+            if (e.Cancel) _closing = false;
         }
 
         protected override void Dispose(bool disposing)
@@ -425,6 +463,8 @@ namespace MusicBeePlugin.UI
                 _resourcesDisposed = true;
                 _mbWindowCheckTimer?.Stop();
                 _mbWindowCheckTimer?.Dispose();
+                _foregroundCheckTimer?.Stop();
+                _foregroundCheckTimer?.Dispose();
                 imageLoadDebounceTimer?.Stop();
                 imageLoadDebounceTimer?.Dispose();
                 _currentSearchCts?.Cancel();

@@ -22,6 +22,17 @@ namespace MusicBeePlugin.Utils
         public static extern IntPtr GetForegroundWindow();
 
         [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+        public static bool? AreWindowsInSameProcess(IntPtr first, IntPtr second)
+        {
+            if (first == IntPtr.Zero || second == IntPtr.Zero) return null;
+            if (GetWindowThreadProcessId(first, out var firstProcess) == 0
+                || GetWindowThreadProcessId(second, out var secondProcess) == 0) return null;
+            return firstProcess == secondProcess;
+        }
+
+        [DllImport("user32.dll")]
         public static extern bool SetForegroundWindow(IntPtr hWnd);
 
         [DllImport("user32.dll", SetLastError = true)]
