@@ -107,6 +107,7 @@ namespace MusicBeePlugin.UI
             if (searchUIConfig.DefaultResults == SearchUIConfig.DefaultResultsChoice.None)
             {
                 Debug.WriteLine("[SearchBar] SearchBoxSetDefaultResults: Default results set to 'None'.");
+                _defaultSearchResults = null;
                 UpdateResultsList(null);
                 return;
             }
@@ -139,7 +140,8 @@ namespace MusicBeePlugin.UI
                     {
                         if (!IsDisposed && string.IsNullOrWhiteSpace(searchBox.Text))
                         {
-                            UpdateResultsList(items);
+                            _defaultSearchResults = items ?? new List<SearchResult>();
+                            UpdateResultsList(BuildDefaultPagedResults());
                             LoadImagesForVisibleResults();
                         }
                     });
@@ -147,66 +149,109 @@ namespace MusicBeePlugin.UI
             });
         }
 
-        private async void SearchBox_TextChanged(object sender, EventArgs e)
+        private static readonly ResultType[] PageableResultTypes =
+        {
+            ResultType.Artist, ResultType.Album, ResultType.Song, ResultType.Playlist
+        };
+        private const int ShowMorePageSize = 100;
+        private string _expandedQuery;
+        private readonly Dictionary<ResultType, int> _expandedByType = new Dictionary<ResultType, int>();
+        private int _expandedUngrouped;
+        private List<SearchResult> _defaultSearchResults;
+
+        private void SearchBox_TextChanged(object sender, EventArgs e)
+        {
+            RunSearch(false);
+        }
+
+        private void ExpandSearchResults(ResultType type)
+        {
+            if (type == ResultType.All)
+                _expandedUngrouped = AddResultCount(_expandedUngrouped, ShowMorePageSize);
+            else
+            {
+                _expandedByType.TryGetValue(type, out int current);
+                _expandedByType[type] = AddResultCount(current, ShowMorePageSize);
+            }
+            if (string.IsNullOrWhiteSpace(searchBox.Text) && _defaultSearchResults != null)
+            {
+                int scroll = resultsListBox.ScrollTop;
+                int selection = resultsListBox.SelectedIndex;
+                UpdateResultsList(BuildDefaultPagedResults(), true, scroll, selection);
+            }
+            else
+                RunSearch(true);
+        }
+
+        private static int AddResultCount(int count, int increment)
+        {
+            return (int)Math.Min((long)int.MaxValue - 1, (long)count + increment);
+        }
+
+        private async void RunSearch(bool preservePosition)
         {
             if (_resourcesDisposed || IsDisposed || Disposing) return;
-
-            string query = searchBox.Text; // Trim later, depending on command/search path
-
-            if (string.IsNullOrWhiteSpace(query.Trim()))
+            string originalQuery = searchBox.Text;
+            if (_expandedQuery != originalQuery)
             {
-                Debug.WriteLine("[SearchBar] SearchBox_TextChanged: Query is empty, calling SearchBoxSetDefaultResults.");
+                _expandedQuery = originalQuery;
+                _expandedByType.Clear();
+                _expandedUngrouped = 0;
+                preservePosition = false;
+            }
+
+            int previousScroll = resultsListBox.ScrollTop;
+            int previousSelection = resultsListBox.SelectedIndex;
+            _currentSearchCts?.Cancel();
+            _currentSearchCts = new CancellationTokenSource();
+            var searchToken = _currentSearchCts.Token;
+            long searchSequence = Interlocked.Increment(ref _currentSearchSequence);
+
+            if (string.IsNullOrWhiteSpace(originalQuery))
+            {
                 SearchBoxSetDefaultResults();
                 return;
             }
-
-            if (isLoading && !query.TrimStart().StartsWith(">")) // Allow command search even when tracks are loading
+            if (isLoading && !originalQuery.TrimStart().StartsWith(">"))
             {
                 UpdateResultsList(null);
                 return;
             }
 
-            // Cancel any ongoing search/command listing
-            _currentSearchCts?.Cancel();
-            _currentSearchCts = new CancellationTokenSource();
-            var searchToken = _currentSearchCts.Token;
-
-            // Increment sequence number for this search
-            long searchSequence = Interlocked.Increment(ref _currentSearchSequence);
-
             try
             {
                 loadingIndicator.Visible = true;
-
-                if (query.TrimStart().StartsWith(">"))
+                if (originalQuery.TrimStart().StartsWith(">"))
                 {
-                    string commandQuery = query.TrimStart().Substring(1);
-                    // Call the synchronous method from SearchService
-                    var commandResults = searchService.SearchCommands(commandQuery, searchToken);
+                    string commandQuery = originalQuery.TrimStart().Substring(1);
+                    var commands = searchService.SearchCommands(commandQuery, searchToken);
+                    _expandedByType.TryGetValue(ResultType.Command, out int commandExtra);
+                    int commandLimit = AddResultCount(ShowMorePageSize,
+                        searchUIConfig.GroupResultsByType ? commandExtra : _expandedUngrouped);
+                    var visibleCommands = commands.Take(commandLimit).ToList();
+                    if (commands.Count > commandLimit)
+                        visibleCommands.Add(new ShowMoreResult(searchUIConfig.GroupResultsByType ? ResultType.Command : ResultType.All));
                     if (!searchToken.IsCancellationRequested && searchSequence == _currentSearchSequence)
                     {
-                        PostToUi(() => UpdateResultsList(commandResults));
+                        PostToUi(() =>
+                        {
+                            if (!searchToken.IsCancellationRequested && searchSequence == _currentSearchSequence)
+                                UpdateResultsList(visibleCommands, preservePosition, previousScroll, previousSelection);
+                        });
                         loadingIndicator.Visible = false;
                     }
-                    return; // Command search handled, exit here
+                    return;
                 }
 
-                // Existing search logic starts here
-                query = query.Trim(); // Trim for regular search
+                string query = originalQuery.Trim();
                 var filter = ResultType.All;
-                Dictionary<ResultType, int> resultLimits = null;
-
+                int? suffixLimit = null;
                 int trailingDots = 0;
-                while (query.Length > trailingDots && query[query.Length - 1 - trailingDots] == '.')
-                {
-                    trailingDots++;
-                }
-
+                while (query.Length > trailingDots && query[query.Length - 1 - trailingDots] == '.') trailingDots++;
                 if (trailingDots >= 2 && trailingDots % 2 == 0)
                 {
                     query = query.Substring(0, query.Length - trailingDots).TrimEnd();
-                    int limit = (int)(100 * Math.Pow(10, (trailingDots / 2) - 1));
-                    resultLimits = new Dictionary<ResultType, int> { { ResultType.All, limit } };
+                    suffixLimit = (int)Math.Min(int.MaxValue - 1, 100 * Math.Pow(10, (trailingDots / 2) - 1));
                 }
 
                 if (query.StartsWith("a:", StringComparison.OrdinalIgnoreCase))
@@ -230,81 +275,118 @@ namespace MusicBeePlugin.UI
                     query = query.Substring(2).TrimStart();
                 }
 
-                Debug.WriteLine($"Query: {query}");
-                var stopwatch = Stopwatch.StartNew();
-
-                if (INCREMENTAL_UPDATE)
+                var initialLimits = new Dictionary<ResultType, int>
                 {
-                    await searchService.SearchIncrementalAsync(
-                        query,
-                        filter,
-                        searchToken,
-                        results => {
-                            if (!searchToken.IsCancellationRequested)
-                            {
-                                PostToUi(() => {
-                                    // Only update if this is still the most recent search
-                                    if (searchSequence == _currentSearchSequence)
-                                    {
-                                        UpdateResultsList(results);
-                                    }
-                                });
-                            }
-                        },
-                        resultLimits
-                    );
-                }
-                else
+                    { ResultType.Artist, suffixLimit ?? searchUIConfig.ArtistResultLimit },
+                    { ResultType.Album, suffixLimit ?? searchUIConfig.AlbumResultLimit },
+                    { ResultType.Song, suffixLimit ?? searchUIConfig.SongResultLimit },
+                    { ResultType.Playlist, suffixLimit ?? searchUIConfig.PlaylistResultLimit }
+                };
+                var visibleLimits = new Dictionary<ResultType, int>();
+                var fetchLimits = new Dictionary<ResultType, int>();
+                foreach (var type in PageableResultTypes)
                 {
-                    var results = await searchService.SearchIncrementalAsync(query, filter, searchToken, null, resultLimits);
-                    
-                    if (_resourcesDisposed || IsDisposed || Disposing || !IsHandleCreated) return;
-
-                    if (!searchToken.IsCancellationRequested && searchSequence == _currentSearchSequence)
-                    {
-                        try
-                        {
-                            PostToUi(() => UpdateResultsList(results));
-                        }
-                        catch (Exception ex)
-                        {
-                            Logger.Error("Error updating results list", ex);
-                        }
-                    }
+                    int initial = Math.Max(0, initialLimits[type]);
+                    _expandedByType.TryGetValue(type, out int expanded);
+                    int extra = searchUIConfig.GroupResultsByType ? expanded : _expandedUngrouped;
+                    int limit = initial == 0 ? 0 : AddResultCount(initial, extra);
+                    visibleLimits[type] = limit;
+                    fetchLimits[type] = limit == 0 ? 0 : AddResultCount(limit, 1);
                 }
 
-                stopwatch.Stop();
-                Debug.WriteLine($"Search took {stopwatch.ElapsedMilliseconds} ms.");
-
-                // Hide loading indicator if this is still the current search
+                var results = await searchService.SearchIncrementalAsync(query, filter, searchToken, null, fetchLimits);
+                if (_resourcesDisposed || IsDisposed || Disposing || !IsHandleCreated) return;
                 if (!searchToken.IsCancellationRequested && searchSequence == _currentSearchSequence)
                 {
+                    var visible = BuildPagedResults(results, initialLimits, visibleLimits,
+                        searchUIConfig.GroupResultsByType, _expandedUngrouped);
+                    PostToUi(() =>
+                    {
+                        if (!searchToken.IsCancellationRequested && searchSequence == _currentSearchSequence)
+                            UpdateResultsList(visible, preservePosition, previousScroll, previousSelection);
+                    });
                     loadingIndicator.Visible = false;
                 }
             }
-            catch (OperationCanceledException)
-            {
-                // Search was cancelled, ignore
-            }
+            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
                 Logger.Error("Error during search", ex);
                 if (!_resourcesDisposed && !IsDisposed && !Disposing) loadingIndicator.Visible = false;
             }
 
-            if (_resourcesDisposed || IsDisposed || Disposing) return;
-
-            // Reset image loading timer (only if not a command search)
-            if (searchUIConfig.ShowImages && (query.TrimStart().Length == 0 || !query.TrimStart().StartsWith(">")))
+            if (!_resourcesDisposed && !IsDisposed && !Disposing && searchUIConfig.ShowImages)
             {
                 imageLoadDebounceTimer.Stop();
                 imageLoadDebounceTimer.Start();
             }
         }
 
-        // Removed SearchCommandsAsync method from here, as it's now in SearchService
+        private static List<SearchResult> BuildPagedResults(List<SearchResult> candidates,
+            Dictionary<ResultType, int> initialLimits, Dictionary<ResultType, int> visibleLimits,
+            bool grouped, int ungroupedExtra)
+        {
+            var shown = new HashSet<SearchResult>();
+            foreach (var type in PageableResultTypes)
+            {
+                int limit = grouped ? visibleLimits[type] : Math.Max(0, initialLimits[type]);
+                foreach (var result in candidates.Where(item => item.Type == type).Take(limit)) shown.Add(result);
+            }
+            if (!grouped)
+            {
+                foreach (var result in candidates.Where(item => !shown.Contains(item)).Take(ungroupedExtra)) shown.Add(result);
+            }
 
-        private void UpdateResultsList(List<SearchResult> searchResults)
+            var visible = candidates.Where(shown.Contains).ToList();
+            if (!grouped)
+            {
+                if (candidates.Count > shown.Count) visible.Add(new ShowMoreResult(ResultType.All));
+                return visible;
+            }
+
+            foreach (var type in PageableResultTypes)
+            {
+                if (candidates.Count(item => item.Type == type) <= visibleLimits[type]) continue;
+                int last = visible.FindLastIndex(item => item.Type == type);
+                if (last >= 0) visible.Insert(last + 1, new ShowMoreResult(type));
+            }
+            return visible;
+        }
+
+        private List<SearchResult> BuildDefaultPagedResults()
+        {
+            if (!searchUIConfig.GroupResultsByType)
+            {
+                int limit = AddResultCount(ShowMorePageSize, _expandedUngrouped);
+                var visible = _defaultSearchResults.Take(limit).ToList();
+                if (_defaultSearchResults.Count > limit) visible.Add(new ShowMoreResult(ResultType.All));
+                return visible;
+            }
+
+            var limits = new Dictionary<ResultType, int>();
+            var counts = new Dictionary<ResultType, int>();
+            var grouped = new List<SearchResult>();
+            foreach (var item in _defaultSearchResults)
+            {
+                if (!limits.ContainsKey(item.Type))
+                {
+                    _expandedByType.TryGetValue(item.Type, out int extra);
+                    limits[item.Type] = AddResultCount(ShowMorePageSize, extra);
+                }
+                counts.TryGetValue(item.Type, out int count);
+                counts[item.Type] = count + 1;
+                if (count < limits[item.Type]) grouped.Add(item);
+            }
+            foreach (var entry in counts)
+            {
+                if (entry.Value <= limits[entry.Key]) continue;
+                int last = grouped.FindLastIndex(item => item.Type == entry.Key);
+                if (last >= 0) grouped.Insert(last + 1, new ShowMoreResult(entry.Key));
+            }
+            return grouped;
+        }
+
+        private void UpdateResultsList(List<SearchResult> searchResults, bool preservePosition = false, int previousScroll = 0, int previousSelection = -1)
         {
             var results = searchResults ?? new List<SearchResult>();
             Debug.WriteLine($"[SearchBar] UpdateResultsList: Received {results.Count} results.");
@@ -325,6 +407,11 @@ namespace MusicBeePlugin.UI
                     Type previousResultType = null;
                     foreach (var result in results)
                     {
+                        if (result is ShowMoreResult)
+                        {
+                            newResults.Add(result);
+                            continue;
+                        }
                         var currentResultType = result.GetType();
                         if (currentResultType != previousResultType)
                         {
@@ -351,6 +438,11 @@ namespace MusicBeePlugin.UI
                     ResultType? currentType = null;
                     foreach (var result in results)
                     {
+                        if (result is ShowMoreResult)
+                        {
+                            newResults.Add(result);
+                            continue;
+                        }
                         if (!result.IsTopMatch && result.Type != currentType)
                         {
                             currentType = result.Type;
@@ -460,6 +552,15 @@ namespace MusicBeePlugin.UI
             }
 
             resultsListBox.Items = results;
+            if (preservePosition)
+            {
+                resultsListBox.SetScrollPosition(previousScroll);
+                while (previousSelection >= 0 && previousSelection < results.Count
+                    && results[previousSelection].Type == ResultType.Header)
+                    previousSelection++;
+                if (previousSelection >= 0 && previousSelection < results.Count)
+                    resultsListBox.SetSelectedIndex(previousSelection, animateScroll: false);
+            }
         }
     }
 }

@@ -22,6 +22,7 @@ namespace MusicBeePlugin.UI
         private const int ScrollLineHeight = 28;
         private const int SCROLLBAR_WIDTH = 8;
         private const int ARTWORK_CORNER_RADIUS = 8;
+        private const bool CENTER_SHOW_MORE = false;
         public const float HEADER_TOP_PADDING = 8f;
 
         private static readonly ResultActionType[] ActionButtonOrder =
@@ -33,6 +34,9 @@ namespace MusicBeePlugin.UI
 
         private ResultActionType? _hoveredActionButton = null;
         private (int Index, ResultActionType Type)? _pressedAction = null;
+        private TooltipWindow _actionToolTip;
+        private readonly System.Windows.Forms.Timer _actionToolTipTimer;
+        private (int Index, ResultActionType Type)? _actionToolTipTarget;
 
         public event EventHandler<ResultActionEventArgs> ActionButtonClicked;
         public event Action<SearchResult, ResultType> DetailLinkClicked;
@@ -146,6 +150,7 @@ namespace MusicBeePlugin.UI
             get => _items;
             set
             {
+                ClearActionToolTip();
                 if (_pressedDetailLink.HasValue) Capture = false;
                 _items = value ?? new List<SearchResult>();
                 _hoveredDetailLink = null;
@@ -162,7 +167,7 @@ namespace MusicBeePlugin.UI
                     }
                 }
 
-                ScrollTop = 0;
+                SetScrollPosition(0);
 
                 int firstSelectable = -1;
                 if (_items.Count > 0)
@@ -222,6 +227,13 @@ namespace MusicBeePlugin.UI
 
         public SearchResult SelectedItem => (_selectedIndex >= 0 && _selectedIndex < _items.Count) ? _items[_selectedIndex] : null;
 
+        public void SetScrollPosition(int position)
+        {
+            _animationTimer.Stop();
+            ScrollTop = position;
+            _targetScrollTop = _scrollTop;
+        }
+
         public int ScrollTop
         {
             get => _scrollTop;
@@ -238,6 +250,7 @@ namespace MusicBeePlugin.UI
 
                 if (_scrollTop != newValue)
                 {
+                    ClearActionToolTip();
                     _scrollTop = newValue;
                     UpdateScrollbar();
                     Invalidate();
@@ -346,6 +359,8 @@ namespace MusicBeePlugin.UI
                 Interval = 15 // Aim for ~66 FPS
             };
             _animationTimer.Tick += AnimationTimer_Tick;
+            _actionToolTipTimer = new System.Windows.Forms.Timer { Interval = 500 };
+            _actionToolTipTimer.Tick += ActionToolTipTimer_Tick;
         }
 
         protected override void Dispose(bool disposing)
@@ -354,6 +369,9 @@ namespace MusicBeePlugin.UI
             {
                 _animationTimer?.Stop();
                 _animationTimer?.Dispose();
+                _actionToolTipTimer?.Stop();
+                _actionToolTipTimer?.Dispose();
+                _actionToolTip?.Dispose();
                 _backgroundBrush?.Dispose();
                 _highlightBrush?.Dispose();
                 _hoverBrush?.Dispose();
@@ -372,6 +390,8 @@ namespace MusicBeePlugin.UI
 
         public int GetItemHeight(SearchResult item, int index)
         {
+            if (item.Type == ResultType.ShowMore)
+                return Math.Max((int)(30 * DpiScale), (ResultFont?.Height ?? 16) + (int)(10 * DpiScale));
             int resultHeight = item.Type == ResultType.Command ? CommandItemHeight : ItemHeight;
             if (item.IsTopMatch)
             {
@@ -573,10 +593,34 @@ namespace MusicBeePlugin.UI
             {
                 DrawHeader(g, resultItem, bounds, index);
             }
+            else if (resultItem.Type == ResultType.ShowMore)
+            {
+                DrawShowMore(g, resultItem, bounds, index, isSelected);
+            }
             else
             {
                 DrawResult(g, resultItem, bounds, index, isSelected);
             }
+        }
+
+        private void DrawShowMore(Graphics g, SearchResult item, Rectangle bounds, int index, bool isSelected)
+        {
+            g.FillRectangle(GetBackgroundBrush(), bounds);
+            var flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter
+                | (CENTER_SHOW_MORE ? TextFormatFlags.HorizontalCenter : TextFormatFlags.Left);
+            int margin = (int)(2 * DpiScale);
+            int width = bounds.Width - (_isThumbVisible ? SCROLLBAR_WIDTH : 0);
+            if (width <= 2 * margin || bounds.Height <= 2 * margin) return;
+            var button = new Rectangle(bounds.X + margin, bounds.Y + margin, width - 2 * margin, bounds.Height - 2 * margin);
+            if (isSelected || index == _hoveredIndex)
+            {
+                using (var path = GetRoundedRectPath(button, (int)(5 * DpiScale)))
+                    g.FillPath(isSelected ? GetHighlightBrush() : GetHoverBrush(), path);
+            }
+            int leftPadding = CENTER_SHOW_MORE ? 0 : (int)(10 * DpiScale);
+            var textBounds = new Rectangle(button.X + leftPadding, button.Y,
+                Math.Max(0, button.Width - leftPadding), button.Height);
+            TextRenderer.DrawText(g, item.DisplayTitle, ResultDetailFont, textBounds, Theme?.SecondaryText ?? ForeColor, flags);
         }
 
         private void DrawHeader(Graphics g, SearchResult resultItem, Rectangle bounds, int index)
@@ -723,6 +767,61 @@ namespace MusicBeePlugin.UI
 
                 DrawActionButtonIcon(g, type, rect, iconColor);
             }
+        }
+
+        private void UpdateActionToolTip(int index, ResultActionType? action)
+        {
+            (int Index, ResultActionType Type)? target = action.HasValue && index >= 0 && !_pressedAction.HasValue
+                ? (index, action.Value) : ((int, ResultActionType)?)null;
+            if (_actionToolTipTarget == target) return;
+
+            ClearActionToolTip();
+            _actionToolTipTarget = target;
+            if (target.HasValue)
+            {
+                _actionToolTipTimer.Interval = 500;
+                _actionToolTipTimer.Start();
+            }
+        }
+
+        private void ClearActionToolTip()
+        {
+            _actionToolTipTimer?.Stop();
+            _actionToolTipTarget = null;
+            if (_actionToolTip != null && !_actionToolTip.IsDisposed) _actionToolTip.Hide();
+        }
+
+        private void ActionToolTipTimer_Tick(object sender, EventArgs e)
+        {
+            _actionToolTipTimer.Stop();
+            if (_actionToolTip != null && !_actionToolTip.IsDisposed && _actionToolTip.Visible)
+            {
+                _actionToolTip.Hide();
+                return;
+            }
+            if (!_actionToolTipTarget.HasValue || IsDisposed || Disposing || !Visible || _isDraggingThumb)
+                return;
+
+            var target = _actionToolTipTarget.Value;
+            if (target.Index != _hoveredIndex || target.Type != _hoveredActionButton
+                || target.Index >= _items.Count) return;
+
+            string text;
+            switch (target.Type)
+            {
+                case ResultActionType.PlayNow: text = "Play now"; break;
+                case ResultActionType.QueueNext: text = "Queue next"; break;
+                case ResultActionType.QueueLast: text = "Queue last"; break;
+                default: return;
+            }
+
+            var owner = FindForm();
+            if (owner == null || owner.IsDisposed || owner.Disposing) return;
+            if (_actionToolTip == null || _actionToolTip.IsDisposed)
+                _actionToolTip = new TooltipWindow();
+            _actionToolTip.ShowNearCursor(owner, text);
+            _actionToolTipTimer.Interval = 5000;
+            _actionToolTipTimer.Start();
         }
 
         // Icon geometry lifted straight from Deezer's SVGs (24x24 viewBox), parsed once and reused.
@@ -1181,6 +1280,7 @@ namespace MusicBeePlugin.UI
         protected override void OnMouseDown(MouseEventArgs e)
         {
             base.OnMouseDown(e);
+            ClearActionToolTip();
             _suppressClick = false;
 
             // Check if mouse is in scrollbar area (including track)
@@ -1237,6 +1337,7 @@ namespace MusicBeePlugin.UI
             base.OnMouseMove(e);
             if (_isDraggingThumb)
             {
+                ClearActionToolTip();
                 if (_items.Count == 0) return;
                 int contentHeight = _itemYPositions.Last() + GetItemHeight(_items.Count - 1);
                 float scrollableHeight = contentHeight - Height;
@@ -1284,6 +1385,7 @@ namespace MusicBeePlugin.UI
                     _hoveredActionButton = newHoveredActionButton;
                     if (_hoveredIndex != -1) InvalidateItem(_hoveredIndex);
                 }
+                UpdateActionToolTip(index, newHoveredActionButton);
 
                 (int Index, ResultType Type)? newLink = TryGetDetailLinkAt(index, e.Location, out var linkType)
                     ? (index, linkType) : ((int, ResultType)?)null;
@@ -1294,7 +1396,9 @@ namespace MusicBeePlugin.UI
                     if (oldLink.HasValue) InvalidateItem(oldLink.Value.Index);
                     if (newLink.HasValue) InvalidateItem(newLink.Value.Index);
                 }
-                Cursor = newHoveredActionButton.HasValue || newLink.HasValue ? Cursors.Hand : Cursors.Default;
+                Cursor = newHoveredActionButton.HasValue || newLink.HasValue
+                    || (index >= 0 && index < _items.Count && _items[index].Type == ResultType.ShowMore)
+                    ? Cursors.Hand : Cursors.Default;
             }
         }
 
@@ -1347,6 +1451,7 @@ namespace MusicBeePlugin.UI
         protected override void OnMouseLeave(EventArgs e)
         {
             base.OnMouseLeave(e);
+            ClearActionToolTip();
             if (_hoveredIndex != -1)
             {
                 int oldHoveredIndex = _hoveredIndex;

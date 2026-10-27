@@ -175,7 +175,6 @@ namespace MusicBeePlugin.UI
 
         // Constants
         private const int IMAGE_DEBOUNCE_MS = 10;
-        private const bool INCREMENTAL_UPDATE = false;
         private const int VISIBLE_ITEMS_BUFFER = 2; // Buffer for loading images for partially visible items
 
 

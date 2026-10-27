@@ -19,6 +19,7 @@ namespace MusicBeePlugin.Services
         Playlist = 8,
         Command = 16,
         Header = 32,
+        ShowMore = 64,
         All = 31,
     }
 
@@ -187,6 +188,18 @@ namespace MusicBeePlugin.Services
         {
             DisplayTitle = title;
             Type = ResultType.Header;
+        }
+    }
+
+    public class ShowMoreResult : SearchResult
+    {
+        public ResultType TargetType { get; }
+
+        public ShowMoreResult(ResultType targetType)
+        {
+            TargetType = targetType;
+            Type = ResultType.ShowMore;
+            DisplayTitle = "Show more";
         }
     }
 

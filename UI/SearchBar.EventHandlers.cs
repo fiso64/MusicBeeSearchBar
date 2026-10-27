@@ -42,7 +42,7 @@ namespace MusicBeePlugin.UI
             }
             else if (e.Control && e.KeyCode == Keys.S)
             {
-                if (resultsListBox.SelectedItem is SearchResult selectedResult && selectedResult.Type != ResultType.Command && selectedResult.Type != ResultType.Header)
+                if (resultsListBox.SelectedItem is SearchResult selectedResult && selectedResult.Type != ResultType.Command && selectedResult.Type != ResultType.Header && selectedResult.Type != ResultType.ShowMore)
                 {
                     HandleResultSelection(selectedResult, e, () =>
                     {
@@ -234,14 +234,14 @@ namespace MusicBeePlugin.UI
             }
             else if (e.Alt && e.KeyCode == Keys.R)
             {
-                if (resultsListBox.SelectedItem is SearchResult selectedResult)
+                if (resultsListBox.SelectedItem is SearchResult selectedResult && selectedResult.Type != ResultType.ShowMore)
                 {
                     HandleResultSelection(ArtistResult.FromSearchResult(selectedResult), e);
                 }
             }
             else if (e.Alt && e.KeyCode == Keys.A)
             {
-                 if (resultsListBox.SelectedItem is SearchResult selectedResult)
+                 if (resultsListBox.SelectedItem is SearchResult selectedResult && selectedResult.Type != ResultType.ShowMore)
                 {
                     HandleResultSelection(AlbumResult.FromSearchResult(selectedResult), e);
                 }
@@ -275,6 +275,12 @@ namespace MusicBeePlugin.UI
 
         private void HandleResultSelection(SearchResult selectedItem, KeyEventArgs e, Func<Task> customAction = null)
         {
+            if (selectedItem is ShowMoreResult showMore)
+            {
+                ExpandSearchResults(showMore.TargetType);
+                return;
+            }
+
             if (!isDetached)
             {
                 Close();

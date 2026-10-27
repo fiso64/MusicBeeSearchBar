@@ -231,7 +231,7 @@ namespace MusicBeePlugin.Config
 
         [ConfigProperty("Command Result Item Height", "Height of command results in pixels. Short rows show the command name only.", Category = "Appearance")]
         [Range(24, 500)]
-        public int CommandResultItemHeight { get; set; } = 40;
+        public int CommandResultItemHeight { get; set; } = 50;
 
         [ConfigProperty("Initial Size", Category = "Appearance")]
         public Size InitialSize { get; set; } = new Size(550, 40);
