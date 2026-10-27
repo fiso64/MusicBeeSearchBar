@@ -393,20 +393,7 @@ namespace MusicBeePlugin.UI
             for (int i = 0; i < results.Count && visibleItemCount < searchUIConfig.MaxResultsVisible; i++)
             {
                 var currentItem = results[i];
-                int itemHeight = 0;
-
-                if (currentItem.IsTopMatch)
-                {
-                    itemHeight = resultsListBox.ItemHeight * 2;
-                }
-                else if (currentItem.Type == ResultType.Header)
-                {
-                    itemHeight = resultsListBox.HeaderHeight + ((i > 0) ? (int)(CustomResultList.HEADER_TOP_PADDING * resultsListBox.DpiScale) : 0);
-                }
-                else
-                {
-                    itemHeight = resultsListBox.ItemHeight;
-                }
+                int itemHeight = resultsListBox.GetItemHeight(currentItem, i);
                 
                 listHeight += itemHeight;
 

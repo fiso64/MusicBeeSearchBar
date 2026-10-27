@@ -67,6 +67,7 @@ namespace MusicBeePlugin.UI
 
         // Styling & Resources
         public int ItemHeight { get; set; } = 56;
+        public int CommandItemHeight { get; set; } = 40;
         public int HeaderHeight => ResultFont != null ? (int)(ResultFont.Height * 1.5) : 24;
         public Theme Theme { get; set; }
 
@@ -366,11 +367,15 @@ namespace MusicBeePlugin.UI
         private int GetItemHeight(int index)
         {
             if (index < 0 || index >= _items.Count) return ItemHeight;
+            return GetItemHeight(_items[index], index);
+        }
 
-            var item = _items[index];
+        public int GetItemHeight(SearchResult item, int index)
+        {
+            int resultHeight = item.Type == ResultType.Command ? CommandItemHeight : ItemHeight;
             if (item.IsTopMatch)
             {
-                return ItemHeight * 2;
+                return resultHeight * 2;
             }
 
             if (item.Type == ResultType.Header)
@@ -378,7 +383,7 @@ namespace MusicBeePlugin.UI
                 // Add extra spacing before headers that are not the very first item.
                 return HeaderHeight + ((index > 0) ? (int)(HEADER_TOP_PADDING * DpiScale) : 0);
             }
-            return ItemHeight;
+            return resultHeight;
         }
 
         private int GetIndexFromY(int y)
@@ -848,6 +853,8 @@ namespace MusicBeePlugin.UI
                 {
                     // For top match, don't scale up the icon. Draw it at its native size.
                     effectiveSize = displayImage.Width;
+                    if (resultItem.Type == ResultType.Command)
+                        effectiveSize = Math.Min(effectiveSize, availableHeight);
                 }
                 else
                 {
@@ -959,8 +966,10 @@ namespace MusicBeePlugin.UI
 
             TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix;
             string detailText = GetDetailText(resultItem);
+            int lineSpacing = (int)((resultItem.IsTopMatch ? 4 : 2) * DpiScale);
 
-            if (string.IsNullOrEmpty(detailText))
+            if (string.IsNullOrEmpty(detailText) || (resultItem.Type == ResultType.Command
+                && textBounds.Height < titleFont.Height + detailFont.Height + lineSpacing))
             {
                 TextRenderer.DrawText(g, resultItem.DisplayTitle, titleFont, textBounds, this.ForeColor, flags | TextFormatFlags.VerticalCenter);
             }
@@ -971,8 +980,6 @@ namespace MusicBeePlugin.UI
                 int detailLineHeight = detailFont.Height;
 
                 // Scale the spacing between the two lines of text.
-                int lineSpacing = (int)((resultItem.IsTopMatch ? 4 : 2) * DpiScale);
-
                 // Calculate the total height of the text block (title + spacing + detail).
                 int totalTextHeight = titleLineHeight + detailLineHeight + lineSpacing;
 

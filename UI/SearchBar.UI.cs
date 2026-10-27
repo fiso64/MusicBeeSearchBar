@@ -139,6 +139,7 @@ namespace MusicBeePlugin.UI
                 HoverColor = hoverColor,
                 Theme = this.theme,
                 ItemHeight = (int)(searchUIConfig.ResultItemHeight * dpiScale),
+                CommandItemHeight = Math.Max(1, (int)(Math.Max(24, searchUIConfig.CommandResultItemHeight) * dpiScale)),
                 Visible = false,
                 Height = 0,
                 ResultFont = this.resultFont,
