@@ -2,6 +2,7 @@
 using MusicBeePlugin.Utils;
 using System;
 using System.Drawing;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -13,7 +14,13 @@ namespace MusicBeePlugin.UI
     {
         private void HandleSearchBoxKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Control && e.KeyCode == Keys.D)
+            if (e.KeyCode == Keys.Back && (e.Modifiers == Keys.Control || e.Modifiers == Keys.Alt))
+            {
+                DeletePreviousSearchWord();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+            else if (e.Control && e.KeyCode == Keys.D)
             {
                 ToggleDetachedMode();
                 e.Handled = true;
@@ -145,6 +152,40 @@ namespace MusicBeePlugin.UI
                 e.Handled = true;
                 e.SuppressKeyPress = true;
             }
+        }
+
+        private void DeletePreviousSearchWord()
+        {
+            if (searchBox.SelectionLength > 0)
+            {
+                searchBox.SelectedText = string.Empty;
+                return;
+            }
+
+            int end = searchBox.SelectionStart;
+            int start = end;
+            string text = searchBox.Text;
+            while (start > 0 && char.IsWhiteSpace(text[start - 1])) start--;
+            if (start > 0)
+            {
+                bool word = IsSearchWordCharacter(text[start - 1]);
+                while (start > 0 && !char.IsWhiteSpace(text[start - 1])
+                    && IsSearchWordCharacter(text[start - 1]) == word)
+                    start--;
+            }
+
+            if (start == end) return;
+            searchBox.Select(start, end - start);
+            searchBox.SelectedText = string.Empty;
+        }
+
+        private static bool IsSearchWordCharacter(char value)
+        {
+            var category = char.GetUnicodeCategory(value);
+            return char.IsLetterOrDigit(value) || value == '_'
+                || category == UnicodeCategory.NonSpacingMark
+                || category == UnicodeCategory.SpacingCombiningMark
+                || category == UnicodeCategory.EnclosingMark;
         }
 
         private void HandleFormDeactivate(object sender, EventArgs e)
