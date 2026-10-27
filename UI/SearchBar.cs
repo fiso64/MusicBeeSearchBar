@@ -210,6 +210,13 @@ namespace MusicBeePlugin.UI
             }
 
             UpdateOverlayState();
+            if (IsHandleCreated)
+            {
+                bool wasSuppressingDeactivate = _suppressDeactivate;
+                _suppressDeactivate = true;
+                try { UpdateStyles(); }
+                finally { _suppressDeactivate = wasSuppressingDeactivate; }
+            }
             UpdateForegroundTracking();
         }
 
@@ -403,7 +410,16 @@ namespace MusicBeePlugin.UI
             {
                 CreateParams cp = base.CreateParams;
                 cp.ExStyle |= 0x02000000;  // WS_EX_COMPOSITED
-                cp.ExStyle |= 0x00000080;  // WS_EX_TOOLWINDOW: omit from Alt+Tab
+                if (isDetached)
+                {
+                    cp.ExStyle &= ~0x00000080; // WS_EX_TOOLWINDOW
+                    cp.ExStyle |= 0x00040000;  // WS_EX_APPWINDOW
+                }
+                else
+                {
+                    cp.ExStyle &= ~0x00040000; // WS_EX_APPWINDOW
+                    cp.ExStyle |= 0x00000080;  // WS_EX_TOOLWINDOW
+                }
                 return cp;
             }
         }

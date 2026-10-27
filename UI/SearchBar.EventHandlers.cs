@@ -262,7 +262,8 @@ namespace MusicBeePlugin.UI
             {
                 if (resultsListBox.SelectedItem is SearchResult selectedResult && selectedResult.Type != ResultType.ShowMore)
                 {
-                    HandleResultSelection(ArtistResult.FromSearchResult(selectedResult), e);
+                    var artist = ArtistResult.FromDetail(selectedResult);
+                    if (artist != null) HandleResultSelection(artist, e);
                 }
             }
             else if (e.Alt && e.KeyCode == Keys.A)
@@ -354,15 +355,13 @@ namespace MusicBeePlugin.UI
             }, null);
         }
 
-        private void ResultsListBox_DetailLinkClicked(SearchResult item, ResultType type)
+        private void ResultsListBox_DetailLinkClicked(SearchResult item, ResultType type, int artistIndex)
         {
             SearchResult target = null;
             if (type == ResultType.Album && item is SongResult song)
                 target = AlbumResult.FromSearchResult(song);
-            else if (type == ResultType.Artist && item is SongResult songResult)
-                target = new ArtistResult(songResult.Artist, songResult.SortArtist);
-            else if (type == ResultType.Artist && item is AlbumResult album)
-                target = ArtistResult.FromSearchResult(album);
+            else if (type == ResultType.Artist)
+                target = ArtistResult.FromDetail(item, artistIndex);
 
             if (target != null)
                 HandleResultSelection(target, new KeyEventArgs(Keys.None));

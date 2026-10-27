@@ -123,6 +123,40 @@ namespace MusicBeePlugin.Services
                 return new ArtistResult(songResult);
             return null;
         }
+
+        public static ArtistResult FromDetail(SearchResult result, int artistIndex = -1)
+        {
+            string names;
+            string sortNames;
+            if (result is SongResult song)
+            {
+                names = song.Artist;
+                sortNames = song.SortArtist;
+            }
+            else if (result is AlbumResult album)
+            {
+                names = album.AlbumArtist;
+                sortNames = album.SortAlbumArtist;
+            }
+            else if (result is ArtistResult artist)
+            {
+                names = artist.Artist;
+                sortNames = artist.SortArtist;
+            }
+            else return null;
+
+            if (string.IsNullOrWhiteSpace(names)) return null;
+            var artists = names.Split(';');
+            if (artistIndex < 0)
+                artistIndex = Array.FindIndex(artists, name => !string.IsNullOrWhiteSpace(name));
+            if (artistIndex < 0 || artistIndex >= artists.Length || string.IsNullOrWhiteSpace(artists[artistIndex]))
+                return null;
+
+            var sorted = sortNames?.Split(';');
+            string sortName = sorted != null && sorted.Length == artists.Length
+                ? sorted[artistIndex].Trim() : null;
+            return new ArtistResult(artists[artistIndex].Trim(), sortName);
+        }
     }
 
     public class AlbumArtistResult : ArtistResult

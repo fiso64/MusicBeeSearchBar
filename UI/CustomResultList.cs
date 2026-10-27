@@ -39,9 +39,9 @@ namespace MusicBeePlugin.UI
         private (int Index, ResultActionType Type)? _actionToolTipTarget;
 
         public event EventHandler<ResultActionEventArgs> ActionButtonClicked;
-        public event Action<SearchResult, ResultType> DetailLinkClicked;
-        private (int Index, ResultType Type)? _hoveredDetailLink;
-        private (SearchResult Item, ResultType Type)? _pressedDetailLink;
+        public event Action<SearchResult, ResultType, int> DetailLinkClicked;
+        private (int Index, ResultType Type, int ArtistIndex)? _hoveredDetailLink;
+        private (SearchResult Item, ResultType Type, int ArtistIndex)? _pressedDetailLink;
 
         public float DpiScale { get; set; } = 1.0f;
 
@@ -1096,7 +1096,8 @@ namespace MusicBeePlugin.UI
                 {
                     foreach (var link in GetDetailLinks(resultItem, detailText, detailRect, detailFont))
                     {
-                        if (link.Type != _hoveredDetailLink.Value.Type) continue;
+                        if (link.Type != _hoveredDetailLink.Value.Type
+                            || link.ArtistIndex != _hoveredDetailLink.Value.ArtistIndex) continue;
                         // Let the text renderer underline the glyphs instead of drawing a
                         // line using measured text widths, which include font overhang.
                         using (var underlineFont = new Font(detailFont, detailFont.Style | FontStyle.Underline))
@@ -1121,19 +1122,29 @@ namespace MusicBeePlugin.UI
             }
         }
 
-        private IEnumerable<(ResultType Type, Rectangle Bounds)> GetDetailLinks(
+        private IEnumerable<(ResultType Type, Rectangle Bounds, int ArtistIndex)> GetDetailLinks(
             SearchResult item, string detailText, Rectangle detailRect, Font font)
         {
             if (detailRect.Width <= 0 || string.IsNullOrEmpty(detailText)) yield break;
-            var parts = new List<(ResultType Type, string Text)>();
+            var parts = new List<(ResultType Type, string Text, int ArtistIndex)>();
+            void AddArtists(string names)
+            {
+                if (string.IsNullOrWhiteSpace(names)) return;
+                var artists = names.Split(';');
+                for (int i = 0; i < artists.Length; i++)
+                {
+                    string name = artists[i].Trim();
+                    if (name.Length > 0) parts.Add((ResultType.Artist, name, i));
+                }
+            }
             if (item is SongResult song)
             {
-                if (!string.IsNullOrWhiteSpace(song.Artist)) parts.Add((ResultType.Artist, song.Artist));
+                AddArtists(song.Artist);
                 if (ShowAlbumNamesInSongDetails && !string.IsNullOrWhiteSpace(song.Track.Album))
-                    parts.Add((ResultType.Album, song.Track.Album));
+                    parts.Add((ResultType.Album, song.Track.Album, -1));
             }
             else if (item is AlbumResult album && !string.IsNullOrWhiteSpace(album.AlbumArtist))
-                parts.Add((ResultType.Artist, album.AlbumArtist));
+                AddArtists(album.AlbumArtist);
             else
                 yield break;
 
@@ -1161,15 +1172,16 @@ namespace MusicBeePlugin.UI
                     int left = detailRect.X + Measure(detailText.Substring(0, start));
                     int right = Math.Min(detailRect.X + Measure(detailText.Substring(0, end)), visibleRight);
                     if (right > left)
-                        yield return (part.Type, new Rectangle(left, detailRect.Y, right - left, detailRect.Height));
+                        yield return (part.Type, new Rectangle(left, detailRect.Y, right - left, detailRect.Height), part.ArtistIndex);
                     offset = start + part.Text.Length;
                 }
             }
         }
 
-        private bool TryGetDetailLinkAt(int index, Point location, out ResultType type)
+        private bool TryGetDetailLinkAt(int index, Point location, out ResultType type, out int artistIndex)
         {
             type = default;
+            artistIndex = -1;
             if (index < 0 || index >= _items.Count || index >= _itemYPositions.Count) return false;
             var item = _items[index];
             if (!(item is SongResult) && !(item is AlbumResult)) return false;
@@ -1184,7 +1196,7 @@ namespace MusicBeePlugin.UI
             var detailRect = new Rectangle(textBounds.X, y + titleFont.Height + spacing, textBounds.Width, detailFont.Height);
             string text = GetDetailText(item);
             foreach (var link in GetDetailLinks(item, text, detailRect, detailFont))
-                if (link.Bounds.Contains(location)) { type = link.Type; return true; }
+                if (link.Bounds.Contains(location)) { type = link.Type; artistIndex = link.ArtistIndex; return true; }
             return false;
         }
 
@@ -1300,10 +1312,10 @@ namespace MusicBeePlugin.UI
 
             int index = GetIndexFromY(e.Y);
 
-            if (e.Button == MouseButtons.Left && TryGetDetailLinkAt(index, e.Location, out var linkType))
+            if (e.Button == MouseButtons.Left && TryGetDetailLinkAt(index, e.Location, out var linkType, out var artistIndex))
             {
                 _suppressClick = true;
-                _pressedDetailLink = (_items[index], linkType);
+                _pressedDetailLink = (_items[index], linkType, artistIndex);
                 Capture = true;
                 return;
             }
@@ -1387,8 +1399,8 @@ namespace MusicBeePlugin.UI
                 }
                 UpdateActionToolTip(index, newHoveredActionButton);
 
-                (int Index, ResultType Type)? newLink = TryGetDetailLinkAt(index, e.Location, out var linkType)
-                    ? (index, linkType) : ((int, ResultType)?)null;
+                (int Index, ResultType Type, int ArtistIndex)? newLink = TryGetDetailLinkAt(index, e.Location, out var linkType, out var artistIndex)
+                    ? (index, linkType, artistIndex) : ((int, ResultType, int)?)null;
                 if (_hoveredDetailLink != newLink)
                 {
                     var oldLink = _hoveredDetailLink;
@@ -1418,8 +1430,9 @@ namespace MusicBeePlugin.UI
                 Capture = false;
                 int index = GetIndexFromY(e.Y);
                 if (index >= 0 && index < _items.Count && ReferenceEquals(_items[index], pressed.Item)
-                    && TryGetDetailLinkAt(index, e.Location, out var releasedType) && releasedType == pressed.Type)
-                    DetailLinkClicked?.Invoke(pressed.Item, pressed.Type);
+                    && TryGetDetailLinkAt(index, e.Location, out var releasedType, out var releasedArtistIndex)
+                    && releasedType == pressed.Type && releasedArtistIndex == pressed.ArtistIndex)
+                    DetailLinkClicked?.Invoke(pressed.Item, pressed.Type, pressed.ArtistIndex);
             }
             else if (_pressedAction.HasValue)
             {
