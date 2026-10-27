@@ -117,6 +117,7 @@ namespace MusicBeePlugin.UI
         public ImageService ImageService { get; set; }
         public Dictionary<ResultType, Image> Icons { get; set; }
         public bool ShowTypeIcons { get; set; }
+        public bool ShowAlbumNamesInSongDetails { get; set; } = true;
 
         public int NormalImageSize
         {
@@ -919,6 +920,11 @@ namespace MusicBeePlugin.UI
             
             TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix;
             string detailText = resultItem.DisplayDetail;
+            if (ShowAlbumNamesInSongDetails && resultItem is SongResult song)
+            {
+                detailText = string.Join(" • ", new[] { detailText, song.Track.Album }
+                    .Where(value => !string.IsNullOrWhiteSpace(value)));
+            }
 
             // Override detail text for Top Match when not using type icons
             if (resultItem.IsTopMatch && !ShowTypeIcons)
@@ -926,7 +932,7 @@ namespace MusicBeePlugin.UI
                 switch (resultItem.Type)
                 {
                     case ResultType.Song:
-                        detailText = $"Song • {resultItem.DisplayDetail}";
+                        detailText = string.IsNullOrWhiteSpace(detailText) ? "Song" : $"Song • {detailText}";
                         break;
                     case ResultType.Album:
                         detailText = $"Album • {resultItem.DisplayDetail}";

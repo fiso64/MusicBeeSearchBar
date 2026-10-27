@@ -147,6 +147,7 @@ namespace MusicBeePlugin.UI
                 TopMatchResultDetailFont = this.topMatchResultDetailFont,
                 ImageService = this.imageService,
                 ShowTypeIcons = searchUIConfig.ShowTypeIcons,
+                ShowAlbumNamesInSongDetails = searchUIConfig.ShowAlbumNamesInSongDetails,
                 Icons = new Dictionary<ResultType, Image>
                 {
                     { ResultType.Song, songIcon },
