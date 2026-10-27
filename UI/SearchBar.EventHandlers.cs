@@ -275,6 +275,20 @@ namespace MusicBeePlugin.UI
             }, null);
         }
 
+        private void ResultsListBox_DetailLinkClicked(SearchResult item, ResultType type)
+        {
+            SearchResult target = null;
+            if (type == ResultType.Album && item is SongResult song)
+                target = AlbumResult.FromSearchResult(song);
+            else if (type == ResultType.Artist && item is SongResult songResult)
+                target = new ArtistResult(songResult.Artist, songResult.SortArtist);
+            else if (type == ResultType.Artist && item is AlbumResult album)
+                target = ArtistResult.FromSearchResult(album);
+
+            if (target != null)
+                HandleResultSelection(target, new KeyEventArgs(Keys.None));
+        }
+
         private void ResultsListBox_ActionButtonClicked(object sender, ResultActionEventArgs e)
         {
             // customAction is always supplied here, so the KeyEventArgs is never actually read.

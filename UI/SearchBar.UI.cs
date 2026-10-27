@@ -160,6 +160,7 @@ namespace MusicBeePlugin.UI
             resultsListBox.Click += ResultsListBox_Click;
             resultsListBox.Scrolled += ResultsListBox_Scrolled;
             resultsListBox.ActionButtonClicked += ResultsListBox_ActionButtonClicked;
+            resultsListBox.DetailLinkClicked += ResultsListBox_DetailLinkClicked;
 
             // Add controls to main panel in correct order for docking
             mainPanel.Controls.Add(resultsListBox); // Fills remaining space

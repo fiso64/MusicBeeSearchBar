@@ -35,6 +35,9 @@ namespace MusicBeePlugin.UI
         private (int Index, ResultActionType Type)? _pressedAction = null;
 
         public event EventHandler<ResultActionEventArgs> ActionButtonClicked;
+        public event Action<SearchResult, ResultType> DetailLinkClicked;
+        private (int Index, ResultType Type)? _hoveredDetailLink;
+        private (SearchResult Item, ResultType Type)? _pressedDetailLink;
 
         public float DpiScale { get; set; } = 1.0f;
 
@@ -142,7 +145,10 @@ namespace MusicBeePlugin.UI
             get => _items;
             set
             {
+                if (_pressedDetailLink.HasValue) Capture = false;
                 _items = value ?? new List<SearchResult>();
+                _hoveredDetailLink = null;
+                _pressedDetailLink = null;
 
                 _itemYPositions.Clear();
                 if (_items.Count > 0)
@@ -643,42 +649,19 @@ namespace MusicBeePlugin.UI
             // 3. Define Text Area and Draw Right Icon / Action Buttons
             bool showActionButtons = isHovered && !_isDraggingThumb && ActionService.SupportsQuickActions(resultItem.Type);
 
-            Rectangle textBounds;
-            if (showActionButtons)
-            {
-                int buttonsLeft = GetActionButtonRect(bounds, 0).X;
-                textBounds = new Rectangle(
-                    imageArea.Right + imageToTextSpacing, bounds.Y,
-                    buttonsLeft - (imageArea.Right + imageToTextSpacing) - (imageToTextSpacing / 2), bounds.Height
-                );
-            }
-            else if (ShowTypeIcons)
+            var textBounds = GetResultTextBounds(resultItem, bounds, showActionButtons);
+            if (!showActionButtons && ShowTypeIcons)
             {
                 int rightIconSize = resultItem.IsTopMatch ? (int)(availableHeight * 0.25) : (int)(availableHeight * 0.4);
-                var iconArea = new Rectangle(
-                    itemWidth - horizontalPadding - rightIconSize,
-                    bounds.Y + (bounds.Height - rightIconSize) / 2,
-                    rightIconSize, rightIconSize
-                );
-                textBounds = new Rectangle(
-                    imageArea.Right + imageToTextSpacing, bounds.Y,
-                    iconArea.Left - (imageArea.Right + imageToTextSpacing) - (imageToTextSpacing / 2), bounds.Height
-                );
-                float opacity = resultItem.IsTopMatch ? 0.3f : 0.5f;
-                DrawRightIcon(g, resultItem.Type, iconArea, opacity);
-            }
-            else
-            {
-                textBounds = new Rectangle(
-                    imageArea.Right + imageToTextSpacing, bounds.Y,
-                    itemWidth - (imageArea.Right + imageToTextSpacing) - horizontalPadding, bounds.Height
-                );
+                var iconArea = new Rectangle(itemWidth - horizontalPadding - rightIconSize,
+                    bounds.Y + (bounds.Height - rightIconSize) / 2, rightIconSize, rightIconSize);
+                DrawRightIcon(g, resultItem.Type, iconArea, resultItem.IsTopMatch ? 0.3f : 0.5f);
             }
 
             // 4. Draw Text
             if (textBounds.Width > 0 && textBounds.Height > 0)
             {
-                DrawResultText(g, resultItem, textBounds, titleFont, detailFont);
+                DrawResultText(g, resultItem, textBounds, titleFont, detailFont, index);
             }
 
             // 5. Draw Action Buttons (on top, drawn last so they're never clipped by text)
@@ -914,11 +897,29 @@ namespace MusicBeePlugin.UI
             }
         }
 
-        private void DrawResultText(Graphics g, SearchResult resultItem, Rectangle textBounds, Font titleFont, Font detailFont)
+        private Rectangle GetResultTextBounds(SearchResult item, Rectangle bounds, bool showActionButtons)
         {
-            if (textBounds.Width <= 0) return;
-            
-            TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix;
+            int horizontalPadding = (int)(10 * DpiScale);
+            int spacing = (int)(10 * DpiScale);
+            int imageMargin = (int)((item.IsTopMatch ? 12 : 6) * DpiScale);
+            int imageSize = bounds.Height - imageMargin * 2;
+            int left = bounds.X + horizontalPadding + imageSize + spacing;
+            int itemWidth = bounds.Width - (_isThumbVisible ? SCROLLBAR_WIDTH : 0);
+            int right;
+            if (showActionButtons)
+                right = GetActionButtonRect(bounds, 0).X - spacing / 2;
+            else if (ShowTypeIcons)
+            {
+                int iconSize = item.IsTopMatch ? (int)(imageSize * 0.25) : (int)(imageSize * 0.4);
+                right = itemWidth - horizontalPadding - iconSize - spacing / 2;
+            }
+            else
+                right = itemWidth - horizontalPadding;
+            return new Rectangle(left, bounds.Y, Math.Max(0, right - left), bounds.Height);
+        }
+
+        private string GetDetailText(SearchResult resultItem)
+        {
             string detailText = resultItem.DisplayDetail;
             if (ShowAlbumNamesInSongDetails && resultItem is SongResult song)
             {
@@ -949,6 +950,16 @@ namespace MusicBeePlugin.UI
                 }
             }
 
+            return detailText;
+        }
+
+        private void DrawResultText(Graphics g, SearchResult resultItem, Rectangle textBounds, Font titleFont, Font detailFont, int index)
+        {
+            if (textBounds.Width <= 0) return;
+
+            TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix;
+            string detailText = GetDetailText(resultItem);
+
             if (string.IsNullOrEmpty(detailText))
             {
                 TextRenderer.DrawText(g, resultItem.DisplayTitle, titleFont, textBounds, this.ForeColor, flags | TextFormatFlags.VerticalCenter);
@@ -975,7 +986,100 @@ namespace MusicBeePlugin.UI
                 // Define the rectangle for the detail text, positioned below the title.
                 var detailRect = new Rectangle(textBounds.X, y + titleLineHeight + lineSpacing, textBounds.Width, detailLineHeight);
                 TextRenderer.DrawText(g, detailText, detailFont, detailRect, Theme?.SecondaryText ?? Color.Gray, flags | TextFormatFlags.VerticalCenter);
+                if (_hoveredDetailLink.HasValue && _hoveredDetailLink.Value.Index == index)
+                {
+                    foreach (var link in GetDetailLinks(resultItem, detailText, detailRect, detailFont))
+                    {
+                        if (link.Type != _hoveredDetailLink.Value.Type) continue;
+                        // Let the text renderer underline the glyphs instead of drawing a
+                        // line using measured text widths, which include font overhang.
+                        using (var underlineFont = new Font(detailFont, detailFont.Style | FontStyle.Underline))
+                        {
+                            var state = g.Save();
+                            try
+                            {
+                                g.SetClip(link.Bounds, CombineMode.Intersect);
+                                // Redraw at the original text origin so the glyph positions
+                                // remain identical; the clip limits underlining to this link.
+                                TextRenderer.DrawText(g, detailText, underlineFont, detailRect,
+                                    Theme?.SecondaryText ?? Color.Gray,
+                                    flags | TextFormatFlags.VerticalCenter | TextFormatFlags.PreserveGraphicsClipping);
+                            }
+                            finally
+                            {
+                                g.Restore(state);
+                            }
+                        }
+                    }
+                }
             }
+        }
+
+        private IEnumerable<(ResultType Type, Rectangle Bounds)> GetDetailLinks(
+            SearchResult item, string detailText, Rectangle detailRect, Font font)
+        {
+            if (detailRect.Width <= 0 || string.IsNullOrEmpty(detailText)) yield break;
+            var parts = new List<(ResultType Type, string Text)>();
+            if (item is SongResult song)
+            {
+                if (!string.IsNullOrWhiteSpace(song.Artist)) parts.Add((ResultType.Artist, song.Artist));
+                if (ShowAlbumNamesInSongDetails && !string.IsNullOrWhiteSpace(song.Track.Album))
+                    parts.Add((ResultType.Album, song.Track.Album));
+            }
+            else if (item is AlbumResult album && !string.IsNullOrWhiteSpace(album.AlbumArtist))
+                parts.Add((ResultType.Artist, album.AlbumArtist));
+            else
+                yield break;
+
+            using (var graphics = CreateGraphics())
+            {
+                var flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
+                // Measure with the control's device context, just like drawing. Appending
+                // a marker keeps trailing spaces in prefixes such as "Song • ".
+                int markerWidth = TextRenderer.MeasureText(graphics, "X", font, Size.Empty, flags).Width;
+                int Measure(string text)
+                {
+                    if (text.Length == 0) return 0;
+                    return Math.Max(0, TextRenderer.MeasureText(graphics, text + "X", font, Size.Empty, flags).Width - markerWidth);
+                }
+
+                int visibleRight = detailRect.Right;
+                if (Measure(detailText) > detailRect.Width)
+                    visibleRight -= Measure("...");
+                int offset = (item.IsTopMatch && !ShowTypeIcons) ? (item.Type == ResultType.Song ? "Song • ".Length : "Album • ".Length) : 0;
+                foreach (var part in parts)
+                {
+                    int start = detailText.IndexOf(part.Text, offset, StringComparison.Ordinal);
+                    if (start < 0) continue;
+                    int end = start + part.Text.TrimEnd().Length;
+                    int left = detailRect.X + Measure(detailText.Substring(0, start));
+                    int right = Math.Min(detailRect.X + Measure(detailText.Substring(0, end)), visibleRight);
+                    if (right > left)
+                        yield return (part.Type, new Rectangle(left, detailRect.Y, right - left, detailRect.Height));
+                    offset = start + part.Text.Length;
+                }
+            }
+        }
+
+        private bool TryGetDetailLinkAt(int index, Point location, out ResultType type)
+        {
+            type = default;
+            if (index < 0 || index >= _items.Count || index >= _itemYPositions.Count) return false;
+            var item = _items[index];
+            if (!(item is SongResult) && !(item is AlbumResult)) return false;
+            var bounds = GetItemClientBounds(index);
+            bool showButtons = index == _hoveredIndex && !_isDraggingThumb && ActionService.SupportsQuickActions(item.Type);
+            var textBounds = GetResultTextBounds(item, bounds, showButtons);
+            var titleFont = item.IsTopMatch ? TopMatchResultFont : ResultFont;
+            var detailFont = item.IsTopMatch ? TopMatchResultDetailFont : ResultDetailFont;
+            if (titleFont == null || detailFont == null || textBounds.Width <= 0) return false;
+            int spacing = (int)((item.IsTopMatch ? 4 : 2) * DpiScale);
+            int y = textBounds.Y + (textBounds.Height - titleFont.Height - detailFont.Height - spacing) / 2;
+            var detailRect = new Rectangle(textBounds.X, y + titleFont.Height + spacing, textBounds.Width, detailFont.Height);
+            string text = GetDetailText(item);
+            foreach (var link in GetDetailLinks(item, text, detailRect, detailFont))
+                if (link.Bounds.Contains(location)) { type = link.Type; return true; }
+            return false;
         }
 
         private void DrawScrollbar(Graphics g)
@@ -1089,6 +1193,14 @@ namespace MusicBeePlugin.UI
 
             int index = GetIndexFromY(e.Y);
 
+            if (e.Button == MouseButtons.Left && TryGetDetailLinkAt(index, e.Location, out var linkType))
+            {
+                _suppressClick = true;
+                _pressedDetailLink = (_items[index], linkType);
+                Capture = true;
+                return;
+            }
+
             if (TryGetActionButtonAt(index, e.Location, out var actionType))
             {
                 _suppressClick = true;
@@ -1166,7 +1278,16 @@ namespace MusicBeePlugin.UI
                     if (_hoveredIndex != -1) InvalidateItem(_hoveredIndex);
                 }
 
-                Cursor = newHoveredActionButton.HasValue ? Cursors.Hand : Cursors.Default;
+                (int Index, ResultType Type)? newLink = TryGetDetailLinkAt(index, e.Location, out var linkType)
+                    ? (index, linkType) : ((int, ResultType)?)null;
+                if (_hoveredDetailLink != newLink)
+                {
+                    var oldLink = _hoveredDetailLink;
+                    _hoveredDetailLink = newLink;
+                    if (oldLink.HasValue) InvalidateItem(oldLink.Value.Index);
+                    if (newLink.HasValue) InvalidateItem(newLink.Value.Index);
+                }
+                Cursor = newHoveredActionButton.HasValue || newLink.HasValue ? Cursors.Hand : Cursors.Default;
             }
         }
 
@@ -1178,6 +1299,16 @@ namespace MusicBeePlugin.UI
                 _isDraggingThumb = false;
                 // After dragging, re-evaluate which item is being hovered over
                 OnMouseMove(e);
+            }
+            else if (_pressedDetailLink.HasValue)
+            {
+                var pressed = _pressedDetailLink.Value;
+                _pressedDetailLink = null;
+                Capture = false;
+                int index = GetIndexFromY(e.Y);
+                if (index >= 0 && index < _items.Count && ReferenceEquals(_items[index], pressed.Item)
+                    && TryGetDetailLinkAt(index, e.Location, out var releasedType) && releasedType == pressed.Type)
+                    DetailLinkClicked?.Invoke(pressed.Item, pressed.Type);
             }
             else if (_pressedAction.HasValue)
             {
@@ -1216,6 +1347,12 @@ namespace MusicBeePlugin.UI
                 InvalidateItem(oldHoveredIndex);
             }
             _hoveredActionButton = null;
+            _hoveredDetailLink = null;
+            if (_pressedDetailLink.HasValue)
+            {
+                _pressedDetailLink = null;
+                Capture = false;
+            }
             Cursor = Cursors.Default;
 
             // Dragging off the button (or off the control entirely) cancels the press,
