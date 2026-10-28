@@ -48,6 +48,32 @@ namespace MusicBeePlugin.Services
             Play(result, playAction);
         }
 
+        private string[] ResolveSelectionFiles(IEnumerable<SearchResult> results, bool ordered, bool shuffle)
+        {
+            var files = results.SelectMany(r => ordered ? GetItemFiles(r, false) : ResolveItemFiles(r))
+                .Where(f => !string.IsNullOrWhiteSpace(f)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            return shuffle ? files.OrderBy(f => Guid.NewGuid()).ToArray() : files;
+        }
+
+        public void PerformBatchAction(ResultActionType type, IReadOnlyList<SearchResult> results, bool shuffle = false, bool clearQueue = false)
+        {
+            var files = ResolveSelectionFiles(results, true, shuffle);
+            if (files.Length == 0) return;
+            if (type == ResultActionType.PlayNow)
+            {
+                mbApi.NowPlayingList_Clear();
+                mbApi.NowPlayingList_PlayNow(files[0]);
+                if (files.Length > 1) mbApi.NowPlayingList_QueueFilesNext(files.Skip(1).ToArray());
+            }
+            else if (type == ResultActionType.QueueNext)
+            {
+                if (clearQueue) mbApi.NowPlayingList_Clear();
+                mbApi.NowPlayingList_QueueFilesNext(files);
+                if (clearQueue && mbApi.Player_GetPlayState() == PlayState.Playing) mbApi.Player_PlayPause();
+            }
+            else mbApi.NowPlayingList_QueueFilesLast(files);
+        }
+
         // Directly runs the fundamental play/queue action on a result, bypassing the
         // per-type/modifier action configuration. Used by the result list's hover buttons.
         public void PerformAction(ResultActionType actionType, SearchResult result)
@@ -100,7 +126,16 @@ namespace MusicBeePlugin.Services
             return !(action is EditTagsActionData) && !(action is CommandActionData);
         }
 
-        public async Task<bool> RunAction(string searchBoxText, SearchResult result, KeyEventArgs keyEvent)
+        public void EditTags(IReadOnlyList<SearchResult> selection)
+        {
+            try { ReflectionService.Instance.EditSongTags(ResolveSelectionFiles(selection, false, false)); }
+            catch (FeatureUnavailableException ex)
+            {
+                MessageBox.Show(ex.Message, "Modern Search Bar: Feature Unavailable", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        public async Task<bool> RunAction(string searchBoxText, SearchResult result, KeyEventArgs keyEvent, IReadOnlyList<SearchResult> selection = null)
         {
             Debug.WriteLine($"RunAction called with result={result.DisplayTitle} of type={result.Type}");
 
@@ -115,12 +150,15 @@ namespace MusicBeePlugin.Services
             if (action == null)
                 return false;
 
+            if (selection != null && selection.Count > 1 && !action.SupportsMultipleSelection)
+                return false;
+
             if (action is DoNothingActionData) return true;
             if (action is CommandActionData commandAction)
             {
                 try
                 {
-                    ReflectionService.Instance.InvokeCustomCommand(commandAction, ResolveItemFiles(result));
+                    ReflectionService.Instance.InvokeCustomCommand(commandAction, selection != null && selection.Count > 1 ? ResolveSelectionFiles(selection, false, false) : ResolveItemFiles(result));
                 }
                 catch (FeatureUnavailableException ex)
                 {
@@ -132,13 +170,23 @@ namespace MusicBeePlugin.Services
             }
             if (action is EditTagsActionData)
             {
-                try { ReflectionService.Instance.EditSongTags(ResolveItemFiles(result)); }
-                catch (FeatureUnavailableException ex)
-                {
-                    MessageBox.Show(ex.Message, "Modern Search Bar: Feature Unavailable", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                EditTags(selection != null && selection.Count > 0 ? selection : new[] { result });
                 return true;
             }
+
+            if (selection != null && selection.Count > 1)
+            {
+                if (action is PlayActionData play) PerformBatchAction(ResultActionType.PlayNow, selection, play.ShufflePlay);
+                else if (action is ShufflePlayActionData) PerformBatchAction(ResultActionType.PlayNow, selection, true);
+                else if (action is QueueNextActionData next) PerformBatchAction(ResultActionType.QueueNext, selection, next.ShufflePlay, next.ClearQueueBeforeAdd);
+                else if (action is QueueLastActionData last) PerformBatchAction(ResultActionType.QueueLast, selection, last.ShufflePlay);
+                else goto SingleResultAction;
+                action._actionExecuted = true;
+                if (action.FocusMainPanelAfterAction) MusicBeeHelpers.FocusMainPanel();
+                return true;
+            }
+
+            SingleResultAction:
 
             if (action is OpenFilterInTabActionData filterAction)
             {

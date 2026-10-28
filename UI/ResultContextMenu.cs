@@ -48,6 +48,12 @@ namespace MusicBeePlugin.UI
                 base.OnRenderItemText(e);
             }
 
+            protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)
+            {
+                e.ArrowColor = e.Item.Enabled ? theme.Foreground : theme.SecondaryText;
+                base.OnRenderArrow(e);
+            }
+
             protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
             {
                 using (var pen = new Pen(theme.Border))
@@ -57,10 +63,17 @@ namespace MusicBeePlugin.UI
 
         public static void ApplyFloatingTheme(ContextMenuStrip menu, Theme theme)
         {
-            menu.BackColor = theme.Background;
-            menu.ForeColor = theme.Foreground;
-            menu.ShowImageMargin = false;
-            menu.Renderer = new FloatingMenuRenderer(theme);
+            var renderer = new FloatingMenuRenderer(theme);
+            void Apply(ToolStripDropDown dropdown)
+            {
+                dropdown.BackColor = theme.Background;
+                dropdown.ForeColor = theme.Foreground;
+                dropdown.Renderer = renderer;
+                if (dropdown is ToolStripDropDownMenu dropdownMenu) dropdownMenu.ShowImageMargin = false;
+                foreach (ToolStripItem item in dropdown.Items)
+                    if (item is ToolStripMenuItem submenu && submenu.HasDropDownItems) Apply(submenu.DropDown);
+            }
+            Apply(menu);
         }
 
         private static string TabLabel(TabChoice tab)
@@ -93,6 +106,7 @@ namespace MusicBeePlugin.UI
         private static bool IsStandardAction(BaseActionData action, ResultType type)
         {
             if (action is ShufflePlayActionData) return true;
+            if (action is EditTagsActionData) return true;
             if (action is PlayActionData) return true;
             if (action is QueueNextActionData next)
                 return !next.ClearQueueBeforeAdd && (!next.ShufflePlay || type == ResultType.Song);
@@ -101,9 +115,9 @@ namespace MusicBeePlugin.UI
             return false;
         }
 
-        public static ContextMenuStrip Create(SearchResult result, ActionConfig config,
+        public static ContextMenuStrip Create(SearchResult result, ActionConfig config, bool multipleSelection,
             Action<ResultActionType> runQuickAction, Action runShuffle, Action<Keys> runConfigured,
-            Action runCommand)
+            Action runCommand, Action runEditTags, Func<SearchResult, ContextMenuStrip> createRelated)
         {
             var menu = new ContextMenuStrip();
             if (result.Type == ResultType.Command)
@@ -118,6 +132,44 @@ namespace MusicBeePlugin.UI
             menu.Items.Add("Queue last", null, (s, e) => runQuickAction(ResultActionType.QueueLast));
             if (result.Type != ResultType.Song)
                 menu.Items.Add("Shuffle play", null, (s, e) => runShuffle());
+            if (result.Type == ResultType.Artist || result.Type == ResultType.Album || result.Type == ResultType.Song)
+                menu.Items.Add("Edit tags", null, (s, e) => runEditTags());
+
+            bool addedRelatedSeparator = false;
+            void AddRelated(string label, SearchResult related)
+            {
+                if (related == null || string.IsNullOrWhiteSpace(related.DisplayTitle)) return;
+                if (!addedRelatedSeparator)
+                {
+                    menu.Items.Add(new ToolStripSeparator());
+                    addedRelatedSeparator = true;
+                }
+                var item = new ToolStripMenuItem(label + ": " + related.DisplayTitle.Replace("&", "&&"));
+                using (var relatedMenu = createRelated(related))
+                {
+                    while (relatedMenu.Items.Count > 0)
+                    {
+                        var child = relatedMenu.Items[0];
+                        relatedMenu.Items.RemoveAt(0);
+                        item.DropDownItems.Add(child);
+                    }
+                }
+                menu.Items.Add(item);
+            }
+
+            if (!multipleSelection && createRelated != null)
+            {
+                if (result is SongResult song)
+                    AddRelated("Album", AlbumResult.FromSearchResult(song));
+                string artists = result is SongResult songResult ? songResult.Artist
+                    : result is AlbumResult albumResult ? albumResult.AlbumArtist : null;
+                if (!string.IsNullOrWhiteSpace(artists))
+                {
+                    var names = artists.Split(';');
+                    for (int i = 0; i < names.Length; i++)
+                        AddRelated("Artist", ArtistResult.FromDetail(result, i));
+                }
+            }
 
             var configured = new List<(BaseActionData Action, Keys Modifiers, string Label)>();
             var seen = new HashSet<string>();
@@ -129,7 +181,8 @@ namespace MusicBeePlugin.UI
                 foreach (var choice in choices)
                 {
                     var action = choice.Item1;
-                    if (action == null || IsStandardAction(action, result.Type)) continue;
+                    if (action == null || IsStandardAction(action, result.Type)
+                        || (multipleSelection && !action.SupportsMultipleSelection)) continue;
                     string label = ActionLabel(action);
                     if (label == null) continue;
                     string key = action.GetType().FullName + ":" + JsonConvert.SerializeObject(action);

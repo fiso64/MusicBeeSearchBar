@@ -13,6 +13,7 @@ A customizable search bar for MusicBee. Search your library for artists, albums,
 - Choose what happens when you select a result, and configure custom alternative actions and shortcuts.
 - Customize its appearance, and use it in detached mode while MusicBee is hidden.
 - Add a dockable search panel in MusicBee.
+- Right-click menus and multiselect support.
 
 ## Installation
 

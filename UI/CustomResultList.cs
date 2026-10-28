@@ -73,6 +73,8 @@ namespace MusicBeePlugin.UI
 
         private List<SearchResult> _items = new List<SearchResult>();
         private int _selectedIndex = -1;
+        private readonly HashSet<int> _selectedIndices = new HashSet<int>();
+        private int _selectionAnchor = -1;
         private int _hoveredIndex = -1;
         private int _scrollTop = 0;
         private bool _isUpdating = false;
@@ -88,6 +90,7 @@ namespace MusicBeePlugin.UI
 
         public event EventHandler Scrolled;
         public event EventHandler SelectedIndexChanged;
+        internal Func<Keys, bool> ProcessResultCommandKey;
 
         // Styling & Resources
         public int ItemHeight { get; set; } = 56;
@@ -173,6 +176,9 @@ namespace MusicBeePlugin.UI
                 ClearActionToolTip();
                 if (_pressedDetailLink.HasValue) Capture = false;
                 _items = value ?? new List<SearchResult>();
+                _selectedIndices.Clear();
+                _selectedIndex = -1;
+                _selectionAnchor = -1;
                 _hoveredDetailLink = null;
                 _pressedDetailLink = null;
 
@@ -203,10 +209,28 @@ namespace MusicBeePlugin.UI
 
         public int SelectedIndex => _selectedIndex;
 
-        public void SetSelectedIndex(int value, bool animateScroll = false)
+        public void SetSelectedIndex(int value, bool animateScroll = false, bool extendSelection = false, bool preserveSelection = false)
         {
             if (value >= _items.Count) value = _items.Count - 1;
             if (value < 0) value = -1;
+            int previousCount = _selectedIndices.Count;
+
+            if (extendSelection && value >= 0 && _selectionAnchor >= 0
+                && _items[value].Type == _items[_selectionAnchor].Type
+                && _items[value].Type != ResultType.Header && _items[value].Type != ResultType.ShowMore
+                && _items[value].Type != ResultType.Command)
+            {
+                _selectedIndices.Clear();
+                for (int i = Math.Min(value, _selectionAnchor); i <= Math.Max(value, _selectionAnchor); i++)
+                    if (_items[i].Type == _items[_selectionAnchor].Type) _selectedIndices.Add(i);
+            }
+            else if (!preserveSelection || !_selectedIndices.Contains(value))
+            {
+                _selectedIndices.Clear();
+                if (value >= 0) _selectedIndices.Add(value);
+                _selectionAnchor = value;
+            }
+            Invalidate();
 
             if (_selectedIndex != value)
             {
@@ -244,9 +268,70 @@ namespace MusicBeePlugin.UI
                 }
                 SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
             }
+            else if (previousCount != _selectedIndices.Count)
+            {
+                SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
 
         public SearchResult SelectedItem => (_selectedIndex >= 0 && _selectedIndex < _items.Count) ? _items[_selectedIndex] : null;
+        public List<SearchResult> SelectedItems => _selectedIndices.OrderBy(i => i).Select(i => _items[i]).ToList();
+        public bool IsSelected(SearchResult item) => _selectedIndices.Any(i => ReferenceEquals(_items[i], item));
+        public int[] SelectedIndices => _selectedIndices.OrderBy(i => i).ToArray();
+        public int SelectionAnchor => _selectionAnchor;
+
+        private void ToggleSelection(int index)
+        {
+            var type = _items[index].Type;
+            if (_selectedIndices.Count > 0 && _items[_selectedIndices.First()].Type != type)
+                _selectedIndices.Clear();
+
+            if (!_selectedIndices.Add(index)) _selectedIndices.Remove(index);
+            int focused = _selectedIndices.Contains(index) ? index
+                : _selectedIndices.Count > 0 ? _selectedIndices.Min() : -1;
+            _selectionAnchor = focused;
+            bool focusChanged = focused != _selectedIndex;
+            SetSelectedIndex(focused, preserveSelection: true);
+            if (!focusChanged) SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void SelectAllOfCurrentType()
+        {
+            if (_selectedIndex < 0 || _selectedIndex >= _items.Count) return;
+            SelectAllOfType(_items[_selectedIndex].Type);
+        }
+
+        public void SelectAllOfType(ResultType type)
+        {
+            if (type == ResultType.Header || type == ResultType.ShowMore || type == ResultType.Command) return;
+            if (_selectedIndex < 0 || _selectedIndex >= _items.Count || _items[_selectedIndex].Type != type)
+            {
+                int first = _items.FindIndex(item => item.Type == type);
+                if (first < 0) return;
+                SetSelectedIndex(first);
+            }
+            _selectedIndices.Clear();
+            for (int i = 0; i < _items.Count; i++)
+                if (_items[i].Type == type) _selectedIndices.Add(i);
+            _selectionAnchor = _selectedIndex;
+            Invalidate();
+            SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void RestoreSelection(int[] indices, int focusedIndex, int anchor)
+        {
+            SetSelectedIndex(focusedIndex);
+            if (indices == null || focusedIndex < 0 || focusedIndex >= _items.Count) return;
+            var type = _items[focusedIndex].Type;
+            _selectedIndices.Clear();
+            foreach (int index in indices)
+                if (index >= 0 && index < _items.Count && _items[index].Type == type
+                    && type != ResultType.Header && type != ResultType.ShowMore && type != ResultType.Command)
+                    _selectedIndices.Add(index);
+            if (_selectedIndices.Count == 0) _selectedIndices.Add(focusedIndex);
+            _selectionAnchor = _selectedIndices.Contains(anchor) ? anchor : focusedIndex;
+            Invalidate();
+        }
 
         public void SetScrollPosition(int position)
         {
@@ -601,7 +686,7 @@ namespace MusicBeePlugin.UI
                 // Only draw if the item is actually within the clip rectangle
                 if (e.ClipRectangle.IntersectsWith(bounds))
                 {
-                    DrawItem(e.Graphics, item, bounds, i, i == _selectedIndex);
+                    DrawItem(e.Graphics, item, bounds, i, _selectedIndices.Contains(i));
                 }
             }
             
@@ -1329,9 +1414,18 @@ namespace MusicBeePlugin.UI
         }
 
         private bool _suppressClick = false;
+        public bool SelectOnlyOnClickWithMultipleSelection { get; set; }
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (ProcessResultCommandKey?.Invoke(keyData) == true) return true;
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
 
         protected override bool IsInputKey(Keys keyData)
         {
+            if (_doubleClickToActivate && (keyData == (Keys.Control | Keys.A) || keyData == (Keys.Control | Keys.Shift | Keys.A)))
+                return true;
             if (_doubleClickToActivate)
             {
                 switch (keyData & Keys.KeyCode)
@@ -1359,7 +1453,7 @@ namespace MusicBeePlugin.UI
                     && _items[rightIndex].Type != ResultType.Header && _items[rightIndex].Type != ResultType.ShowMore)
                 {
                     _rightClickedResult = _items[rightIndex];
-                    SetSelectedIndex(rightIndex, animateScroll: false);
+                    SetSelectedIndex(rightIndex, animateScroll: false, preserveSelection: true);
                 }
                 return;
             }
@@ -1380,6 +1474,25 @@ namespace MusicBeePlugin.UI
             }
 
             int index = GetIndexFromY(e.Y);
+
+            if (e.Button == MouseButtons.Left && (ModifierKeys & Keys.Shift) != 0 && index >= 0 && index < _items.Count
+                && _items[index].Type != ResultType.Header && _items[index].Type != ResultType.ShowMore)
+            {
+                if (_doubleClickToActivate && CanFocus) Focus();
+                SetSelectedIndex(index, extendSelection: true);
+                _suppressClick = true;
+                return;
+            }
+
+            if (e.Button == MouseButtons.Left && (ModifierKeys & Keys.Control) != 0 && index >= 0 && index < _items.Count
+                && _items[index].Type != ResultType.Header && _items[index].Type != ResultType.ShowMore)
+            {
+                if (_doubleClickToActivate && CanFocus) Focus();
+                if (_items[index].Type == ResultType.Command) SetSelectedIndex(index, animateScroll: false);
+                else ToggleSelection(index);
+                _suppressClick = true;
+                return;
+            }
 
             if (e.Button == MouseButtons.Left && TryGetDetailLinkAt(index, e.Location, out var linkType, out var artistIndex))
             {
@@ -1402,6 +1515,10 @@ namespace MusicBeePlugin.UI
 
             if (index >= 0 && index < _items.Count)
             {
+                if (e.Button == MouseButtons.Left && ModifierKeys == Keys.None
+                    && SelectOnlyOnClickWithMultipleSelection && _selectedIndices.Count > 1
+                    && _items[index].Type != ResultType.Header && _items[index].Type != ResultType.ShowMore)
+                    _suppressClick = true;
                 if (_doubleClickToActivate && e.Button == MouseButtons.Left && CanFocus) Focus();
                 if (_items[index].Type != ResultType.Header)
                 {
@@ -1550,7 +1667,7 @@ namespace MusicBeePlugin.UI
                 || _items[index].Type == ResultType.ShowMore
                 || TryGetDetailLinkAt(index, e.Location, out _, out _)
                 || TryGetActionButtonAt(index, e.Location, out _)) return;
-            SetSelectedIndex(index, animateScroll: false);
+            SetSelectedIndex(index, animateScroll: false, preserveSelection: true);
             ResultDoubleClicked?.Invoke(this, EventArgs.Empty);
         }
 

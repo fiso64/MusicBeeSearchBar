@@ -166,6 +166,8 @@ namespace MusicBeePlugin.UI
         private readonly Dictionary<ResultType, int> _expandedByType = new Dictionary<ResultType, int>();
         private int _expandedUngrouped;
         private bool _showAllResults;
+        private ResultType? _selectAllAfterSearch;
+        private string _selectAllQuery;
         private List<SearchResult> _defaultSearchResults;
         private long _defaultResultsSequence;
         private System.Windows.Forms.Timer _selectionRefreshTimer;
@@ -180,6 +182,8 @@ namespace MusicBeePlugin.UI
             public int ExpandedUngrouped;
             public int ScrollTop;
             public int SelectedIndex;
+            public int[] SelectedIndices;
+            public int SelectionAnchor;
             public bool ShowAllResults;
         }
 
@@ -196,6 +200,8 @@ namespace MusicBeePlugin.UI
                 ExpandedUngrouped = _expandedUngrouped,
                 ScrollTop = resultsListBox.ScrollTop,
                 SelectedIndex = resultsListBox.SelectedIndex,
+                SelectedIndices = resultsListBox.SelectedIndices,
+                SelectionAnchor = resultsListBox.SelectionAnchor,
                 ShowAllResults = _showAllResults
             };
         }
@@ -221,7 +227,7 @@ namespace MusicBeePlugin.UI
                 _expandedUngrouped = state.ExpandedUngrouped;
                 resultsListBox.Items = state.Results;
                 resultsListBox.Visible = state.Results.Count > 0;
-                resultsListBox.SetSelectedIndex(state.SelectedIndex, animateScroll: false);
+                resultsListBox.RestoreSelection(state.SelectedIndices, state.SelectedIndex, state.SelectionAnchor);
                 resultsListBox.SetScrollPosition(state.ScrollTop);
                 _restoredScrollTop = state.ScrollTop;
                 _preserveRestoredPositionOnLoad = isLoading && state.Results.Count > 0;
@@ -271,6 +277,7 @@ namespace MusicBeePlugin.UI
         private void SearchBox_TextChanged(object sender, EventArgs e)
         {
             if (_restoringExpandedSearch) return;
+            if (_selectAllAfterSearch.HasValue && _selectAllQuery != searchBox.Text) _selectAllAfterSearch = null;
             if (sender != null) { _restoredScrollTop = null; _preserveRestoredPositionOnLoad = false; }
             searchToolbar?.SetActivePrefix(searchBox.Text);
             RunSearch(false);
@@ -298,12 +305,42 @@ namespace MusicBeePlugin.UI
 
         private void ToggleShowAllResults()
         {
+            _selectAllAfterSearch = null;
             _showAllResults = !_showAllResults;
             searchToolbar?.SetShowAll(_showAllResults);
             if (string.IsNullOrWhiteSpace(searchBox.Text) && _defaultSearchResults != null)
                 UpdateResultsList(BuildDefaultPagedResults(), true, resultsListBox.ScrollTop, resultsListBox.SelectedIndex);
             else RunSearch(true);
             if (isEmbedded && !compactPanel) Plugin.SaveExpandedSearchState(this);
+        }
+
+        internal bool SelectAllEmbeddedResults()
+        {
+            if (!isEmbedded || IsDisposed || Disposing || resultsListBox == null || !resultsListBox.Visible
+                || !(resultsListBox.SelectedItem is SearchResult result)
+                || result.Type == ResultType.Header || result.Type == ResultType.ShowMore || result.Type == ResultType.Command)
+                return false;
+            SelectAllResults(result.Type);
+            return true;
+        }
+
+        private void SelectAllResults(ResultType type)
+        {
+            _selectAllAfterSearch = type;
+            _selectAllQuery = searchBox.Text;
+            _showAllResults = true;
+            searchToolbar?.SetShowAll(true);
+            if (string.IsNullOrWhiteSpace(searchBox.Text) && _defaultSearchResults != null)
+                UpdateResultsList(BuildDefaultPagedResults(), true, resultsListBox.ScrollTop, resultsListBox.SelectedIndex);
+            else RunSearch(true);
+        }
+
+        private void ApplyPendingSelectAll()
+        {
+            if (!_selectAllAfterSearch.HasValue || _selectAllQuery != searchBox.Text || !resultsListBox.Items.Any()) return;
+            var type = _selectAllAfterSearch.Value;
+            _selectAllAfterSearch = null;
+            resultsListBox.SelectAllOfType(type);
         }
 
         private static int AddResultCount(int count, int increment)
@@ -514,6 +551,12 @@ namespace MusicBeePlugin.UI
 
         private void UpdateResultsList(List<SearchResult> searchResults, bool preservePosition = false, int previousScroll = 0, int previousSelection = -1)
         {
+            // A pending select-all replaces the selection after the refresh, so
+            // comparing every previously selected item would be unnecessary quadratic work.
+            var oldSelection = preservePosition && !_selectAllAfterSearch.HasValue ? resultsListBox.SelectedItems : null;
+            var oldFocused = preservePosition ? resultsListBox.SelectedItem : null;
+            var oldAnchor = preservePosition && resultsListBox.SelectionAnchor >= 0 && resultsListBox.SelectionAnchor < resultsListBox.Items.Count
+                ? resultsListBox.Items[resultsListBox.SelectionAnchor] : null;
             var results = searchResults ?? new List<SearchResult>();
             Debug.WriteLine($"[SearchBar] UpdateResultsList: Received {results.Count} results.");
 
@@ -602,12 +645,12 @@ namespace MusicBeePlugin.UI
                 resultsListBox.Items = results;
                 if (preservePosition)
                 {
-                    if (previousSelection >= 0 && previousSelection < results.Count && results[previousSelection].Type != ResultType.Header)
-                        resultsListBox.SetSelectedIndex(previousSelection, animateScroll: false);
+                    RestoreResultSelection(results, oldSelection, oldFocused, oldAnchor, previousSelection);
                     resultsListBox.SetScrollPosition(previousScroll);
                 }
                 if (compactPanel) UpdateResultsPopup();
                 else resultsListBox.Visible = results.Count > 0;
+                ApplyPendingSelectAll();
                 if (!compactPanel && !_restoringExpandedSearch) Plugin.SaveExpandedSearchState(this);
                 return;
             }
@@ -697,13 +740,37 @@ namespace MusicBeePlugin.UI
             resultsListBox.Items = results;
             if (preservePosition)
             {
+                RestoreResultSelection(results, oldSelection, oldFocused, oldAnchor, previousSelection);
                 resultsListBox.SetScrollPosition(previousScroll);
-                while (previousSelection >= 0 && previousSelection < results.Count
-                    && results[previousSelection].Type == ResultType.Header)
-                    previousSelection++;
-                if (previousSelection >= 0 && previousSelection < results.Count)
-                    resultsListBox.SetSelectedIndex(previousSelection, animateScroll: false);
             }
+            ApplyPendingSelectAll();
+        }
+
+        private static bool SameResult(SearchResult a, SearchResult b)
+        {
+            if (a == null || b == null || a.Type != b.Type || a.IsTopMatch != b.IsTopMatch) return false;
+            if (a is SongResult song && b is SongResult otherSong)
+                return string.Equals(song.Filepath, otherSong.Filepath, StringComparison.OrdinalIgnoreCase);
+            if (a is AlbumResult album && b is AlbumResult otherAlbum)
+                return string.Equals(album.Album, otherAlbum.Album, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(album.AlbumArtist, otherAlbum.AlbumArtist, StringComparison.OrdinalIgnoreCase);
+            if (a is ArtistResult artist && b is ArtistResult otherArtist)
+                return string.Equals(artist.Artist, otherArtist.Artist, StringComparison.OrdinalIgnoreCase);
+            if (a is PlaylistResult playlist && b is PlaylistResult otherPlaylist)
+                return string.Equals(playlist.PlaylistPath, otherPlaylist.PlaylistPath, StringComparison.OrdinalIgnoreCase);
+            return ReferenceEquals(a, b);
+        }
+
+        private void RestoreResultSelection(List<SearchResult> results, List<SearchResult> selected, SearchResult focused, SearchResult anchor, int fallback)
+        {
+            int focusIndex = results.FindIndex(r => SameResult(r, focused));
+            if (focusIndex < 0 && fallback >= 0 && fallback < results.Count && results[fallback].Type != ResultType.Header)
+                focusIndex = fallback;
+            if (focusIndex < 0) return;
+            int[] indices = selected == null ? null : results.Select((r, i) => new { r, i })
+                .Where(x => selected.Any(old => SameResult(old, x.r))).Select(x => x.i).ToArray();
+            int anchorIndex = results.FindIndex(r => SameResult(r, anchor));
+            resultsListBox.RestoreSelection(indices, focusIndex, anchorIndex);
         }
     }
 }

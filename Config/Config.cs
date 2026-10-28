@@ -34,6 +34,9 @@ namespace MusicBeePlugin.Config
         public bool FocusMainPanelAfterAction = false;
 
         [JsonIgnore]
+        public virtual bool SupportsMultipleSelection => true;
+
+        [JsonIgnore]
         public bool _actionExecuted = false;
     }
 
@@ -65,6 +68,7 @@ namespace MusicBeePlugin.Config
 
     public class SearchInTabActionData : BaseActionData
     {
+        public override bool SupportsMultipleSelection => false;
         [JsonConverter(typeof(StringEnumConverter))]
         public TabChoice TabChoice = 0; // makes it stay in current tab
         public bool UseSortArtist = false;
@@ -77,6 +81,7 @@ namespace MusicBeePlugin.Config
 
     public class OpenFilterInTabActionData : BaseActionData
     {
+        public override bool SupportsMultipleSelection => false;
         [JsonConverter(typeof(StringEnumConverter))]
         public TabChoice TabChoice = 0;
         public bool GoBackBeforeOpenFilter = true;
@@ -85,16 +90,19 @@ namespace MusicBeePlugin.Config
 
     public class OpenInMusicExplorerActionData : BaseActionData
     {
+        public override bool SupportsMultipleSelection => false;
     }
 
     public class OpenInMusicExplorerInTabActionData : BaseActionData
     {
+        public override bool SupportsMultipleSelection => false;
         [JsonConverter(typeof(StringEnumConverter))]
         public TabChoice TabChoice = 0;
     }
 
     public class OpenPlaylistInTabActionData : BaseActionData
     {
+        public override bool SupportsMultipleSelection => false;
         [JsonConverter(typeof(StringEnumConverter))]
         public TabChoice TabChoice = 0;
     }
@@ -321,10 +329,10 @@ namespace MusicBeePlugin.Config
         public DockedSearchLayout DockedPanelLayout { get; set; } = DockedSearchLayout.Compact;
 
         [ConfigProperty("Disable Rounded Corners", "Use square corners throughout the search interface. Artist images remain circular.", Category = "Appearance")]
-        public bool DisableRoundedCorners { get; set; } = false;
+        public bool DisableRoundedCorners { get; set; } = true;
 
         [ConfigProperty("Only in Docked Panel", "Apply the square-corner setting only to the docked search panel.", Category = "Appearance")]
-        public bool SquareCornersDockedOnly { get; set; } = false;
+        public bool SquareCornersDockedOnly { get; set; } = true;
 
         [ConfigProperty("Use Separate Colors", "Use these colors for the docked panel instead of the main appearance colors.", Category = "DockedColors")]
         public bool UseDockedColors { get; set; } = false;

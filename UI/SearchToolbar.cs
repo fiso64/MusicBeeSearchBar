@@ -183,6 +183,10 @@ namespace MusicBeePlugin.UI
             base.OnPaint(e);
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             UpdateBounds(e.Graphics);
+            var inactiveText = Color.FromArgb(
+                (_theme.IconDimmed.R * 85 + _theme.Background.R * 15) / 100,
+                (_theme.IconDimmed.G * 85 + _theme.Background.G * 15) / 100,
+                (_theme.IconDimmed.B * 85 + _theme.Background.B * 15) / 100);
             for (int i = 0; i < _pills.Length; i++)
             {
                 var rect = _pills[i];
@@ -190,15 +194,15 @@ namespace MusicBeePlugin.UI
                 bool selected = _activePrefix == Prefixes[i];
                 bool hovered = _hovered == i;
                 using (var path = Rounded(rect, SquareCorners ? 0 : rect.Height))
-                using (var brush = new SolidBrush(selected ? _theme.Highlight : Color.FromArgb(hovered ? 26 : 10, _theme.Foreground)))
+                using (var brush = new SolidBrush(selected ? _theme.Highlight : Color.FromArgb(hovered ? 26 : 7, _theme.Foreground)))
                 {
                     e.Graphics.FillPath(brush, path);
                 }
                 using (var outline = RoundedOutline(rect, SquareCorners))
-                using (var pen = new Pen(Color.FromArgb(selected ? 110 : hovered ? 65 : 45, _theme.Foreground)))
+                using (var pen = new Pen(Color.FromArgb(selected ? 110 : hovered ? 65 : 37, _theme.Foreground)))
                     e.Graphics.DrawPath(pen, outline);
                 TextRenderer.DrawText(e.Graphics, Labels[i], Font, rect,
-                    selected ? _theme.Foreground : hovered ? _theme.Icon : _theme.IconDimmed,
+                    selected ? _theme.Foreground : hovered ? _theme.Icon : inactiveText,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
             }
 

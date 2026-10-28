@@ -151,6 +151,7 @@ namespace MusicBeePlugin
             mbApi.MB_RegisterCommand("Modern Search Bar: Search (2)", (a, b) => ShowSearchBar());
             mbApi.MB_RegisterCommand("Modern Search Bar: Search (Detached)", (a, b) => ShowSearchBar(null, true));
             mbApi.MB_RegisterCommand("Modern Search Bar: Focus Docked Search", (a, b) => FocusDockedSearch());
+            mbApi.MB_RegisterCommand("Modern Search Bar: Select All Docked Results", (a, b) => SelectAllDockedResults());
 
             mbApi.MB_RegisterCommand("Modern Search Bar: Search Artists", (a, b) => ShowSearchBar("a: "));
             mbApi.MB_RegisterCommand("Modern Search Bar: Search Albums", (a, b) => ShowSearchBar("l: "));
@@ -434,42 +435,20 @@ namespace MusicBeePlugin
                     new ActionService(config.SearchActions), uiConfig, embedded: true);
                 try
                 {
-                    Action updateLayout = () =>
-                    {
-                        if (panel.IsDisposed || view.IsDisposed) return;
-                        view.Bounds = panel.ClientRectangle;
-                        view.PerformLayout();
-                        if (panel.Visible) view.Invalidate(true);
-                    };
-                    bool initialSizeApplied = false;
                     Action finishInitialLayout = () =>
                     {
                         if (panel.IsDisposed || view.IsDisposed || !panel.Visible) return;
-                        if (!initialSizeApplied && uiConfig.DockedPanelLayout == DockedSearchLayout.Expanded)
-                        {
-                            int stripHeight = (int)Math.Ceiling((34 + 16 + (uiConfig.ShowSearchToolbar ? 42 : 0)) * view.DeviceDpi / 96f);
-                            if (panel.Height <= stripHeight)
-                            {
-                                int desiredHeight = (int)Math.Ceiling(260 * view.DeviceDpi / 96f);
-                                if (panel.Parent != null)
-                                {
-                                    int available = panel.Parent.ClientSize.Height - panel.Top;
-                                    if (available > 0) desiredHeight = Math.Min(desiredHeight, available);
-                                }
-                                if (desiredHeight > panel.Height) panel.Height = desiredHeight;
-                            }
-                            initialSizeApplied = true;
-                        }
-                        updateLayout();
+                        view.PerformLayout();
+                        view.Invalidate(true);
                         view.FinishExpandedStateLayout();
                     };
+                    view.Dock = DockStyle.Fill;
                     panel.Controls.Add(view);
                     RestoreExpandedSearchState(view);
                     view.EnableExpandedStateSync();
                     view.Show();
                     dockedSearchViews.Add(view);
                     view.Disposed += (sender, args) => dockedSearchViews.Remove(view);
-                    panel.SizeChanged += (sender, args) => updateLayout();
                     panel.VisibleChanged += (sender, args) =>
                     {
                         if (!panel.Visible || !panel.IsHandleCreated || panel.Disposing || view.IsDisposed) return;
@@ -477,7 +456,6 @@ namespace MusicBeePlugin
                         try { panel.BeginInvoke(finishInitialLayout); }
                         catch (InvalidOperationException) { /* The panel handle was destroyed. */ }
                     };
-                    updateLayout();
                     if (panel.IsHandleCreated) panel.BeginInvoke(finishInitialLayout);
                 }
                 catch
@@ -513,6 +491,25 @@ namespace MusicBeePlugin
                     {
                         var view = views[i];
                         if (!view.IsDisposed && view.Visible && view.FocusEmbeddedSearch()) break;
+                    }
+                }));
+            }
+            catch (InvalidOperationException) { /* MusicBee is shutting down. */ }
+        }
+
+        private static void SelectAllDockedResults()
+        {
+            var musicBeeControl = Control.FromHandle(mbApi.MB_GetWindowHandle());
+            if (musicBeeControl == null || musicBeeControl.IsDisposed || !musicBeeControl.IsHandleCreated) return;
+            try
+            {
+                musicBeeControl.BeginInvoke((Action)(() =>
+                {
+                    var views = dockedSearchViews.ToArray();
+                    for (int i = views.Length - 1; i >= 0; i--)
+                    {
+                        var view = views[i];
+                        if (!view.IsDisposed && view.Visible && view.SelectAllEmbeddedResults()) break;
                     }
                 }));
             }

@@ -14,6 +14,30 @@ namespace MusicBeePlugin.UI
     {
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
+            if (keyData == (Keys.Control | Keys.A) && searchBox?.Focused == true)
+            {
+                searchBox.SelectAll();
+                return true;
+            }
+            if ((keyData == (Keys.Control | Keys.Shift | Keys.A) && (searchBox?.Focused == true || resultsListBox?.Focused == true)
+                || keyData == (Keys.Control | Keys.A) && UsesListSelection && resultsListBox?.Focused == true)
+                && resultsListBox.Visible && resultsListBox.SelectedItem is SearchResult selected
+                && selected.Type != ResultType.Header && selected.Type != ResultType.ShowMore && selected.Type != ResultType.Command)
+            {
+                SelectAllResults(selected.Type);
+                return true;
+            }
+            if (keyData == Keys.Escape && isDetached && !isEmbedded && resultsListBox?.Focused == true)
+            {
+                Close();
+                return true;
+            }
+            if (!isEmbedded && (searchBox?.Focused == true || resultsListBox?.Focused == true)
+                && (keyData == (Keys.Shift | Keys.Up) || keyData == (Keys.Shift | Keys.Down)))
+            {
+                ExtendSelection(keyData == (Keys.Shift | Keys.Down) ? 1 : -1);
+                return true;
+            }
             if (keyData == (Keys.Alt | Keys.Shift | Keys.A) && (searchBox?.Focused == true || resultsListBox?.Focused == true))
             {
                 ToggleShowAllResults();
@@ -43,6 +67,37 @@ namespace MusicBeePlugin.UI
                 return true;
             }
             return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        private void ExtendSelection(int direction)
+        {
+            var items = resultsListBox.Items;
+            int current = resultsListBox.SelectedIndex;
+            if (current < 0 || current >= items.Count) return;
+            var type = items[current].Type;
+            if (type == ResultType.Header || type == ResultType.ShowMore || type == ResultType.Command) return;
+            for (int i = current + direction; i >= 0 && i < items.Count; i += direction)
+            {
+                if (items[i].Type == type)
+                {
+                    resultsListBox.SetSelectedIndex(i, extendSelection: true);
+                    return;
+                }
+            }
+        }
+
+        private System.Collections.Generic.List<SearchResult> SelectionFor(SearchResult result)
+        {
+            return resultsListBox.IsSelected(result) ? resultsListBox.SelectedItems : new System.Collections.Generic.List<SearchResult> { result };
+        }
+
+        private bool HandleResultListCommandKey(Keys keyData)
+        {
+            if (!UsesListSelection || (keyData != (Keys.Control | Keys.A) && keyData != (Keys.Control | Keys.Shift | Keys.A))) return false;
+            if (!(resultsListBox.SelectedItem is SearchResult result) || result.Type == ResultType.Header
+                || result.Type == ResultType.ShowMore || result.Type == ResultType.Command) return false;
+            SelectAllResults(result.Type);
+            return true;
         }
 
         private bool TryRunResultShortcut(Keys keyData)
@@ -102,7 +157,7 @@ namespace MusicBeePlugin.UI
             }
             else if (e.KeyCode == Keys.Enter && e.Control && preservedIndex != -1)
             {
-                resultsListBox.SetSelectedIndex(preservedIndex);
+                resultsListBox.SetSelectedIndex(preservedIndex, preserveSelection: true);
                 HandleSearchBoxEnter(e);
                 e.Handled = true;
                 e.SuppressKeyPress = true;
@@ -284,6 +339,7 @@ namespace MusicBeePlugin.UI
             }
             else if (e.Alt && e.KeyCode == Keys.R)
             {
+                if (resultsListBox.SelectedItems.Count > 1) return;
                 if (resultsListBox.SelectedItem is SearchResult selectedResult && selectedResult.Type != ResultType.ShowMore)
                 {
                     var artist = ArtistResult.FromDetail(selectedResult);
@@ -292,6 +348,7 @@ namespace MusicBeePlugin.UI
             }
             else if (e.Alt && e.KeyCode == Keys.A)
             {
+                if (resultsListBox.SelectedItems.Count > 1) return;
                  if (resultsListBox.SelectedItem is SearchResult selectedResult && selectedResult.Type != ResultType.ShowMore)
                 {
                     HandleResultSelection(AlbumResult.FromSearchResult(selectedResult), new KeyEventArgs(e.Modifiers & ~Keys.Alt));
@@ -328,21 +385,34 @@ namespace MusicBeePlugin.UI
 
         private void ShowResultContextMenu(SearchResult result, Point screenPosition, bool alignRight)
         {
+            var selectedResults = SelectionFor(result);
             Action selectedAction = null;
             void select(Action action) { selectedAction = action; }
-            var menu = ResultContextMenu.Create(result, actionService.GetActionConfig(result.Type),
-                quick => select(() => HandleResultSelection(result, new KeyEventArgs(Keys.None), () =>
+            ContextMenuStrip CreateMenu(SearchResult target, System.Collections.Generic.IReadOnlyList<SearchResult> selection)
+            {
+                return ResultContextMenu.Create(target, actionService.GetActionConfig(target.Type), selection.Count > 1,
+                quick => select(() => HandleResultSelection(target, new KeyEventArgs(Keys.None), () =>
                 {
-                    actionService.PerformAction(quick, result);
+                    if (selection.Count > 1) actionService.PerformBatchAction(quick, selection);
+                    else actionService.PerformAction(quick, target);
                     return Task.CompletedTask;
                 })),
-                () => select(() => HandleResultSelection(result, new KeyEventArgs(Keys.None), () =>
+                () => select(() => HandleResultSelection(target, new KeyEventArgs(Keys.None), () =>
                 {
-                    actionService.PerformShufflePlay(result);
+                    if (selection.Count > 1) actionService.PerformBatchAction(ResultActionType.PlayNow, selection, true);
+                    else actionService.PerformShufflePlay(target);
                     return Task.CompletedTask;
                 })),
-                modifiers => select(() => HandleResultSelection(result, new KeyEventArgs(modifiers))),
-                () => select(() => HandleResultSelection(result, new KeyEventArgs(Keys.None))));
+                modifiers => select(() => HandleResultSelection(target, new KeyEventArgs(modifiers))),
+                () => select(() => HandleResultSelection(target, new KeyEventArgs(Keys.None))),
+                () => select(() => HandleResultSelection(target, new KeyEventArgs(Keys.None), () =>
+                {
+                    actionService.EditTags(selection);
+                    return Task.CompletedTask;
+                }, keepDetachedOnTop: false)),
+                related => CreateMenu(related, new[] { related }));
+            }
+            var menu = CreateMenu(result, selectedResults);
             if (!isEmbedded) ResultContextMenu.ApplyFloatingTheme(menu, theme);
             menu.Closed += (sender, args) =>
             {
@@ -369,6 +439,19 @@ namespace MusicBeePlugin.UI
         private void HandleResultsKeyDown(object sender, KeyEventArgs e)
         {
             if (!UsesListSelection) return;
+            if (HandleResultListCommandKey(e.KeyData))
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                return;
+            }
+            if (e.KeyCode == Keys.Escape && e.Modifiers == Keys.None && !isEmbedded && isDetached)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                Close();
+                return;
+            }
             if (TryRunResultShortcut(e.KeyData))
             {
                 e.Handled = true;
@@ -403,11 +486,13 @@ namespace MusicBeePlugin.UI
                 return;
             }
 
+            var selectedResults = SelectionFor(selectedItem);
             if (customAction == null && e != null)
             {
                 var configuredAction = actionService.GetConfiguredAction(selectedItem, e);
                 if (configuredAction == null && selectedItem.Type != ResultType.Command) return;
                 if (configuredAction is MusicBeePlugin.Config.DoNothingActionData) return;
+                if (selectedResults.Count > 1 && configuredAction != null && !configuredAction.SupportsMultipleSelection) return;
                 keepDetachedOnTop = actionService.KeepDetachedWindowOnTop(configuredAction);
             }
 
@@ -438,7 +523,7 @@ namespace MusicBeePlugin.UI
                     }
                     else
                     {
-                        await actionService.RunAction(actionSearchText, selectedItem, e);
+                        await actionService.RunAction(actionSearchText, selectedItem, e, selectedResults);
                     }
                 }
                 catch (Exception ex)
@@ -477,10 +562,12 @@ namespace MusicBeePlugin.UI
 
         private void ResultsListBox_ActionButtonClicked(object sender, ResultActionEventArgs e)
         {
+            var selectedResults = SelectionFor(e.Result);
             // customAction is always supplied here, so the KeyEventArgs is never actually read.
             HandleResultSelection(e.Result, null, () =>
             {
-                actionService.PerformAction(e.ActionType, e.Result);
+                if (selectedResults.Count > 1) actionService.PerformBatchAction(e.ActionType, selectedResults);
+                else actionService.PerformAction(e.ActionType, e.Result);
                 return Task.CompletedTask;
             });
         }

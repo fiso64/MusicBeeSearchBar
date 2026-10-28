@@ -238,6 +238,8 @@ namespace MusicBeePlugin.UI
                 }
             };
             if (UsesListSelection) resultsListBox.DoubleClickToActivate = true;
+            resultsListBox.SelectOnlyOnClickWithMultipleSelection = !isEmbedded && !isDetached;
+            resultsListBox.ProcessResultCommandKey = HandleResultListCommandKey;
             resultsListBox.Click += ResultsListBox_Click;
             resultsListBox.ResultDoubleClicked += ResultsListBox_DoubleClick;
             resultsListBox.Scrolled += ResultsListBox_Scrolled;

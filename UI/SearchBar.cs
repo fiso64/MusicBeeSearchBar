@@ -206,6 +206,7 @@ namespace MusicBeePlugin.UI
             isDetached = !isDetached;
             searchToolbar?.SetDetached(isDetached);
             resultsListBox.DoubleClickToActivate = UsesListSelection;
+            resultsListBox.SelectOnlyOnClickWithMultipleSelection = !isEmbedded && !isDetached;
             dragPanel.Visible = isDetached;
             Height += isDetached ? dragPanel.Height : -dragPanel.Height;
             TopMost = !isDetached;
