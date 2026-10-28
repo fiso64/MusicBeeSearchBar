@@ -28,7 +28,7 @@ Shortcuts for each result type are fully customizable in the plugin settings. Th
 
 ## Docked version
 
-There is also a docked panel version of the plugin. To add it, open MusicBee's **View → Arrange Panels** and place the search bar from the available elements. Choose **Docked Panel Layout** in the plugin's Appearance settings to switch between compact and expanded layouts. **Important**: After changing the docked layout setting, you must either remove and re-add the panel, or restart MusicBee and then switch tabs once to apply the change.
+The plugin also includes a docked panel version of the search bar. To add it, open MusicBee's **View → Arrange Panels** and place the search bar from the available elements. Choose **Docked Panel Layout** in the plugin's Appearance settings to switch between compact and expanded layouts. **Important**: After changing the docked layout setting, you must either remove and re-add the panel, or restart MusicBee and then switch tabs once to apply the change.
 
 <img width="640" alt="image" src="https://github.com/fiso64/MusicBeeSearchBar/blob/master/screenshot-embedded-panel.png?raw=true" />
 
