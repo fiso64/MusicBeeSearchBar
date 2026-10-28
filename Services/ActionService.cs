@@ -72,6 +72,18 @@ namespace MusicBeePlugin.Services
                    type == ResultType.Artist || type == ResultType.Playlist;
         }
 
+        public ActionConfig GetActionConfig(ResultType type)
+        {
+            switch (type)
+            {
+                case ResultType.Artist: return actionsConfig.ArtistAction;
+                case ResultType.Album: return actionsConfig.AlbumAction;
+                case ResultType.Song: return actionsConfig.SongAction;
+                case ResultType.Playlist: return actionsConfig.PlaylistAction;
+                default: return null;
+            }
+        }
+
         public async Task<bool> RunAction(string searchBoxText, SearchResult result, KeyEventArgs keyEvent)
         {
             Debug.WriteLine($"RunAction called with result={result.DisplayTitle} of type={result.Type}");
@@ -79,17 +91,8 @@ namespace MusicBeePlugin.Services
             if (result.Type == ResultType.Command)
                 return RunCommand(result);
 
-            ActionConfig actionCfg;
-
-            if (result.Type == ResultType.Artist)
-                actionCfg = actionsConfig.ArtistAction;
-            else if (result.Type == ResultType.Album)
-                actionCfg = actionsConfig.AlbumAction;
-            else if (result.Type == ResultType.Song)
-                actionCfg = actionsConfig.SongAction;
-            else if (result.Type == ResultType.Playlist)
-                actionCfg = actionsConfig.PlaylistAction;
-            else return true; // Or false, depending on desired behavior for unhandled types
+            ActionConfig actionCfg = GetActionConfig(result.Type);
+            if (actionCfg == null) return true;
 
             BaseActionData action;
             if (keyEvent.Control && keyEvent.Shift)

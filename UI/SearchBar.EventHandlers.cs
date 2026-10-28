@@ -14,6 +14,11 @@ namespace MusicBeePlugin.UI
     {
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
+            if (keyData == (Keys.Shift | Keys.F10) && (searchBox?.Focused == true || resultsListBox?.Focused == true)
+                && ShowSelectedResultContextMenu())
+            {
+                return true;
+            }
             if (searchBox != null && searchBox.Focused
                 && (keyData == Keys.Tab || keyData == (Keys.Shift | Keys.Tab)))
             {
@@ -35,7 +40,14 @@ namespace MusicBeePlugin.UI
 
         private void HandleSearchBoxKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Back && (e.Modifiers == Keys.Control || e.Modifiers == Keys.Alt))
+            if (!isEmbedded && e.KeyCode == Keys.Right && e.Modifiers == Keys.None
+                && searchBox.Focused && searchBox.SelectionLength == 0
+                && searchBox.SelectionStart == searchBox.TextLength && ShowSelectedResultContextMenu(alignRight: true))
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+            else if (e.KeyCode == Keys.Back && (e.Modifiers == Keys.Control || e.Modifiers == Keys.Alt))
             {
                 DeletePreviousSearchWord();
                 e.Handled = true;
@@ -291,6 +303,52 @@ namespace MusicBeePlugin.UI
             }
         }
 
+        private bool ShowSelectedResultContextMenu(bool alignRight = false)
+        {
+            if (!resultsListBox.Visible || !(resultsListBox.SelectedItem is SearchResult result)
+                || result.Type == ResultType.Header || result.Type == ResultType.ShowMore) return false;
+            ShowResultContextMenu(result, resultsListBox.SelectedItemContextLocation(alignRight), alignRight);
+            return true;
+        }
+
+        private void ShowResultContextMenu(SearchResult result, Point screenPosition)
+        {
+            ShowResultContextMenu(result, screenPosition, false);
+        }
+
+        private void ShowResultContextMenu(SearchResult result, Point screenPosition, bool alignRight)
+        {
+            Action selectedAction = null;
+            void select(Action action) { selectedAction = action; }
+            var menu = ResultContextMenu.Create(result, actionService.GetActionConfig(result.Type),
+                quick => select(() => HandleResultSelection(result, new KeyEventArgs(Keys.None), () =>
+                {
+                    actionService.PerformAction(quick, result);
+                    return Task.CompletedTask;
+                })),
+                () => select(() => HandleResultSelection(result, new KeyEventArgs(Keys.None), () =>
+                {
+                    actionService.PerformShufflePlay(result);
+                    return Task.CompletedTask;
+                })),
+                modifiers => select(() => HandleResultSelection(result, new KeyEventArgs(modifiers))),
+                () => select(() => HandleResultSelection(result, new KeyEventArgs(Keys.None))));
+            if (!isEmbedded) ResultContextMenu.ApplyFloatingTheme(menu, theme);
+            menu.Closed += (sender, args) =>
+            {
+                // Defer both cleanup and the action until WinForms finishes the menu click.
+                PostToUi(() =>
+                {
+                    menu.Dispose();
+                    selectedAction?.Invoke();
+                });
+            };
+            if (alignRight)
+                menu.Show(this, PointToClient(screenPosition), ToolStripDropDownDirection.BelowLeft);
+            else
+                menu.Show(this, PointToClient(screenPosition));
+        }
+
         private void ResultsListBox_DoubleClick(object sender, EventArgs e)
         {
             if (!UsesListSelection || resultsListBox.SelectedItem == null) return;
@@ -321,7 +379,7 @@ namespace MusicBeePlugin.UI
             }
         }
 
-        private void HandleResultSelection(SearchResult selectedItem, KeyEventArgs e, Func<Task> customAction = null)
+        private void HandleResultSelection(SearchResult selectedItem, KeyEventArgs e, Func<Task> customAction = null, bool keepDetachedOnTop = true)
         {
             if (selectedItem is ShowMoreResult showMore)
             {
@@ -339,7 +397,7 @@ namespace MusicBeePlugin.UI
             {
                 Close();
             }
-            else if (!IsDisposed)
+            else if (!IsDisposed && keepDetachedOnTop)
             {
                 // Set this before dispatching so it cannot race with the action focusing MusicBee.
                 TopMost = true;

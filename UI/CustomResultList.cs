@@ -40,6 +40,8 @@ namespace MusicBeePlugin.UI
 
         public event EventHandler<ResultActionEventArgs> ActionButtonClicked;
         public event Action<SearchResult, ResultType, int> DetailLinkClicked;
+        public event Action<SearchResult, Point> ResultContextRequested;
+        private SearchResult _rightClickedResult;
         public event EventHandler ResultDoubleClicked;
         private (int Index, ResultType Type, int ArtistIndex)? _hoveredDetailLink;
         private (SearchResult Item, ResultType Type, int ArtistIndex)? _pressedDetailLink;
@@ -927,6 +929,14 @@ namespace MusicBeePlugin.UI
             return new Rectangle(0, itemY, Width, GetItemHeight(index));
         }
 
+        public Point SelectedItemContextLocation(bool alignRight = false)
+        {
+            if (_selectedIndex < 0 || _selectedIndex >= _items.Count) return PointToScreen(Point.Empty);
+            EnsureVisible(_selectedIndex, animate: false);
+            var bounds = GetItemClientBounds(_selectedIndex);
+            return PointToScreen(new Point(alignRight ? Width : Math.Min(Width - 1, 24), Math.Min(Height - 1, bounds.Bottom)));
+        }
+
         private bool TryGetActionButtonAt(int index, Point location, out ResultActionType actionType)
         {
             actionType = default;
@@ -1339,6 +1349,21 @@ namespace MusicBeePlugin.UI
             ClearActionToolTip();
             _suppressClick = false;
 
+            if (e.Button == MouseButtons.Right && ResultContextRequested != null)
+            {
+                _suppressClick = true;
+                _rightClickedResult = null;
+                int rightIndex = GetIndexFromY(e.Y);
+                if (e.X < Width - (_isThumbVisible ? SCROLLBAR_WIDTH : 0)
+                    && rightIndex >= 0 && rightIndex < _items.Count
+                    && _items[rightIndex].Type != ResultType.Header && _items[rightIndex].Type != ResultType.ShowMore)
+                {
+                    _rightClickedResult = _items[rightIndex];
+                    SetSelectedIndex(rightIndex, animateScroll: false);
+                }
+                return;
+            }
+
             // Check if mouse is in scrollbar area (including track)
             if (_isThumbVisible && e.X >= Width - SCROLLBAR_WIDTH)
             {
@@ -1462,6 +1487,15 @@ namespace MusicBeePlugin.UI
         protected override void OnMouseUp(MouseEventArgs e)
         {
             base.OnMouseUp(e);
+            if (e.Button == MouseButtons.Right && ResultContextRequested != null)
+            {
+                var result = _rightClickedResult;
+                _rightClickedResult = null;
+                int index = GetIndexFromY(e.Y);
+                if (result != null && index >= 0 && index < _items.Count && ReferenceEquals(result, _items[index]))
+                    ResultContextRequested?.Invoke(result, PointToScreen(e.Location));
+                return;
+            }
             if (_isDraggingThumb)
             {
                 _isDraggingThumb = false;

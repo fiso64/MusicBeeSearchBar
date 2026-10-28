@@ -139,6 +139,8 @@ namespace MusicBeePlugin.UI
                     "  Shift+Enter       Execute alternative action",
                     "  Ctrl+Shift+Enter  Execute alternative action",
                     "  Tab / Shift+Tab   Cycle search filters",
+                    "  Shift+F10         Open the selected result's context menu",
+                    "  Right             Open the selected result's context menu (floating mode)",
                     "  Alt+R             Execute artist action for selected result",
                     "  Alt+A             Execute album action for selected result",
                     "  Ctrl+S            Shuffle play selected result",

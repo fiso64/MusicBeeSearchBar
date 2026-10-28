@@ -247,6 +247,7 @@ namespace MusicBeePlugin.UI
             };
             resultsListBox.ActionButtonClicked += ResultsListBox_ActionButtonClicked;
             resultsListBox.DetailLinkClicked += ResultsListBox_DetailLinkClicked;
+            resultsListBox.ResultContextRequested += ShowResultContextMenu;
 
             // Add controls to main panel in correct order for docking
             mainPanel.Controls.Add(resultsListBox); // Fills remaining space
