@@ -27,6 +27,7 @@ namespace MusicBeePlugin.UI
     public static class ActionRegistry
     {
         private static readonly ActionDefinition PlayNow = new ActionDefinition("Play Now", typeof(PlayActionData), () => new PlayActionData());
+        private static readonly ActionDefinition ShufflePlay = new ActionDefinition("Shuffle Play", typeof(ShufflePlayActionData), () => new ShufflePlayActionData());
         private static readonly ActionDefinition QueueNext = new ActionDefinition("Queue Next", typeof(QueueNextActionData), () => new QueueNextActionData());
         private static readonly ActionDefinition QueueLast = new ActionDefinition("Queue Last", typeof(QueueLastActionData), () => new QueueLastActionData());
         private static readonly ActionDefinition SearchInTab = new ActionDefinition("Search In Tab", typeof(SearchInTabActionData), () => new SearchInTabActionData());
@@ -34,7 +35,6 @@ namespace MusicBeePlugin.UI
         private static readonly ActionDefinition OpenPlaylist = new ActionDefinition("Open Playlist In Tab", typeof(OpenPlaylistInTabActionData), () => new OpenPlaylistInTabActionData());
         private static readonly ActionDefinition MusicExplorer = new ActionDefinition("Open In Music Explorer", typeof(OpenInMusicExplorerActionData), () => new OpenInMusicExplorerActionData());
         private static readonly ActionDefinition MusicExplorerInTab = new ActionDefinition("Open In Music Explorer In Tab", typeof(OpenInMusicExplorerInTabActionData), () => new OpenInMusicExplorerInTabActionData());
-        private static readonly ActionDefinition DoNothing = new ActionDefinition("Do Nothing", typeof(DoNothingActionData), () => new DoNothingActionData());
         private static readonly ActionDefinition EditTags = new ActionDefinition("Edit Tags", typeof(EditTagsActionData), () => new EditTagsActionData());
 
         public static List<ActionDefinition> GetActionsForType(ResultType type)
@@ -42,10 +42,10 @@ namespace MusicBeePlugin.UI
             var actions = new List<ActionDefinition>
             {
                 PlayNow,
+                ShufflePlay,
                 QueueNext,
                 QueueLast,
-                SearchInTab,
-                DoNothing
+                SearchInTab
             };
 
             // "Open Filter" is supported by everything except Playlists

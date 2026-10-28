@@ -91,6 +91,7 @@ namespace MusicBeePlugin.UI
 
         private static bool IsStandardAction(BaseActionData action, ResultType type)
         {
+            if (action is ShufflePlayActionData) return true;
             if (action is PlayActionData) return true;
             if (action is QueueNextActionData next)
                 return !next.ClearQueueBeforeAdd && (!next.ShufflePlay || type == ResultType.Song);
@@ -121,11 +122,9 @@ namespace MusicBeePlugin.UI
             var seen = new HashSet<string>();
             if (config != null)
             {
-                var choices = new[]
-                {
-                    (config.Default, Keys.None), (config.Ctrl, Keys.Control),
-                    (config.Shift, Keys.Shift), (config.CtrlShift, Keys.Control | Keys.Shift), (config.Alt, Keys.Alt)
-                };
+                var choices = new List<(BaseActionData, Keys)> { (config.Default, Keys.Enter) };
+                if (config.Shortcuts != null)
+                    choices.AddRange(config.Shortcuts.Select(x => (x.Action, x.Key)));
                 foreach (var choice in choices)
                 {
                     var action = choice.Item1;
@@ -145,10 +144,8 @@ namespace MusicBeePlugin.UI
                     string label = choice.Label;
                     if (configured.Count(x => x.Label == label) > 1)
                     {
-                        string shortcut = choice.Modifiers == Keys.None ? "default" :
-                            choice.Modifiers == Keys.Control ? "Ctrl+Enter" :
-                            choice.Modifiers == Keys.Shift ? "Shift+Enter" :
-                            choice.Modifiers == Keys.Alt ? "Alt+Enter" : "Ctrl+Shift+Enter";
+                        string shortcut = choice.Modifiers == Keys.Enter ? "default" :
+                            new KeysConverter().ConvertToString(choice.Modifiers);
                         label += " (" + shortcut + ")";
                     }
                     var modifiers = choice.Modifiers;

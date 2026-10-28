@@ -10,6 +10,7 @@ using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 using System.Linq;
 using System.Runtime.Serialization;
+using System.Windows.Forms;
 
 namespace MusicBeePlugin.Config
 {
@@ -43,6 +44,7 @@ namespace MusicBeePlugin.Config
 
     public class DoNothingActionData : BaseActionData { }
     public class EditTagsActionData : BaseActionData { }
+    public class ShufflePlayActionData : BaseActionData { }
 
     public class QueueNextActionData : BaseActionData
     {
@@ -91,6 +93,13 @@ namespace MusicBeePlugin.Config
         public TabChoice TabChoice = 0;
     }
 
+    public class ActionShortcut
+    {
+        public Keys Key;
+        [JsonConverter(typeof(ActionDataJsonConverter))]
+        public BaseActionData Action;
+    }
+
     public class ActionConfig
     {
         [JsonConverter(typeof(ActionDataJsonConverter))]
@@ -103,6 +112,38 @@ namespace MusicBeePlugin.Config
         public BaseActionData CtrlShift;
         [JsonConverter(typeof(ActionDataJsonConverter))]
         public BaseActionData Alt;
+        public List<ActionShortcut> Shortcuts;
+        public bool ShuffleShortcutMigrated;
+
+        public bool ShouldSerializeShift() => false;
+        public bool ShouldSerializeCtrl() => false;
+        public bool ShouldSerializeCtrlShift() => false;
+        public bool ShouldSerializeAlt() => false;
+
+        public void MigrateShortcuts(bool defaultEditTags)
+        {
+            if (Shortcuts == null)
+            {
+            Shortcuts = new List<ActionShortcut>();
+            void add(Keys key, BaseActionData action)
+            {
+                if (action != null && !(action is DoNothingActionData))
+                    Shortcuts.Add(new ActionShortcut { Key = key, Action = action });
+            }
+            add(Keys.Control | Keys.Enter, Ctrl);
+            add(Keys.Shift | Keys.Enter, Shift);
+            add(Keys.Control | Keys.Shift | Keys.Enter, CtrlShift);
+            add(Keys.Alt | Keys.Enter, Alt ?? (defaultEditTags ? (BaseActionData)new EditTagsActionData() : null));
+            if (Default is DoNothingActionData) Default = null;
+            Ctrl = Shift = CtrlShift = Alt = null;
+            }
+            if (!ShuffleShortcutMigrated)
+            {
+                if (!Shortcuts.Any(x => x.Key == (Keys.Control | Keys.S)))
+                    Shortcuts.Add(new ActionShortcut { Key = Keys.Control | Keys.S, Action = new ShufflePlayActionData() });
+                ShuffleShortcutMigrated = true;
+            }
+        }
     }
 
     public class SearchActionsConfig
@@ -114,12 +155,16 @@ namespace MusicBeePlugin.Config
         public ActionConfig PlaylistAction;
 
         [OnDeserialized]
-        private void SetMissingAltActions(StreamingContext context)
+        private void MigrateShortcuts(StreamingContext context)
         {
-            if (ArtistAction != null && ArtistAction.Alt == null) ArtistAction.Alt = new EditTagsActionData();
-            if (AlbumAction != null && AlbumAction.Alt == null) AlbumAction.Alt = new EditTagsActionData();
-            if (SongAction != null && SongAction.Alt == null) SongAction.Alt = new EditTagsActionData();
-            if (PlaylistAction != null && PlaylistAction.Alt == null) PlaylistAction.Alt = new DoNothingActionData();
+            ArtistAction?.MigrateShortcuts(true);
+            AlbumAction?.MigrateShortcuts(true);
+            SongAction?.MigrateShortcuts(true);
+            PlaylistAction?.MigrateShortcuts(false);
+            if (ArtistAction != null && (ArtistAction.Default == null || ArtistAction.Default is DoNothingActionData)) ArtistAction.Default = new OpenInMusicExplorerActionData();
+            if (AlbumAction != null && (AlbumAction.Default == null || AlbumAction.Default is DoNothingActionData)) AlbumAction.Default = new PlayActionData();
+            if (SongAction != null && (SongAction.Default == null || SongAction.Default is DoNothingActionData)) SongAction.Default = new PlayActionData();
+            if (PlaylistAction != null && (PlaylistAction.Default == null || PlaylistAction.Default is DoNothingActionData)) PlaylistAction.Default = new OpenPlaylistInTabActionData();
         }
 
         public static SearchActionsConfig GetDefault()
@@ -158,6 +203,7 @@ namespace MusicBeePlugin.Config
                 CtrlShift = new QueueNextActionData(), Alt = new DoNothingActionData()
             };
 
+            config.MigrateShortcuts(default(StreamingContext));
             return config;
         }
     }

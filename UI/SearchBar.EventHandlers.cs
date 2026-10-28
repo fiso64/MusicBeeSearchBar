@@ -14,13 +14,8 @@ namespace MusicBeePlugin.UI
     {
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            if (keyData == (Keys.Alt | Keys.Enter) && (searchBox?.Focused == true || resultsListBox?.Focused == true))
-            {
-                if (resultsListBox.Visible && resultsListBox.SelectedItem is SearchResult result
-                    && result.Type != ResultType.Command && result.Type != ResultType.Header && result.Type != ResultType.ShowMore)
-                    HandleResultSelection(result, new KeyEventArgs(Keys.Alt | Keys.Enter));
+            if ((searchBox?.Focused == true || resultsListBox?.Focused == true) && TryRunResultShortcut(keyData))
                 return true;
-            }
             if (keyData == (Keys.Shift | Keys.F10) && (searchBox?.Focused == true || resultsListBox?.Focused == true)
                 && ShowSelectedResultContextMenu())
             {
@@ -45,9 +40,25 @@ namespace MusicBeePlugin.UI
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
+        private bool TryRunResultShortcut(Keys keyData)
+        {
+            if (!resultsListBox.Visible || !(resultsListBox.SelectedItem is SearchResult result)
+                || result.Type == ResultType.Command || result.Type == ResultType.Header || result.Type == ResultType.ShowMore
+                || keyData == Keys.Enter) return false;
+            var key = new KeyEventArgs(keyData);
+            if (actionService.GetConfiguredAction(result, key) == null) return false;
+            HandleResultSelection(result, key);
+            return true;
+        }
+
         private void HandleSearchBoxKeyDown(object sender, KeyEventArgs e)
         {
-            if (!isEmbedded && e.KeyCode == Keys.Right && e.Modifiers == Keys.None
+            if (TryRunResultShortcut(e.KeyData))
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+            else if (!isEmbedded && e.KeyCode == Keys.Right && e.Modifiers == Keys.None
                 && searchBox.Focused && searchBox.SelectionLength == 0
                 && searchBox.SelectionStart == searchBox.TextLength && ShowSelectedResultContextMenu(alignRight: true))
             {
@@ -79,19 +90,6 @@ namespace MusicBeePlugin.UI
                 e.Handled = true;
                 e.SuppressKeyPress = true;
             }
-            else if (e.Control && e.KeyCode == Keys.S)
-            {
-                if (resultsListBox.SelectedItem is SearchResult selectedResult && selectedResult.Type != ResultType.Command && selectedResult.Type != ResultType.Header && selectedResult.Type != ResultType.ShowMore)
-                {
-                    HandleResultSelection(selectedResult, e, () =>
-                    {
-                        actionService.PerformShufflePlay(selectedResult);
-                        return Task.CompletedTask;
-                    });
-                }
-                e.Handled = true;
-                e.SuppressKeyPress = true;
-            }
             else if (e.KeyCode == Keys.ControlKey)
             {
                 // temporary hack to fix control+enter bug that makes the selected index jump to 0
@@ -107,7 +105,7 @@ namespace MusicBeePlugin.UI
             }
             else if (e.KeyCode == Keys.Enter)
             {
-                HandleSearchBoxEnter(e);
+                if (e.Modifiers == Keys.None) HandleSearchBoxEnter(e);
                 e.Handled = true;
                 e.SuppressKeyPress = true;
             }
@@ -284,14 +282,14 @@ namespace MusicBeePlugin.UI
                 if (resultsListBox.SelectedItem is SearchResult selectedResult && selectedResult.Type != ResultType.ShowMore)
                 {
                     var artist = ArtistResult.FromDetail(selectedResult);
-                    if (artist != null) HandleResultSelection(artist, e);
+                    if (artist != null) HandleResultSelection(artist, new KeyEventArgs(e.Modifiers & ~Keys.Alt));
                 }
             }
             else if (e.Alt && e.KeyCode == Keys.A)
             {
                  if (resultsListBox.SelectedItem is SearchResult selectedResult && selectedResult.Type != ResultType.ShowMore)
                 {
-                    HandleResultSelection(AlbumResult.FromSearchResult(selectedResult), e);
+                    HandleResultSelection(AlbumResult.FromSearchResult(selectedResult), new KeyEventArgs(e.Modifiers & ~Keys.Alt));
                 }
             }
         }
@@ -366,6 +364,12 @@ namespace MusicBeePlugin.UI
         private void HandleResultsKeyDown(object sender, KeyEventArgs e)
         {
             if (!UsesListSelection) return;
+            if (TryRunResultShortcut(e.KeyData))
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                return;
+            }
             switch (e.KeyCode)
             {
                 case Keys.Up: case Keys.Down: case Keys.PageUp: case Keys.PageDown: case Keys.Enter:
@@ -397,6 +401,7 @@ namespace MusicBeePlugin.UI
             if (customAction == null && e != null)
             {
                 var configuredAction = actionService.GetConfiguredAction(selectedItem, e);
+                if (configuredAction == null && selectedItem.Type != ResultType.Command) return;
                 if (configuredAction is MusicBeePlugin.Config.DoNothingActionData) return;
                 if (configuredAction is MusicBeePlugin.Config.EditTagsActionData) keepDetachedOnTop = false;
             }

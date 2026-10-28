@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using System.Linq;
+using System.Threading;
 
 namespace MusicBeePlugin.UI
 {
@@ -37,7 +38,7 @@ namespace MusicBeePlugin.UI
             
             // Form properties
             this.Text = "Modern Search Bar Configuration";
-            this.ClientSize = new Size(800, 600);
+            this.ClientSize = new Size(800, 780);
             this.MinimumSize = new Size(420, 240);
             this.StartPosition = FormStartPosition.CenterParent;
             
@@ -125,17 +126,12 @@ namespace MusicBeePlugin.UI
             });
             AddHelpSection(helpLayout, "Shortcuts", "These can be used while the search bar is open:", new[]
             {
-                new[] { "Enter", "Execute default action for selected result" },
-                new[] { "Ctrl+Enter", "Execute alternative action" },
-                new[] { "Shift+Enter", "Execute alternative action" },
-                new[] { "Ctrl+Shift+Enter", "Execute alternative action" },
-                new[] { "Alt+Enter", "Execute alternative action (edit tags by default)" },
                 new[] { "Tab / Shift+Tab", "Cycle search filters" },
                 new[] { "Shift+F10", "Open the selected result's context menu" },
                 new[] { "Right", "Open the selected result's context menu (alternative, floating mode only)" },
                 new[] { "Alt+R", "Execute artist action for selected result" },
                 new[] { "Alt+A", "Execute album action for selected result" },
-                new[] { "Ctrl+S", "Shuffle play selected result" },
+                new[] { "Ctrl+S", "Shuffle play selected result by default (customizable in Actions)" },
                 new[] { "Ctrl+D", "Toggle detached mode" },
                 new[] { "Ctrl+P", "Open the settings dialog" },
                 new[] { "Ctrl+H", "Open this help page" },
@@ -324,6 +320,139 @@ namespace MusicBeePlugin.UI
             layout.SetColumnSpan(section, 2);
         }
 
+        private static string FormatShortcut(Keys key)
+        {
+            return new KeysConverter().ConvertToString(key) ?? key.ToString();
+        }
+
+        private void CaptureShortcut(ActionConfig config, ActionShortcut existing, Action refresh)
+        {
+            Enabled = false;
+            var owner = this;
+            var thread = new Thread(() =>
+            {
+                Keys selected = Keys.None;
+                try
+                {
+                    using (var dialog = new ShortcutCaptureDialog())
+                        if (dialog.ShowDialog() == DialogResult.OK) selected = dialog.CapturedKey;
+                }
+                catch (Exception ex)
+                {
+                    MusicBeePlugin.Utils.Logger.Error("Could not open shortcut capture window", ex);
+                }
+                if (owner.IsDisposed || !owner.IsHandleCreated) return;
+                try
+                {
+                    owner.BeginInvoke((Action)(() =>
+                    {
+                        if (owner.IsDisposed) return;
+                        owner.Enabled = true;
+                        owner.Activate();
+                        if (selected == Keys.None) return;
+                        if (selected == Keys.Enter || config.Shortcuts.Any(x => x != existing && x.Key == selected))
+                        {
+                            MessageBox.Show(owner, "This key is already assigned for this result type.", "Shortcut", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            return;
+                        }
+                        if (existing == null)
+                            config.Shortcuts.Add(new ActionShortcut { Key = selected, Action = ActionRegistry.GetActionsForType(GetResultTypeForConfig(config))[0].Factory() });
+                        else existing.Key = selected;
+                        refresh();
+                    }));
+                }
+                catch (InvalidOperationException) { }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.IsBackground = true;
+            thread.Start();
+        }
+
+        private Services.ResultType GetResultTypeForConfig(ActionConfig config)
+        {
+            if (config == _config.SearchActions.ArtistAction) return Services.ResultType.Artist;
+            if (config == _config.SearchActions.AlbumAction) return Services.ResultType.Album;
+            if (config == _config.SearchActions.SongAction) return Services.ResultType.Song;
+            return Services.ResultType.Playlist;
+        }
+
+        private sealed class ShortcutCaptureDialog : Form
+        {
+            private readonly FlowLayoutPanel keyPreview;
+            private readonly System.Windows.Forms.Timer acceptTimer;
+            public Keys CapturedKey { get; private set; }
+            public ShortcutCaptureDialog()
+            {
+                Text = "Bind shortcut";
+                ClientSize = new Size(360, 150);
+                FormBorderStyle = FormBorderStyle.FixedDialog;
+                MaximizeBox = false;
+                MinimizeBox = false;
+                StartPosition = FormStartPosition.CenterScreen;
+                TopMost = true;
+                KeyPreview = true;
+                var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(12) };
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                layout.Controls.Add(new Label { Text = "Press a key combination", AutoSize = true, Anchor = AnchorStyles.None }, 0, 0);
+                keyPreview = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Anchor = AnchorStyles.None, WrapContents = false };
+                layout.Controls.Add(keyPreview, 0, 1);
+                layout.Controls.Add(new Label { Text = "Press Escape to cancel", AutoSize = true, Anchor = AnchorStyles.None }, 0, 2);
+                Controls.Add(layout);
+                acceptTimer = new System.Windows.Forms.Timer { Interval = 600 };
+                acceptTimer.Tick += (s, e) => { acceptTimer.Stop(); DialogResult = DialogResult.OK; Close(); };
+                Disposed += (s, e) => acceptTimer.Dispose();
+                ShowKeys(Keys.None);
+            }
+            protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+            {
+                return CaptureKey(keyData) || base.ProcessCmdKey(ref msg, keyData);
+            }
+            protected override void OnKeyDown(KeyEventArgs e)
+            {
+                if (CaptureKey(e.KeyData)) { e.Handled = true; e.SuppressKeyPress = true; }
+                else base.OnKeyDown(e);
+            }
+            protected override void OnKeyUp(KeyEventArgs e)
+            {
+                base.OnKeyUp(e);
+                if (!acceptTimer.Enabled) ShowKeys(ModifierKeys);
+            }
+            private void ShowKeys(Keys key)
+            {
+                foreach (Control control in keyPreview.Controls.Cast<Control>().ToArray()) control.Dispose();
+                keyPreview.Controls.Clear();
+                var names = new List<string>();
+                if ((key & Keys.Control) != 0) names.Add("Ctrl");
+                if ((key & Keys.Shift) != 0) names.Add("Shift");
+                if ((key & Keys.Alt) != 0) names.Add("Alt");
+                var code = key & Keys.KeyCode;
+                if (code != Keys.None && code != Keys.ControlKey && code != Keys.ShiftKey && code != Keys.Menu)
+                    names.Add(FormatShortcut(code));
+                if (names.Count == 0) names.Add("Waiting for keys…");
+                foreach (var name in names)
+                    keyPreview.Controls.Add(new Label { Text = name, AutoSize = true, BorderStyle = BorderStyle.FixedSingle, Padding = new Padding(9, 5, 9, 5), Margin = new Padding(3) });
+            }
+            private bool CaptureKey(Keys key)
+            {
+                if (key == Keys.Escape)
+                {
+                    DialogResult = DialogResult.Cancel;
+                    Close();
+                    return true;
+                }
+                if (acceptTimer.Enabled) return true;
+                ShowKeys(key);
+                var code = key & Keys.KeyCode;
+                if (code == Keys.None || code == Keys.ControlKey || code == Keys.ShiftKey || code == Keys.Menu || code == Keys.LWin || code == Keys.RWin) return false;
+                CapturedKey = key;
+                acceptTimer.Start();
+                return true;
+            }
+        }
+
         private GroupBox CreateActionPanel(string title, ActionConfig actionConfig, Services.ResultType resultType)
         {
             GroupBox groupBox = new GroupBox
@@ -350,44 +479,68 @@ namespace MusicBeePlugin.UI
 
             var defaultLayout = CreateActionRowsLayout(1);
             defaultLayout.Controls.Add(new Label { Text = "Enter / click:", AutoSize = true, Anchor = AnchorStyles.Top | AnchorStyles.Left, Margin = new Padding(3, 7, 3, 3) }, 0, 0);
-            var (defaultCombo, defaultOptions) = CreateActionControls(actionConfig.Default, actionConfig, resultType);
+            var (defaultCombo, defaultOptions) = CreateActionControls(actionConfig.Default, action => actionConfig.Default = action, resultType);
             defaultLayout.Controls.Add(defaultCombo, 1, 0);
             defaultLayout.Controls.Add(defaultOptions, 2, 0);
-
-            var alternativesLayout = CreateActionRowsLayout(4);
+            var alternativesLayout = CreateActionRowsLayout(0);
+            alternativesLayout.ColumnCount = 4;
+            alternativesLayout.ColumnStyles.Clear();
+            alternativesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            alternativesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            alternativesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            alternativesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             alternativesLayout.Visible = false;
-            alternativesLayout.Controls.Add(new Label { Text = "Ctrl+Enter:", AutoSize = true, Anchor = AnchorStyles.Top | AnchorStyles.Left, Margin = new Padding(3, 7, 3, 3) }, 0, 0);
-            alternativesLayout.Controls.Add(new Label { Text = "Shift+Enter:", AutoSize = true, Anchor = AnchorStyles.Top | AnchorStyles.Left, Margin = new Padding(3, 7, 3, 3) }, 0, 1);
-            alternativesLayout.Controls.Add(new Label { Text = "Ctrl+Shift+Enter:", AutoSize = true, Anchor = AnchorStyles.Top | AnchorStyles.Left, Margin = new Padding(3, 7, 3, 3) }, 0, 2);
-            alternativesLayout.Controls.Add(new Label { Text = "Alt+Enter:", AutoSize = true, Anchor = AnchorStyles.Top | AnchorStyles.Left, Margin = new Padding(3, 7, 3, 3) }, 0, 3);
-
-            var (ctrlCombo, ctrlOptions) = CreateActionControls(actionConfig.Ctrl, actionConfig, resultType);
-            var (shiftCombo, shiftOptions) = CreateActionControls(actionConfig.Shift, actionConfig, resultType);
-            var (ctrlShiftCombo, ctrlShiftOptions) = CreateActionControls(actionConfig.CtrlShift, actionConfig, resultType);
-            var (altCombo, altOptions) = CreateActionControls(actionConfig.Alt, actionConfig, resultType);
-            alternativesLayout.Controls.Add(ctrlCombo, 1, 0);
-            alternativesLayout.Controls.Add(shiftCombo, 1, 1);
-            alternativesLayout.Controls.Add(ctrlShiftCombo, 1, 2);
-            alternativesLayout.Controls.Add(altCombo, 1, 3);
-            alternativesLayout.Controls.Add(ctrlOptions, 2, 0);
-            alternativesLayout.Controls.Add(shiftOptions, 2, 1);
-            alternativesLayout.Controls.Add(ctrlShiftOptions, 2, 2);
-            alternativesLayout.Controls.Add(altOptions, 2, 3);
-
-            var alternativesLink = new LinkLabel
+            var add = new Button { Text = "Add shortcut", AutoSize = true, Anchor = AnchorStyles.Right, Margin = new Padding(0, 6, 0, 6) };
+            void rebuild()
             {
-                Text = "Show alternative actions (Ctrl / Shift / Alt)",
-                AutoSize = true,
-                Margin = new Padding(0, 5, 0, 5)
-            };
-            alternativesLink.LinkClicked += (sender, e) =>
+                alternativesLayout.SuspendLayout();
+                foreach (Control child in alternativesLayout.Controls.Cast<Control>().ToArray())
+                    if (child != add) child.Dispose();
+                alternativesLayout.Controls.Clear();
+                alternativesLayout.RowStyles.Clear();
+                alternativesLayout.RowCount = 0;
+                foreach (var shortcut in actionConfig.Shortcuts.ToArray())
+                {
+                    if (alternativesLayout.RowCount > 0)
+                    {
+                        int separatorRow = alternativesLayout.RowCount++;
+                        alternativesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                        var separator = new Label { BorderStyle = BorderStyle.Fixed3D, Height = 2, Dock = DockStyle.Top, Margin = new Padding(3, 6, 3, 6) };
+                        alternativesLayout.Controls.Add(separator, 0, separatorRow);
+                        alternativesLayout.SetColumnSpan(separator, 4);
+                    }
+                    int row = alternativesLayout.RowCount++;
+                    alternativesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                    var keysButton = new Button { Text = FormatShortcut(shortcut.Key), AutoSize = true };
+                    keysButton.Click += (s, e) => CaptureShortcut(actionConfig, shortcut, rebuild);
+                    var remove = new Button { Text = "×", Size = new Size(25, 23), Anchor = AnchorStyles.Top | AnchorStyles.Left, Margin = new Padding(3) };
+                    _actionSettingsToolTip.SetToolTip(remove, "Remove this shortcut");
+                    remove.Click += (s, e) =>
+                    {
+                        if (MessageBox.Show(this, "Remove the " + FormatShortcut(shortcut.Key) + " shortcut?", "Remove shortcut", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                        actionConfig.Shortcuts.Remove(shortcut);
+                        rebuild();
+                    };
+                    var (dropdown, options) = CreateActionControls(shortcut.Action, action => shortcut.Action = action, resultType);
+                    alternativesLayout.Controls.Add(remove, 0, row);
+                    alternativesLayout.Controls.Add(keysButton, 1, row);
+                    alternativesLayout.Controls.Add(dropdown, 2, row);
+                    alternativesLayout.Controls.Add(options, 3, row);
+                }
+                int addRow = alternativesLayout.RowCount++;
+                alternativesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                alternativesLayout.Controls.Add(add, 0, addRow);
+                alternativesLayout.SetColumnSpan(add, 4);
+                alternativesLayout.ResumeLayout(true);
+            }
+            add.Click += (s, e) => CaptureShortcut(actionConfig, null, rebuild);
+            rebuild();
+            var alternativesLink = new LinkLabel { Text = "Show shortcuts", AutoSize = true, Margin = new Padding(0, 5, 0, 5) };
+            alternativesLink.LinkClicked += (s, e) =>
             {
                 alternativesLayout.Visible = !alternativesLayout.Visible;
-                alternativesLink.Text = alternativesLayout.Visible
-                    ? "Hide alternative actions"
-                    : "Show alternative actions (Ctrl / Shift / Alt)";
+                alternativesLink.Text = alternativesLayout.Visible ? "Hide shortcuts" : "Show shortcuts";
             };
-
             layout.Controls.Add(defaultLayout, 0, 0);
             layout.Controls.Add(alternativesLink, 0, 1);
             layout.Controls.Add(alternativesLayout, 0, 2);
@@ -407,7 +560,7 @@ namespace MusicBeePlugin.UI
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 Margin = Padding.Empty
             };
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             for (int i = 0; i < rowCount; i++)
@@ -415,7 +568,7 @@ namespace MusicBeePlugin.UI
             return layout;
         }
 
-        private (FlowLayoutPanel, Panel) CreateActionControls(BaseActionData currentAction, ActionConfig actionConfig, Services.ResultType resultType)
+        private (FlowLayoutPanel, Panel) CreateActionControls(BaseActionData currentAction, Action<BaseActionData> updateAction, Services.ResultType resultType)
         {
             ComboBox comboBox = new ComboBox
             {
@@ -454,14 +607,6 @@ namespace MusicBeePlugin.UI
             }
 
             UpdateOptionsPanel(dropdownPanel, optionsPanel, currentAction);
-
-            // Store reference to which action we're modifying
-            Action<BaseActionData> updateAction = null;
-            if (currentAction == actionConfig.Default) updateAction = x => actionConfig.Default = x;
-            else if (currentAction == actionConfig.Ctrl) updateAction = x => actionConfig.Ctrl = x;
-            else if (currentAction == actionConfig.Shift) updateAction = x => actionConfig.Shift = x;
-            else if (currentAction == actionConfig.CtrlShift) updateAction = x => actionConfig.CtrlShift = x;
-            else if (currentAction == actionConfig.Alt) updateAction = x => actionConfig.Alt = x;
 
             // Add event handler to update options when selection changes
             comboBox.SelectedIndexChanged += (sender, e) =>

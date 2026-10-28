@@ -88,11 +88,11 @@ namespace MusicBeePlugin.Services
         {
             var config = GetActionConfig(result.Type);
             if (config == null) return null;
-            if (keyEvent.Alt) return config.Alt;
-            if (keyEvent.Control && keyEvent.Shift) return config.CtrlShift;
-            if (keyEvent.Control) return config.Ctrl;
-            if (keyEvent.Shift) return config.Shift;
-            return config.Default;
+            var key = keyEvent.KeyData;
+            if ((key & Keys.KeyCode) == Keys.None)
+                key = (key & Keys.Modifiers) | Keys.Enter;
+            if (key == Keys.Enter) return config.Default;
+            return config.Shortcuts?.FirstOrDefault(x => x.Key == key)?.Action;
         }
 
         public async Task<bool> RunAction(string searchBoxText, SearchResult result, KeyEventArgs keyEvent)
@@ -132,6 +132,10 @@ namespace MusicBeePlugin.Services
             else if (action is SearchInTabActionData searchAction)
             {
                 await Search(searchBoxText, result, searchAction);
+            }
+            else if (action is ShufflePlayActionData)
+            {
+                PerformShufflePlay(result);
             }
             else if (action is PlayActionData playAction)
             {

@@ -10,7 +10,7 @@ A customizable search bar for MusicBee. Search your library for artists, albums,
 
 - Search across your library in one place, with fuzzy matching to help find what you're looking for.
 - Filter results using the toolbar or a prefix: `a:` for artists, `l:` for albums, `s:` for songs, `p:` for playlists, and `>` for commands.
-- Choose what happens when you select a result, and configure alternative actions for modifier keys such as Ctrl and Shift.
+- Choose what happens when you select a result, and configure custom alternative actions and shortcuts.
 - Customize its appearance, and use it in detached mode while MusicBee is hidden.
 - Add a dockable search panel in MusicBee.
 
@@ -23,11 +23,7 @@ A customizable search bar for MusicBee. Search your library for artists, albums,
 
 ## Keyboard shortcuts
 
-Some common shortcuts:
-
-- `Ctrl+Enter` / `Shift+Enter`: Run an alternative action.
-- `Ctrl+P`: Open settings.
-- `Ctrl+H`: Open help and see the full list of shortcuts.
+Shortcuts for each result type are fully customizable in the plugin settings. There are also some built-in shortcuts that can be used while the floating search bar is open, such as `Ctrl+P` to open the settings and `Ctrl+H` to open the help text and full shortcut reference.
 
 ## Docked version
 
