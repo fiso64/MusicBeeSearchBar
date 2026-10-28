@@ -15,6 +15,7 @@ namespace MusicBeePlugin.UI
 
         public Config.Config Config => _config;
         private TabControl tabControl;
+        private readonly ToolTip _actionSettingsToolTip = new ToolTip();
 
         public ConfigurationForm(Config.Config config, Plugin.MusicBeeApiInterface mbApi, int initialTabIndex = 0)
         {
@@ -22,6 +23,7 @@ namespace MusicBeePlugin.UI
             _config = JsonConvert.DeserializeObject<Config.Config>(
                 JsonConvert.SerializeObject(config));
             _mbApi = mbApi;
+            Disposed += (s, e) => _actionSettingsToolTip.Dispose();
             InitializeComponent();
             if (initialTabIndex >= 0 && initialTabIndex < this.tabControl.TabCount)
             {
@@ -105,58 +107,47 @@ namespace MusicBeePlugin.UI
             appearanceTab.Controls.Add(CreateSettingsScrollPanel(appearanceLayout));
             
             // Configure Help Tab
-            var helpTextBox = new TextBox
+            var helpLayout = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill,
-                ReadOnly = true,
-                Multiline = true,
-                ScrollBars = ScrollBars.Vertical,
-                BorderStyle = BorderStyle.None,
-                BackColor = this.BackColor,
-                Font = new Font("Consolas", 10),
-                Text = string.Join(Environment.NewLine, new[]
-                {
-                    "Quick Reference",
-                    "",
-                    "Prefixes",
-                    "Use these at the start of your search to filter results:",
-                    "  a:        Artists",
-                    "  l:        Albums",
-                    "  s:        Songs",
-                    "  p:        Playlists",
-                    "  >         Commands",
-                    "",
-                    "Suffixes",
-                    "Use these at the end of your search to show more results:",
-                    "  ..        Show up to 100 results",
-                    "  ....      Show up to 1000 results",
-                    "  ......    Show up to 10000 results, etc.",
-                    "",
-                    "Shortcuts",
-                    "These can be used while the search bar is open:",
-                    "  Enter             Execute default action for selected result",
-                    "  Ctrl+Enter        Execute alternative action",
-                    "  Shift+Enter       Execute alternative action",
-                    "  Ctrl+Shift+Enter  Execute alternative action",
-                    "  Tab / Shift+Tab   Cycle search filters",
-                    "  Shift+F10         Open the selected result's context menu",
-                    "  Right             Open the selected result's context menu (floating mode)",
-                    "  Alt+R             Execute artist action for selected result",
-                    "  Alt+A             Execute album action for selected result",
-                    "  Ctrl+S            Shuffle play selected result",
-                    "  Ctrl+D            Toggle detached mode",
-                    "  Ctrl+P            Open the settings dialog",
-                    "  Ctrl+H            Open this help page",
-                    "  F5                Rebuild database",
-                    "",
-                    "External Control (IPC)",
-                    "Send strings to named pipe 'MusicBeeSearchBarIPC' to trigger actions:",
-                    "  Artist|<Name>",
-                    "  Album|<Name>|<Artist>",
-                    "  Song|<FilePath>",
-                })
+                Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                ColumnCount = 1, Padding = new Padding(10)
             };
-            helpTab.Controls.Add(helpTextBox);
+            helpLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            AddHelpSection(helpLayout, "Prefixes", "Use these at the start of your search to filter results:", new[]
+            {
+                new[] { "a:", "Artists" }, new[] { "l:", "Albums" }, new[] { "s:", "Songs" },
+                new[] { "p:", "Playlists" }, new[] { ">", "Commands" }
+            });
+            AddHelpSection(helpLayout, "Suffixes", "Use these at the end of your search to show more results:", new[]
+            {
+                new[] { "..", "Show up to 100 results" }, new[] { "....", "Show up to 1,000 results" },
+                new[] { "......", "Show up to 10,000 results, etc." }
+            });
+            AddHelpSection(helpLayout, "Shortcuts", "These can be used while the search bar is open:", new[]
+            {
+                new[] { "Enter", "Execute default action for selected result" },
+                new[] { "Ctrl+Enter", "Execute alternative action" },
+                new[] { "Shift+Enter", "Execute alternative action" },
+                new[] { "Ctrl+Shift+Enter", "Execute alternative action" },
+                new[] { "Tab / Shift+Tab", "Cycle search filters" },
+                new[] { "Shift+F10", "Open the selected result's context menu" },
+                new[] { "Right", "Open the selected result's context menu (alternative, floating mode only)" },
+                new[] { "Alt+R", "Execute artist action for selected result" },
+                new[] { "Alt+A", "Execute album action for selected result" },
+                new[] { "Ctrl+S", "Shuffle play selected result" },
+                new[] { "Ctrl+D", "Toggle detached mode" },
+                new[] { "Ctrl+P", "Open the settings dialog" },
+                new[] { "Ctrl+H", "Open this help page" },
+                new[] { "F5", "Rebuild database" }
+            });
+            AddHelpSection(helpLayout, "External Control (IPC)",
+                "Send strings to named pipe 'MusicBeeSearchBarIPC' to trigger actions:", new[]
+                {
+                    new[] { "Artist|<Name>", "Run the default artist action" },
+                    new[] { "Album|<Name>|<Artist>", "Run the default album action" },
+                    new[] { "Song|<FilePath>", "Run the default song action" }
+                });
+            helpTab.Controls.Add(CreateSettingsScrollPanel(helpLayout));
 
             tabControl.TabPages.Add(actionsTab);
             tabControl.TabPages.Add(searchTab);
@@ -225,6 +216,35 @@ namespace MusicBeePlugin.UI
                 DialogResult = DialogResult.Cancel;
                 Close();
             };
+        }
+
+        private static void AddHelpSection(TableLayoutPanel layout, string title, string description, string[][] rows)
+        {
+            var heading = new Label { Text = title, AutoSize = true, Margin = new Padding(0, 8, 0, 4) };
+            var headingFont = new Font(heading.Font, FontStyle.Bold);
+            heading.Font = headingFont;
+            heading.Disposed += (s, e) => headingFont.Dispose();
+            var note = new Label { Text = description, AutoSize = true, Margin = new Padding(0, 0, 0, 5) };
+            var table = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                ColumnCount = rows[0].Length, RowCount = rows.Length,
+                CellBorderStyle = TableLayoutPanelCellBorderStyle.Single, Margin = new Padding(0, 0, 0, 8)
+            };
+            table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            if (table.ColumnCount > 1) table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            for (int row = 0; row < rows.Length; row++)
+            {
+                table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                for (int column = 0; column < rows[row].Length; column++)
+                    table.Controls.Add(new Label { Text = rows[row][column], AutoSize = true, Margin = new Padding(6, 4, 6, 4) }, column, row);
+            }
+            foreach (Control control in new Control[] { heading, note, table })
+            {
+                int row = layout.RowCount++;
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                layout.Controls.Add(control, 0, row);
+            }
         }
 
         private static Panel CreateSettingsScrollPanel(TableLayoutPanel content)
@@ -328,16 +348,16 @@ namespace MusicBeePlugin.UI
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
             var defaultLayout = CreateActionRowsLayout(1);
-            defaultLayout.Controls.Add(new Label { Text = "Enter / click:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
+            defaultLayout.Controls.Add(new Label { Text = "Enter / click:", AutoSize = true, Anchor = AnchorStyles.Top | AnchorStyles.Left, Margin = new Padding(3, 7, 3, 3) }, 0, 0);
             var (defaultCombo, defaultOptions) = CreateActionControls(actionConfig.Default, actionConfig, resultType);
             defaultLayout.Controls.Add(defaultCombo, 1, 0);
             defaultLayout.Controls.Add(defaultOptions, 2, 0);
 
             var alternativesLayout = CreateActionRowsLayout(3);
             alternativesLayout.Visible = false;
-            alternativesLayout.Controls.Add(new Label { Text = "Ctrl+Enter:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
-            alternativesLayout.Controls.Add(new Label { Text = "Shift+Enter:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
-            alternativesLayout.Controls.Add(new Label { Text = "Ctrl+Shift+Enter:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 2);
+            alternativesLayout.Controls.Add(new Label { Text = "Ctrl+Enter:", AutoSize = true, Anchor = AnchorStyles.Top | AnchorStyles.Left, Margin = new Padding(3, 7, 3, 3) }, 0, 0);
+            alternativesLayout.Controls.Add(new Label { Text = "Shift+Enter:", AutoSize = true, Anchor = AnchorStyles.Top | AnchorStyles.Left, Margin = new Padding(3, 7, 3, 3) }, 0, 1);
+            alternativesLayout.Controls.Add(new Label { Text = "Ctrl+Shift+Enter:", AutoSize = true, Anchor = AnchorStyles.Top | AnchorStyles.Left, Margin = new Padding(3, 7, 3, 3) }, 0, 2);
 
             var (ctrlCombo, ctrlOptions) = CreateActionControls(actionConfig.Ctrl, actionConfig, resultType);
             var (shiftCombo, shiftOptions) = CreateActionControls(actionConfig.Shift, actionConfig, resultType);
@@ -383,14 +403,14 @@ namespace MusicBeePlugin.UI
                 Margin = Padding.Empty
             };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 205));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             for (int i = 0; i < rowCount; i++)
                 layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             return layout;
         }
 
-        private (ComboBox, Panel) CreateActionControls(BaseActionData currentAction, ActionConfig actionConfig, Services.ResultType resultType)
+        private (FlowLayoutPanel, Panel) CreateActionControls(BaseActionData currentAction, ActionConfig actionConfig, Services.ResultType resultType)
         {
             ComboBox comboBox = new ComboBox
             {
@@ -398,6 +418,14 @@ namespace MusicBeePlugin.UI
                 Width = 200
             };
             comboBox.MouseWheel += (s, e) => ((HandledMouseEventArgs)e).Handled = true;
+            _actionSettingsToolTip.SetToolTip(comboBox, "Choose the action to run for this result type and shortcut.");
+
+            var dropdownPanel = new FlowLayoutPanel
+            {
+                FlowDirection = FlowDirection.LeftToRight, WrapContents = false,
+                AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Margin = Padding.Empty
+            };
+            dropdownPanel.Controls.Add(comboBox);
 
             Panel optionsPanel = new Panel
             {
@@ -420,7 +448,7 @@ namespace MusicBeePlugin.UI
                 comboBox.SelectedIndex = 0;
             }
 
-            UpdateOptionsPanel(optionsPanel, currentAction);
+            UpdateOptionsPanel(dropdownPanel, optionsPanel, currentAction);
 
             // Store reference to which action we're modifying
             Action<BaseActionData> updateAction = null;
@@ -436,16 +464,27 @@ namespace MusicBeePlugin.UI
                 {
                     var newAction = def.Factory();
                     updateAction(newAction);
-                    UpdateOptionsPanel(optionsPanel, newAction);
+                    UpdateOptionsPanel(dropdownPanel, optionsPanel, newAction);
                 }
             };
 
-            return (comboBox, optionsPanel);
+            return (dropdownPanel, optionsPanel);
         }
 
-        private void UpdateOptionsPanel(Panel panel, BaseActionData action)
+        private void UpdateOptionsPanel(FlowLayoutPanel dropdownPanel, Panel panel, BaseActionData action)
         {
-            panel.Controls.Clear();
+            while (dropdownPanel.Controls.Count > 1)
+            {
+                var control = dropdownPanel.Controls[1];
+                _actionSettingsToolTip.SetToolTip(control, null);
+                control.Dispose();
+            }
+            while (panel.Controls.Count > 0)
+            {
+                var control = panel.Controls[0];
+                _actionSettingsToolTip.SetToolTip(control, null);
+                control.Dispose();
+            }
             var controls = new List<Control>();
 
             // Action-specific options
@@ -458,7 +497,7 @@ namespace MusicBeePlugin.UI
                     var meTabComboBox = new ComboBox
                     {
                         DropDownStyle = ComboBoxStyle.DropDownList,
-                        Width = 150
+                        Width = 100
                     };
                     meTabComboBox.MouseWheel += (s, e) => ((HandledMouseEventArgs)e).Handled = true;
                     meTabComboBox.Items.AddRange(Enum.GetNames(typeof(TabChoice)));
@@ -470,7 +509,7 @@ namespace MusicBeePlugin.UI
                     var plTabComboBox = new ComboBox
                     {
                         DropDownStyle = ComboBoxStyle.DropDownList,
-                        Width = 150
+                        Width = 100
                     };
                     plTabComboBox.MouseWheel += (s, e) => ((HandledMouseEventArgs)e).Handled = true;
                     plTabComboBox.Items.AddRange(Enum.GetNames(typeof(TabChoice)));
@@ -525,7 +564,7 @@ namespace MusicBeePlugin.UI
                     var tabComboBox = new ComboBox
                     {
                         DropDownStyle = ComboBoxStyle.DropDownList,
-                        Width = 150
+                        Width = 100
                     };
                     tabComboBox.MouseWheel += (s, e) => ((HandledMouseEventArgs)e).Handled = true;
                     tabComboBox.Items.AddRange(Enum.GetNames(typeof(TabChoice)));
@@ -597,7 +636,7 @@ namespace MusicBeePlugin.UI
                     var filterTabComboBox = new ComboBox
                     {
                         DropDownStyle = ComboBoxStyle.DropDownList,
-                        Width = 150
+                        Width = 100
                     };
                     filterTabComboBox.MouseWheel += (s, e) => ((HandledMouseEventArgs)e).Handled = true;
                     filterTabComboBox.Items.AddRange(Enum.GetNames(typeof(TabChoice)));
@@ -639,6 +678,50 @@ namespace MusicBeePlugin.UI
             int currentY = 0;
             foreach (var control in controls)
             {
+                if (control is ComboBox)
+                {
+                    _actionSettingsToolTip.SetToolTip(control, "Choose the MusicBee tab where this action runs.");
+                    dropdownPanel.Controls.Add(control);
+                    continue;
+                }
+                string description;
+                switch (control.Text)
+                {
+                    case "Shuffle Play":
+                        description = "Shuffle the result's tracks before playing or adding them to the queue.";
+                        break;
+                    case "Clear Queue":
+                        description = "Clear the current queue before adding the result.";
+                        break;
+                    case "Use Sort Artist":
+                        description = "Use the sort artist or sort album artist field when available.";
+                        break;
+                    case "Add Search Prefix":
+                        description = "Add MusicBee field prefixes to the generated search text.";
+                        break;
+                    case "Clear Search Box After Search":
+                        description = "Clear MusicBee's search box after performing the search.";
+                        break;
+                    case "Use Search Bar Text":
+                        description = "Search for the text typed in this search bar instead of the selected result.";
+                        break;
+                    case "Toggle Search Entire Library":
+                        description = "Toggle MusicBee's search scope before the search, then toggle it back afterward.";
+                        break;
+                    case "Use Left Sidebar":
+                        description = "Search in MusicBee's left sidebar instead of its main search box.";
+                        break;
+                    case "Go Back Before Opening Filter":
+                        description = "Navigate back in the selected tab before opening the filter.";
+                        break;
+                    case "Focus Main Panel After Action":
+                        description = "Move focus to MusicBee's main panel after the action runs.";
+                        break;
+                    default:
+                        description = null;
+                        break;
+                }
+                if (description != null) _actionSettingsToolTip.SetToolTip(control, description);
                 control.Location = new Point(0, currentY);
                 panel.Controls.Add(control);
                 currentY += control.Height + 4;

@@ -1,6 +1,7 @@
 using MusicBeePlugin.Config;
 using System;
 using System.Drawing;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
@@ -14,7 +15,19 @@ namespace MusicBeePlugin.UI
             var properties = configObject.GetType()
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Select(p => new { Property = p, Attr = p.GetCustomAttribute<ConfigPropertyAttribute>() })
-                .Where(p => p.Attr != null && p.Attr.Category == category);
+                .Where(p => p.Attr != null && p.Attr.Category == category).ToList();
+
+            var sections = GetSections(category);
+            var sectionByProperty = new Dictionary<string, string>();
+            var orderByProperty = new Dictionary<string, int>();
+            int order = 0;
+            foreach (var section in sections)
+                foreach (var name in section.Names)
+                {
+                    sectionByProperty[name] = section.Title;
+                    orderByProperty[name] = order++;
+                }
+            properties = properties.OrderBy(p => orderByProperty.TryGetValue(p.Property.Name, out int index) ? index : int.MaxValue).ToList();
 
             layout.SuspendLayout();
             layout.Controls.Clear();
@@ -23,9 +36,22 @@ namespace MusicBeePlugin.UI
             
             var toolTip = new ToolTip();
             CheckBox squareCornersCheckBox = null;
+            string currentSection = null;
 
             foreach (var propInfo in properties)
             {
+                if (sectionByProperty.TryGetValue(propInfo.Property.Name, out string sectionTitle) && sectionTitle != currentSection)
+                {
+                    currentSection = sectionTitle;
+                    var heading = new Label { Text = sectionTitle, AutoSize = true, Margin = new Padding(3, 12, 3, 6) };
+                    var headingFont = new Font(heading.Font, FontStyle.Bold);
+                    heading.Font = headingFont;
+                    heading.Disposed += (s, e) => headingFont.Dispose();
+                    int headingRow = layout.RowCount++;
+                    layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                    layout.Controls.Add(heading, 0, headingRow);
+                    layout.SetColumnSpan(heading, 2);
+                }
                 layout.RowCount++;
                 layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
@@ -102,6 +128,25 @@ namespace MusicBeePlugin.UI
             }
 
             layout.ResumeLayout(true);
+        }
+
+        private static (string Title, string[] Names)[] GetSections(string category)
+        {
+            if (category == "Search") return new[]
+            {
+                ("Search behavior", new[] { nameof(SearchUIConfig.DefaultResults), nameof(SearchUIConfig.EnableContainsCheck), nameof(SearchUIConfig.GroupResultsByType), nameof(SearchUIConfig.ShowTopMatch) }),
+                ("Result limits", new[] { nameof(SearchUIConfig.ArtistResultLimit), nameof(SearchUIConfig.AlbumResultLimit), nameof(SearchUIConfig.SongResultLimit), nameof(SearchUIConfig.PlaylistResultLimit) }),
+                ("Result ranking", new[] { nameof(SearchUIConfig.ArtistScoreMultiplier), nameof(SearchUIConfig.AlbumScoreMultiplier), nameof(SearchUIConfig.SongScoreMultiplier), nameof(SearchUIConfig.PlaylistScoreMultiplier) })
+            };
+            if (category == "Appearance") return new[]
+            {
+                ("Search bar", new[] { nameof(SearchUIConfig.ShowPlaceholderText), nameof(SearchUIConfig.ShowSearchToolbar), nameof(SearchUIConfig.InitialSize), nameof(SearchUIConfig.OverlayOpacity) }),
+                ("Results", new[] { nameof(SearchUIConfig.ShowTypeHeaders), nameof(SearchUIConfig.ShowAlbumNamesInSongDetails), nameof(SearchUIConfig.ShowTypeIcons), nameof(SearchUIConfig.MaxResultsVisible), nameof(SearchUIConfig.ResultItemHeight), nameof(SearchUIConfig.CommandResultItemHeight) }),
+                ("Artwork", new[] { nameof(SearchUIConfig.ShowImages), nameof(SearchUIConfig.UseMusicBeeCacheForCovers), nameof(SearchUIConfig.PreferAlbumImageForSongs) }),
+                ("Colors", new[] { nameof(SearchUIConfig.TextColor), nameof(SearchUIConfig.BaseColor), nameof(SearchUIConfig.ResultHighlightColor) }),
+                ("Panel and corners", new[] { nameof(SearchUIConfig.DockedPanelLayout), nameof(SearchUIConfig.DisableRoundedCorners), nameof(SearchUIConfig.SquareCornersDockedOnly) })
+            };
+            return new (string Title, string[] Names)[0];
         }
 
         private static Control CreateControlForProperty(PropertyInfo property, object configObject)
