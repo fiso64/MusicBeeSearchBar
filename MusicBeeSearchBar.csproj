@@ -119,6 +119,7 @@
     <Compile Include="UI\SearchBar.Data.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="UI\SearchBar.Embedded.cs" />
     <Compile Include="UI\SearchBar.Drawing.cs">
       <SubType>Form</SubType>
     </Compile>

@@ -147,6 +147,8 @@ namespace MusicBeePlugin.Config
         }
     }
 
+    public enum DockedSearchLayout { Compact, Expanded }
+
     public class SearchUIConfig // should be split into two configs, one for the search UI and one for the search behavior
     {
         // --- Search Settings ---
@@ -204,6 +206,9 @@ namespace MusicBeePlugin.Config
 
         [ConfigProperty("Show Search Toolbar", "Shows result-type filters and a settings button below the search box.", Category = "Appearance")]
         public bool ShowSearchToolbar { get; set; } = true;
+
+        [ConfigProperty("Docked Panel Layout", "Compact shows a dropdown; Expanded shows results in the panel. Remove and re-add the panel after changing this setting.", Category = "Appearance")]
+        public DockedSearchLayout DockedPanelLayout { get; set; } = DockedSearchLayout.Compact;
 
         [ConfigProperty("Show Images in Results", Category = "Appearance")]
         public bool ShowImages { get; set; } = true;

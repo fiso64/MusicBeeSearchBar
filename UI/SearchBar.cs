@@ -48,6 +48,9 @@ namespace MusicBeePlugin.UI
         private int preservedIndex = -1; // Used for Ctrl+Enter workaround
         private bool _isImageLoading = false;
         private bool isDetached = false;
+        private readonly bool isEmbedded;
+        private readonly bool compactPanel;
+        private Form resultsPopup;
         private bool isDragging = false;
         private Point dragCursorPoint;
         private Point dragFormPoint;
@@ -188,6 +191,12 @@ namespace MusicBeePlugin.UI
             searchBox.Focus();
         }
 
+        internal bool FocusEmbeddedSearch()
+        {
+            return isEmbedded && !IsDisposed && !Disposing && searchBox != null
+                && !searchBox.IsDisposed && searchBox.CanFocus && searchBox.Focus();
+        }
+
         private void ToggleDetachedMode()
         {
             _attachmentVersion++;
@@ -300,9 +309,17 @@ namespace MusicBeePlugin.UI
             ActionService actionService,
             SearchUIConfig searchUIConfig,
             string defaultText = null,
-            bool startDetached = false
+            bool startDetached = false,
+            bool embedded = false
         )
         {
+            isEmbedded = embedded;
+            compactPanel = embedded && searchUIConfig.DockedPanelLayout == DockedSearchLayout.Compact;
+            if (embedded)
+            {
+                TopLevel = false;
+                Region = null;
+            }
             this.AutoScaleMode = AutoScaleMode.Dpi;
             this.SetStyle(ControlStyles.ResizeRedraw, true);
             this.DoubleBuffered = true; // Enable double buffering for flicker-free drawing
@@ -353,13 +370,13 @@ namespace MusicBeePlugin.UI
             _foregroundCheckTimer.Tick += (s, e) => CheckForegroundWindow();
 
             InitializeUI(dpiScale);
-            InitializeResizeGrips(dpiScale);
+            if (!isEmbedded) InitializeResizeGrips(dpiScale);
             InitializeHotkeys();
 
             // Start loading tracks asynchronously
             LoadTracksAsync();
 
-            if (startDetached)
+            if (startDetached && !isEmbedded)
             {
                 ToggleDetachedMode();
             }
@@ -393,7 +410,7 @@ namespace MusicBeePlugin.UI
             // it on every pixel of an interactive width drag is what makes growing lag behind
             // the cursor. Skip it while dragging (square corners for the moment) and restore
             // the real shape once in ResizeGrip_MouseUp.
-            if (_isResizingWidth) return;
+            if (_isResizingWidth || isEmbedded) return;
 
             if (this.ClientRectangle.Width > 0 && this.ClientRectangle.Height > 0)
             {
@@ -409,6 +426,7 @@ namespace MusicBeePlugin.UI
             get
             {
                 CreateParams cp = base.CreateParams;
+                if (isEmbedded) return cp;
                 cp.ExStyle |= 0x02000000;  // WS_EX_COMPOSITED
                 if (isDetached)
                 {
@@ -431,7 +449,8 @@ namespace MusicBeePlugin.UI
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             Color borderColor = theme.Border;
 
-            // Draw the main form border
+            // Draw the main form border only for the floating window.
+            if (!isEmbedded)
             using (var pen = new Pen(borderColor, 1))
             using (var path = GetRoundedRectPath(new Rectangle(0, 0, ClientSize.Width - 1, ClientSize.Height - 1), CORNER_RADIUS))
             {
@@ -455,10 +474,13 @@ namespace MusicBeePlugin.UI
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
-            UpdateOverlayState();
-            UpdateForegroundTracking();
+            if (!isEmbedded)
+            {
+                UpdateOverlayState();
+                UpdateForegroundTracking();
+            }
             Debug.WriteLine("[SearchBar] OnShown: Firing. Setting focus and calling SearchBoxSetDefaultResults.");
-            searchBox.Focus();
+            if (!isEmbedded) searchBox.Focus();
             SearchBoxSetDefaultResults();
         }
 
@@ -485,8 +507,12 @@ namespace MusicBeePlugin.UI
                 _foregroundCheckTimer?.Dispose();
                 imageLoadDebounceTimer?.Stop();
                 imageLoadDebounceTimer?.Dispose();
+                _selectionRefreshTimer?.Stop();
+                _selectionRefreshTimer?.Dispose();
                 _currentSearchCts?.Cancel();
                 _currentSearchCts?.Dispose();
+
+                resultsPopup?.Dispose();
 
                 CloseOverlay();
 

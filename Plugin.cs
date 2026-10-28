@@ -29,6 +29,8 @@ namespace MusicBeePlugin
 
         private static readonly ManualResetEvent startupComplete = new ManualResetEvent(false);
         private static SearchBar searchBarInstance;
+        // Docked views are created and disposed on MusicBee's UI thread.
+        private static readonly List<SearchBar> dockedSearchViews = new List<SearchBar>();
         private static readonly object searchBarLock = new object();
         private static bool searchBarReserved;
         private static bool searchBarReady;
@@ -46,7 +48,7 @@ namespace MusicBeePlugin
             about.Name = "Modern Search Bar";
             about.Description = "Adds a customizable modern search bar";
             about.Author = "fiso64";
-            about.TargetApplication = "";
+            about.TargetApplication = "Search";
             about.Type = PluginType.General;
             about.VersionMajor = 1;
             about.VersionMinor = 15;
@@ -98,6 +100,24 @@ namespace MusicBeePlugin
             }
         }
 
+        // MusicBee invokes this callback when the main panel's selection changes.
+        public void OnSelectedFilesChanged(string[] urls)
+        {
+            var musicBeeControl = Control.FromHandle(mbApi.MB_GetWindowHandle());
+            if (musicBeeControl == null || musicBeeControl.IsDisposed || !musicBeeControl.IsHandleCreated) return;
+            Action refresh = () =>
+            {
+                foreach (var view in dockedSearchViews.ToArray())
+                    if (!view.IsDisposed && !view.Disposing) view.ScheduleSelectedResultsRefresh();
+            };
+            try
+            {
+                if (musicBeeControl.InvokeRequired) musicBeeControl.BeginInvoke(refresh);
+                else refresh();
+            }
+            catch (InvalidOperationException) { /* MusicBee is shutting down. */ }
+        }
+
         private void Startup()
         {
             // 1. Catch exceptions on background threads
@@ -128,6 +148,7 @@ namespace MusicBeePlugin
             mbApi.MB_RegisterCommand("Modern Search Bar: Search", (a, b) => ShowSearchBar());
             mbApi.MB_RegisterCommand("Modern Search Bar: Search (2)", (a, b) => ShowSearchBar());
             mbApi.MB_RegisterCommand("Modern Search Bar: Search (Detached)", (a, b) => ShowSearchBar(null, true));
+            mbApi.MB_RegisterCommand("Modern Search Bar: Focus Docked Search", (a, b) => FocusDockedSearch());
 
             mbApi.MB_RegisterCommand("Modern Search Bar: Search Artists", (a, b) => ShowSearchBar("a: "));
             mbApi.MB_RegisterCommand("Modern Search Bar: Search Albums", (a, b) => ShowSearchBar("l: "));
@@ -391,6 +412,104 @@ namespace MusicBeePlugin
             LoadConfig();
             ShowConfigDialog();
             return true;
+        }
+
+        public int OnDockablePanelCreated(Control panel)
+        {
+            // Zero tells MusicBee that the panel is resizable without filling its dock.
+            int panelHeight = 0;
+            var musicBeeControl = Control.FromHandle(mbApi.MB_GetWindowHandle());
+            if (musicBeeControl == null || musicBeeControl.IsDisposed) return panelHeight;
+
+            Action create = () =>
+            {
+                if (panel.IsDisposed) return;
+                if (config == null) LoadConfig();
+                var uiConfig = config.SearchUI;
+                var context = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
+                var view = new SearchBar(musicBeeControl, context, mbApi,
+                    new ActionService(config.SearchActions), uiConfig, embedded: true);
+                try
+                {
+                    Action updateLayout = () =>
+                    {
+                        if (panel.IsDisposed || view.IsDisposed) return;
+                        view.Bounds = panel.ClientRectangle;
+                        view.PerformLayout();
+                        if (panel.Visible) view.Invalidate(true);
+                    };
+                    bool initialSizeApplied = false;
+                    Action finishInitialLayout = () =>
+                    {
+                        if (panel.IsDisposed || view.IsDisposed || !panel.Visible) return;
+                        if (!initialSizeApplied && uiConfig.DockedPanelLayout == DockedSearchLayout.Expanded)
+                        {
+                            int stripHeight = (int)Math.Ceiling((34 + 16 + (uiConfig.ShowSearchToolbar ? 42 : 0)) * view.DeviceDpi / 96f);
+                            if (panel.Height <= stripHeight)
+                            {
+                                int desiredHeight = (int)Math.Ceiling(260 * view.DeviceDpi / 96f);
+                                if (panel.Parent != null)
+                                {
+                                    int available = panel.Parent.ClientSize.Height - panel.Top;
+                                    if (available > 0) desiredHeight = Math.Min(desiredHeight, available);
+                                }
+                                if (desiredHeight > panel.Height) panel.Height = desiredHeight;
+                            }
+                            initialSizeApplied = true;
+                        }
+                        updateLayout();
+                    };
+                    panel.Controls.Add(view);
+                    view.Show();
+                    dockedSearchViews.Add(view);
+                    view.Disposed += (sender, args) => dockedSearchViews.Remove(view);
+                    panel.SizeChanged += (sender, args) => updateLayout();
+                    panel.VisibleChanged += (sender, args) =>
+                    {
+                        if (!panel.Visible || !panel.IsHandleCreated || panel.Disposing || view.IsDisposed) return;
+                        try { panel.BeginInvoke(finishInitialLayout); }
+                        catch (InvalidOperationException) { /* The panel handle was destroyed. */ }
+                    };
+                    updateLayout();
+                    if (panel.IsHandleCreated) panel.BeginInvoke(finishInitialLayout);
+                }
+                catch
+                {
+                    view.Dispose();
+                    throw;
+                }
+                if (uiConfig.DockedPanelLayout == DockedSearchLayout.Compact)
+                    panelHeight = (int)Math.Ceiling((34 + 16) * view.DeviceDpi / 96f);
+            };
+            try
+            {
+                if (musicBeeControl.InvokeRequired) musicBeeControl.Invoke(create);
+                else create();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("Error creating docked search panel", ex);
+            }
+            return panelHeight;
+        }
+
+        private static void FocusDockedSearch()
+        {
+            var musicBeeControl = Control.FromHandle(mbApi.MB_GetWindowHandle());
+            if (musicBeeControl == null || musicBeeControl.IsDisposed || !musicBeeControl.IsHandleCreated) return;
+            try
+            {
+                musicBeeControl.BeginInvoke((Action)(() =>
+                {
+                    var views = dockedSearchViews.ToArray();
+                    for (int i = views.Length - 1; i >= 0; i--)
+                    {
+                        var view = views[i];
+                        if (!view.IsDisposed && view.Visible && view.FocusEmbeddedSearch()) break;
+                    }
+                }));
+            }
+            catch (InvalidOperationException) { /* MusicBee is shutting down. */ }
         }
 
         public static void ShowConfigDialog(int initialTabIndex = 0)

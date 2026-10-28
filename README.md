@@ -11,7 +11,8 @@ A customizable search bar for MusicBee. Search your library for artists, albums,
 - Search across your library in one place, with fuzzy matching to help find what you're looking for.
 - Filter results using the toolbar or a prefix: `a:` for artists, `l:` for albums, `s:` for songs, `p:` for playlists, and `>` for commands.
 - Choose what happens when you select a result, and configure alternative actions for modifier keys such as Ctrl and Shift.
-- Resize the search window, customize its appearance, and use it in detached mode while MusicBee is hidden.
+- Customize its appearance, and use it in detached mode while MusicBee is hidden.
+- Add a dockable search panel in MusicBee.
 
 ## Installation
 
@@ -27,6 +28,10 @@ Some common shortcuts:
 - `Ctrl+Enter` / `Shift+Enter`: Run an alternative action.
 - `Ctrl+P`: Open settings.
 - `Ctrl+H`: Open help and see the full list of shortcuts.
+
+## Docked version
+
+There is also a docked panel version of the plugin. To add it, open MusicBee's **View → Arrange Panels** and place the search bar from the available elements. Choose **Docked Panel Layout** in the plugin's Appearance settings to switch between compact and expanded layouts. **Important**: After changing the docked layout setting, you must either remove and re-add the panel, or restart MusicBee and then switch tabs once to apply the change.
 
 ## Command palette
 

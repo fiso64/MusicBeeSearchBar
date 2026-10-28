@@ -1253,10 +1253,15 @@ namespace MusicBeePlugin.UI
         protected override void OnMouseWheel(MouseEventArgs e)
         {
             base.OnMouseWheel(e);
+            ScrollByWheel(e.Delta);
+        }
+
+        internal void ScrollByWheel(int delta)
+        {
             if (!_isThumbVisible) return;
 
             // A positive delta means scrolling up. Use floating point division for precision touchpads.
-            float ticks = e.Delta / 120.0f;
+            float ticks = delta / 120.0f;
 
             // Get the user's system-wide scroll preference.
             int lineMultiplier = SystemInformation.MouseWheelScrollLines;

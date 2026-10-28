@@ -33,9 +33,9 @@ namespace MusicBeePlugin.UI
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
             ShowInTaskbar = false;
-            TopMost = true;
+            if (!isEmbedded) TopMost = true;
 
-            ResetPosition();
+            if (!isEmbedded) ResetPosition();
 
 
             var mainPanel = new Panel
@@ -86,19 +86,40 @@ namespace MusicBeePlugin.UI
                 BorderStyle = BorderStyle.None,
             };
 
-            searchBox = new TextBox
+            if (isEmbedded && mbApi.MB_AddPanel != null)
             {
-                Font = searchBoxFont,
-                ForeColor = searchUIConfig.TextColor,
-                BackColor = searchUIConfig.BaseColor,
-                BorderStyle = BorderStyle.None,
-                Dock = DockStyle.Fill,
-                TextAlign = HorizontalAlignment.Left,
-                ShortcutsEnabled = true,
-                AutoCompleteMode = AutoCompleteMode.Suggest,
-                AutoCompleteSource = AutoCompleteSource.CustomSource,
-            };
+                try
+                {
+                    var musicBeeTextBox = mbApi.MB_AddPanel(null, PluginPanelDock.TextBox);
+                    searchBox = musicBeeTextBox as TextBox;
+                    if (searchBox == null)
+                    {
+                        musicBeeTextBox?.Dispose();
+                        Logger.Info("MusicBee did not provide a compatible text box for the docked search panel.");
+                    }
+                }
+                catch (Exception ex) { Logger.Error("Could not create MusicBee's text box for the docked search panel", ex); }
+            }
+            if (searchBox == null) searchBox = new TextBox();
+            searchBox.Font = searchBoxFont;
+            searchBox.ForeColor = searchUIConfig.TextColor;
+            searchBox.BackColor = searchUIConfig.BaseColor;
+            searchBox.BorderStyle = BorderStyle.None;
+            searchBox.Dock = DockStyle.Fill;
+            searchBox.TextAlign = HorizontalAlignment.Left;
+            searchBox.ShortcutsEnabled = true;
+            searchBox.AutoCompleteMode = AutoCompleteMode.Suggest;
+            searchBox.AutoCompleteSource = AutoCompleteSource.CustomSource;
             searchBox.TextChanged += SearchBox_TextChanged;
+            if (isEmbedded)
+            {
+                searchBox.Enter += (s, e) =>
+                {
+                    if (string.IsNullOrWhiteSpace(searchBox.Text)
+                        && searchUIConfig.DefaultResults != SearchUIConfig.DefaultResultsChoice.None)
+                        SearchBoxSetDefaultResults();
+                };
+            }
             searchBoxContainer.Controls.Add(searchBox);
             searchBox.TabStop = true;
 
@@ -118,6 +139,7 @@ namespace MusicBeePlugin.UI
                 Dock = DockStyle.Top,
                 Visible = searchUIConfig.ShowSearchToolbar
             };
+            searchToolbar.ShowDetachButton = !isEmbedded;
             searchToolbar.PrefixSelected += prefix =>
             {
                 searchBox.Text = SearchToolbar.ReplacePrefix(searchBox.Text, prefix);
@@ -184,11 +206,12 @@ namespace MusicBeePlugin.UI
             mainPanel.Controls.Add(searchBoxContainer);
             mainPanel.Controls.Add(dragPanel); // At the very top
             Controls.Add(mainPanel);
-            if (searchUIConfig.ShowSearchToolbar)
+            if (compactPanel) InitializeResultsPopup();
+            if (!isEmbedded && searchUIConfig.ShowSearchToolbar)
                 Height = Math.Max(Height + searchToolbar.Height,
                     searchBoxContainer.Height + searchToolbar.Height + mainPanel.Padding.Vertical);
 
-            searchBox.Focus(); // Set focus to searchBox initially
+            if (!isEmbedded) searchBox.Focus(); // Set focus to the floating search box initially
 
             InitializeLoadingIndicator();
         }
@@ -235,7 +258,7 @@ namespace MusicBeePlugin.UI
         {
             // Assign event handlers defined in SearchBar.EventHandlers.cs
             searchBox.KeyDown += HandleSearchBoxKeyDown;
-            Deactivate += HandleFormDeactivate;
+            if (!isEmbedded) Deactivate += HandleFormDeactivate;
             KeyDown += HandleFormKeyDown;
             KeyPreview = true; // Need to set KeyPreview to true for Form to receive KeyDown events before controls
         }
@@ -329,6 +352,7 @@ namespace MusicBeePlugin.UI
                 }
             };
             FormClosed += (s, e) => spinTimer?.Dispose();
+            Disposed += (s, e) => spinTimer?.Dispose();
             spinTimer.Start();
         }
 

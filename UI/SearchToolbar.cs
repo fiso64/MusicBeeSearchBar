@@ -21,6 +21,7 @@ namespace MusicBeePlugin.UI
         private int _pressed = -1;
         private string _activePrefix;
         private bool _isDetached;
+        public bool ShowDetachButton { get; set; } = true;
 
         public event Action<string> PrefixSelected;
         public event EventHandler DetachClicked;
@@ -114,8 +115,8 @@ namespace MusicBeePlugin.UI
             int itemHeight = Math.Max(1, Height - 2 * pad - topInset);
             int top = pad + topInset;
             _settingsBounds = new Rectangle(Math.Max(0, Width - gearWidth - pad), top, gearWidth, itemHeight);
-            _detachBounds = new Rectangle(Math.Max(0, _settingsBounds.Left - gearWidth - gap), top, gearWidth, itemHeight);
-            int available = Math.Max(0, _detachBounds.Left - 2 * pad - gap * Labels.Length);
+            _detachBounds = ShowDetachButton ? new Rectangle(Math.Max(0, _settingsBounds.Left - gearWidth - gap), top, gearWidth, itemHeight) : Rectangle.Empty;
+            int available = Math.Max(0, (ShowDetachButton ? _detachBounds.Left : _settingsBounds.Left) - 2 * pad - gap * Labels.Length);
             int[] widths = new int[Labels.Length];
             int total = 0;
             for (int i = 0; i < Labels.Length; i++)
@@ -172,7 +173,7 @@ namespace MusicBeePlugin.UI
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
             }
 
-            DrawDetachIcon(e.Graphics);
+            if (ShowDetachButton) DrawDetachIcon(e.Graphics);
             if (_settingsBounds.Width <= 0 || _settingsBounds.Height <= 0) return;
             float cx = _settingsBounds.Left + _settingsBounds.Width / 2f;
             float cy = _settingsBounds.Top + _settingsBounds.Height / 2f;

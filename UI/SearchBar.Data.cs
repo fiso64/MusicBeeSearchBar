@@ -103,6 +103,7 @@ namespace MusicBeePlugin.UI
         private void SearchBoxSetDefaultResults()
         {
             Debug.WriteLine("[SearchBar] SearchBoxSetDefaultResults: Fired.");
+            long defaultSequence = Interlocked.Increment(ref _defaultResultsSequence);
 
             if (searchUIConfig.DefaultResults == SearchUIConfig.DefaultResultsChoice.None)
             {
@@ -138,7 +139,8 @@ namespace MusicBeePlugin.UI
                 {
                     PostToUi(() =>
                     {
-                        if (!IsDisposed && string.IsNullOrWhiteSpace(searchBox.Text))
+                        if (!IsDisposed && defaultSequence == Interlocked.Read(ref _defaultResultsSequence)
+                            && string.IsNullOrWhiteSpace(searchBox.Text))
                         {
                             _defaultSearchResults = items ?? new List<SearchResult>();
                             UpdateResultsList(BuildDefaultPagedResults());
@@ -158,6 +160,31 @@ namespace MusicBeePlugin.UI
         private readonly Dictionary<ResultType, int> _expandedByType = new Dictionary<ResultType, int>();
         private int _expandedUngrouped;
         private List<SearchResult> _defaultSearchResults;
+        private long _defaultResultsSequence;
+        private System.Windows.Forms.Timer _selectionRefreshTimer;
+
+        internal void ScheduleSelectedResultsRefresh()
+        {
+            if (!isEmbedded || _resourcesDisposed || IsDisposed || Disposing
+                || searchUIConfig.DefaultResults != SearchUIConfig.DefaultResultsChoice.Selected
+                || !string.IsNullOrWhiteSpace(searchBox.Text)) return;
+
+            // Invalidate in-flight work immediately, even while the next refresh is debounced.
+            Interlocked.Increment(ref _defaultResultsSequence);
+            if (_selectionRefreshTimer == null)
+            {
+                _selectionRefreshTimer = new System.Windows.Forms.Timer { Interval = 100 };
+                _selectionRefreshTimer.Tick += (s, e) =>
+                {
+                    _selectionRefreshTimer.Stop();
+                    if (!_resourcesDisposed && !IsDisposed && !Disposing
+                        && string.IsNullOrWhiteSpace(searchBox.Text))
+                        SearchBoxSetDefaultResults();
+                };
+            }
+            _selectionRefreshTimer.Stop();
+            _selectionRefreshTimer.Start();
+        }
 
         private void SearchBox_TextChanged(object sender, EventArgs e)
         {
@@ -472,6 +499,20 @@ namespace MusicBeePlugin.UI
                     }
                 }
                 results = newResults;
+            }
+
+            if (isEmbedded)
+            {
+                resultsListBox.Items = results;
+                if (preservePosition)
+                {
+                    resultsListBox.SetScrollPosition(previousScroll);
+                    if (previousSelection >= 0 && previousSelection < results.Count && results[previousSelection].Type != ResultType.Header)
+                        resultsListBox.SetSelectedIndex(previousSelection, animateScroll: false);
+                }
+                if (compactPanel) UpdateResultsPopup();
+                else resultsListBox.Visible = results.Count > 0;
+                return;
             }
 
             var mainPanel = resultsListBox.Parent as Panel;

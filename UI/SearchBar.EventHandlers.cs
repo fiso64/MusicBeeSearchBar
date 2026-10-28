@@ -41,7 +41,7 @@ namespace MusicBeePlugin.UI
                 e.Handled = true;
                 e.SuppressKeyPress = true;
             }
-            else if (e.Control && e.KeyCode == Keys.D)
+            else if (!isEmbedded && e.Control && e.KeyCode == Keys.D)
             {
                 ToggleDetachedMode();
                 e.Handled = true;
@@ -55,7 +55,7 @@ namespace MusicBeePlugin.UI
             }
             else if (e.Control && e.KeyCode == Keys.H)
             {
-                Close();
+                if (!isEmbedded) Close();
                 musicBeeContext.Post(_ => Plugin.ShowConfigDialog(3), null);
                 e.Handled = true;
                 e.SuppressKeyPress = true;
@@ -94,7 +94,8 @@ namespace MusicBeePlugin.UI
             }
             else if (e.KeyCode == Keys.Escape)
             {
-                Close();
+                if (isEmbedded) resultsPopup?.Hide();
+                else Close();
             }
             else if (e.KeyCode == Keys.F5)
             {
@@ -176,7 +177,8 @@ namespace MusicBeePlugin.UI
 
         private void OpenSearchSettings()
         {
-            Close();
+            if (!isEmbedded) Close();
+            else resultsPopup?.Hide();
             musicBeeContext.Post(_ => Plugin.ShowConfigDialog(), null);
         }
 
@@ -296,7 +298,7 @@ namespace MusicBeePlugin.UI
             }
             else
             {
-                Close();
+                if (!isEmbedded) Close();
             }
         }
 
@@ -309,7 +311,11 @@ namespace MusicBeePlugin.UI
             }
 
             string actionSearchText = searchBox.Text;
-            if (!isDetached)
+            if (isEmbedded)
+            {
+                resultsPopup?.Hide();
+            }
+            else if (!isDetached)
             {
                 Close();
             }
@@ -340,7 +346,7 @@ namespace MusicBeePlugin.UI
                 finally
                 {
                     // After the action, if still detached, revert TopMost and refocus the search bar.
-                    if (isDetached && !IsDisposed)
+                    if (!isEmbedded && isDetached && !IsDisposed)
                     {
                         BeginInvoke((Action)(() =>
                         {
