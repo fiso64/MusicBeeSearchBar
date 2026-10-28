@@ -17,11 +17,12 @@ namespace MusicBeePlugin.UI
         public Color ScrollBarTrack { get; }
         public Color ScrollBarThumb { get; }
 
-        public Theme(SearchUIConfig config)
+        public Theme(SearchUIConfig config, bool docked = false)
         {
-            Background = config.BaseColor;
-            Foreground = config.TextColor;
-            Highlight = config.ResultHighlightColor;
+            bool useDockedColors = docked && config.UseDockedColors;
+            Background = useDockedColors ? config.DockedBaseColor : config.BaseColor;
+            Foreground = useDockedColors ? config.DockedTextColor : config.TextColor;
+            Highlight = useDockedColors ? config.DockedHighlightColor : config.ResultHighlightColor;
 
             // Calculate derived colors based on Foreground/Background contrast
             // Slightly reduced brightness for detail text

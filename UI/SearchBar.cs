@@ -50,6 +50,8 @@ namespace MusicBeePlugin.UI
         private bool isDetached = false;
         private readonly bool isEmbedded;
         private readonly bool compactPanel;
+        internal bool IsExpandedEmbedded => isEmbedded && !compactPanel;
+        private readonly bool squareCorners;
         private Form resultsPopup;
         private bool isDragging = false;
         private Point dragCursorPoint;
@@ -314,6 +316,7 @@ namespace MusicBeePlugin.UI
         )
         {
             isEmbedded = embedded;
+            squareCorners = searchUIConfig.DisableRoundedCorners && (!searchUIConfig.SquareCornersDockedOnly || embedded);
             compactPanel = embedded && searchUIConfig.DockedPanelLayout == DockedSearchLayout.Compact;
             if (embedded)
             {
@@ -351,12 +354,12 @@ namespace MusicBeePlugin.UI
             mbApi = musicBeeApi;
             this.actionService = actionService;
             this.searchUIConfig = searchUIConfig;
-            this.theme = new Theme(searchUIConfig);
+            this.theme = new Theme(searchUIConfig, isEmbedded);
 
             searchService = new SearchService(musicBeeApi, searchUIConfig);
             if (searchUIConfig.ShowImages)
             {
-                int scaledCornerRadius = (int)(8 * dpiScale); // 8 is from CustomResultList.ARTWORK_CORNER_RADIUS
+                int scaledCornerRadius = squareCorners ? 0 : (int)(8 * dpiScale);
                 imageService = new ImageService(musicBeeApi, searchService, searchUIConfig, defaultImageSize, scaledCornerRadius);
                 InitializeImageLoadingTimer();
             }
@@ -393,6 +396,11 @@ namespace MusicBeePlugin.UI
         private GraphicsPath GetRoundedRectPath(Rectangle bounds, int radius)
         {
             GraphicsPath path = new GraphicsPath();
+            if (squareCorners || radius <= 0)
+            {
+                path.AddRectangle(bounds);
+                return path;
+            }
             path.AddArc(bounds.X, bounds.Y, radius, radius, 180, 90);
             path.AddArc(bounds.Right - radius, bounds.Y, radius, radius, 270, 90);
             path.AddArc(bounds.Right - radius, bounds.Bottom - radius, radius, radius, 0, 90);
@@ -481,7 +489,9 @@ namespace MusicBeePlugin.UI
             }
             Debug.WriteLine("[SearchBar] OnShown: Firing. Setting focus and calling SearchBoxSetDefaultResults.");
             if (!isEmbedded) searchBox.Focus();
-            SearchBoxSetDefaultResults();
+            if (!(isEmbedded && !compactPanel && _restoredScrollTop.HasValue
+                && string.IsNullOrWhiteSpace(searchBox.Text)))
+                SearchBoxSetDefaultResults();
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)

@@ -22,6 +22,7 @@ namespace MusicBeePlugin.UI
         private string _activePrefix;
         private bool _isDetached;
         public bool ShowDetachButton { get; set; } = true;
+        public bool SquareCorners { get; set; }
 
         public event Action<string> PrefixSelected;
         public event EventHandler DetachClicked;
@@ -161,7 +162,7 @@ namespace MusicBeePlugin.UI
                 if (rect.Width <= 2 || rect.Height <= 2) continue;
                 bool selected = _activePrefix == Prefixes[i];
                 bool hovered = _hovered == i;
-                using (var path = Rounded(rect, rect.Height))
+                using (var path = Rounded(rect, SquareCorners ? 0 : rect.Height))
                 using (var brush = new SolidBrush(selected ? _theme.Highlight : Color.FromArgb(hovered ? 26 : 10, _theme.Foreground)))
                 using (var pen = new Pen(Color.FromArgb(selected ? 100 : hovered ? 50 : 30, _theme.Foreground)))
                 {

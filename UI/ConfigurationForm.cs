@@ -36,7 +36,7 @@ namespace MusicBeePlugin.UI
             // Form properties
             this.Text = "Modern Search Bar Configuration";
             this.ClientSize = new Size(800, 600);
-            this.MinimumSize = new Size(800, 600);
+            this.MinimumSize = new Size(420, 240);
             this.StartPosition = FormStartPosition.CenterParent;
             
             // Create tab control for different settings sections
@@ -74,41 +74,35 @@ namespace MusicBeePlugin.UI
             actionsLayout.Controls.Add(CreateActionPanel("Song Actions", _config.SearchActions.SongAction, Services.ResultType.Song), 0, 2);
             actionsLayout.Controls.Add(CreateActionPanel("Playlist Actions", _config.SearchActions.PlaylistAction, Services.ResultType.Playlist), 0, 3);
             
-            var actionsScrollPanel = new Panel
-            {
-                Dock = DockStyle.Fill,
-                AutoScroll = true
-            };
-            actionsScrollPanel.Controls.Add(actionsLayout);
-            actionsTab.Controls.Add(actionsScrollPanel);
+            actionsTab.Controls.Add(CreateSettingsScrollPanel(actionsLayout));
 
             // Configure Search tab using factory
             var searchLayout = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill,
+                Dock = DockStyle.Top,
                 Padding = new Padding(10),
                 ColumnCount = 2,
-                AutoSize = false,
-                AutoScroll = true
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink
             };
             searchLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             searchLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            ConfigControlFactory.CreateControlsForObject(searchLayout, _config.SearchUI, "Search");
-            searchTab.Controls.Add(searchLayout);
+            ConfigControlFactory.CreateControlsForObject(searchLayout, _config.SearchUI, "Search", includeSpacer: false);
+            searchTab.Controls.Add(CreateSettingsScrollPanel(searchLayout));
 
             // Configure Appearance tab using factory
             var appearanceLayout = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill,
+                Dock = DockStyle.Top,
                 Padding = new Padding(10),
                 ColumnCount = 2,
-                AutoSize = false,
-                AutoScroll = true
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink
             };
             appearanceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             appearanceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            ConfigControlFactory.CreateControlsForObject(appearanceLayout, _config.SearchUI, "Appearance");
-            appearanceTab.Controls.Add(appearanceLayout);
+            ConfigControlFactory.CreateControlsForObject(appearanceLayout, _config.SearchUI, "Appearance", AddDockedColorsSection, includeSpacer: false);
+            appearanceTab.Controls.Add(CreateSettingsScrollPanel(appearanceLayout));
             
             // Configure Help Tab
             var helpTextBox = new TextBox
@@ -167,12 +161,25 @@ namespace MusicBeePlugin.UI
             tabControl.TabPages.Add(appearanceTab);
             tabControl.TabPages.Add(helpTab);
 
-            this.Controls.Add(tabControl);
+            var dialogLayout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                Margin = Padding.Empty,
+                Padding = Padding.Empty
+            };
+            dialogLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            dialogLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            dialogLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+            tabControl.Margin = Padding.Empty;
+            dialogLayout.Controls.Add(tabControl, 0, 0);
 
             // Add bottom buttons panel
             var buttonPanel = new Panel
             {
-                Dock = DockStyle.Bottom,
+                Dock = DockStyle.Fill,
+                Margin = Padding.Empty,
                 Height = 50
             };
 
@@ -200,7 +207,8 @@ namespace MusicBeePlugin.UI
 
             buttonPanel.Controls.Add(saveButton);
             buttonPanel.Controls.Add(cancelButton);
-            this.Controls.Add(buttonPanel);
+            dialogLayout.Controls.Add(buttonPanel, 0, 1);
+            this.Controls.Add(dialogLayout);
 
             this.ResumeLayout(false);
 
@@ -215,6 +223,82 @@ namespace MusicBeePlugin.UI
                 DialogResult = DialogResult.Cancel;
                 Close();
             };
+        }
+
+        private static Panel CreateSettingsScrollPanel(TableLayoutPanel content)
+        {
+            var panel = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+            panel.Controls.Add(content);
+            bool scheduled = false;
+            Action scheduleUpdate = () =>
+            {
+                if (scheduled || panel.IsDisposed || panel.Disposing || !panel.IsHandleCreated) return;
+                scheduled = true;
+                try
+                {
+                    panel.BeginInvoke((Action)(() =>
+                    {
+                        scheduled = false;
+                        if (panel.IsDisposed || panel.Disposing || content.IsDisposed) return;
+                        int width = Math.Max(1, panel.ClientSize.Width - panel.Padding.Horizontal);
+                        int height = Math.Max(content.Height, content.GetPreferredSize(new Size(width, 0)).Height);
+                        var extent = new Size(0, height);
+                        if (panel.AutoScrollMinSize != extent) panel.AutoScrollMinSize = extent;
+                    }));
+                }
+                catch (InvalidOperationException) { scheduled = false; }
+            };
+            panel.HandleCreated += (s, e) => scheduleUpdate();
+            panel.ClientSizeChanged += (s, e) => scheduleUpdate();
+            content.SizeChanged += (s, e) => scheduleUpdate();
+            content.Layout += (s, e) => scheduleUpdate();
+            return panel;
+        }
+
+        private void AddDockedColorsSection(TableLayoutPanel layout)
+        {
+            var section = new FlowLayoutPanel
+            {
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                Margin = new Padding(0, 8, 0, 0)
+            };
+            var toggle = new LinkLabel { Text = "Show docked colors", AutoSize = true };
+            var colors = new TableLayoutPanel
+            {
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                ColumnCount = 2,
+                Margin = new Padding(16, 4, 0, 0),
+                Visible = false
+            };
+            colors.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            colors.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            ConfigControlFactory.CreateControlsForObject(colors, _config.SearchUI, "DockedColors", includeSpacer: false);
+            var useSeparateColors = colors.GetControlFromPosition(0, 0) as CheckBox;
+            Action updateEnabled = () =>
+            {
+                foreach (Control control in colors.Controls)
+                    if (control != useSeparateColors) control.Enabled = useSeparateColors.Checked;
+            };
+            if (useSeparateColors != null)
+            {
+                useSeparateColors.CheckedChanged += (s, e) => updateEnabled();
+                updateEnabled();
+            }
+            toggle.LinkClicked += (s, e) =>
+            {
+                colors.Visible = !colors.Visible;
+                toggle.Text = colors.Visible ? "Hide docked colors" : "Show docked colors";
+            };
+            section.Controls.Add(toggle);
+            section.Controls.Add(colors);
+            int row = layout.RowCount++;
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.Controls.Add(section, 0, row);
+            layout.SetColumnSpan(section, 2);
         }
 
         private GroupBox CreateActionPanel(string title, ActionConfig actionConfig, Services.ResultType resultType)

@@ -89,8 +89,14 @@ namespace MusicBeePlugin.UI
                     PostToUi(() => {
                         loadingIndicator.Visible = false;
 
-                        // Refresh results
-                        SearchBox_TextChanged(null, EventArgs.Empty);
+                        // A newly created docked view may already have restored results.
+                        // Keep its position if its database finishes loading afterward.
+                        if (_preserveRestoredPositionOnLoad)
+                        {
+                            _preserveRestoredPositionOnLoad = false;
+                            if (!string.IsNullOrWhiteSpace(searchBox.Text)) RunSearch(true);
+                        }
+                        else SearchBox_TextChanged(null, EventArgs.Empty);
                     });
                 }
             }
@@ -163,9 +169,80 @@ namespace MusicBeePlugin.UI
         private long _defaultResultsSequence;
         private System.Windows.Forms.Timer _selectionRefreshTimer;
 
+        internal sealed class ExpandedSearchState
+        {
+            public string Query;
+            public List<SearchResult> Results;
+            public List<SearchResult> DefaultResults;
+            public string ExpandedQuery;
+            public Dictionary<ResultType, int> ExpandedByType;
+            public int ExpandedUngrouped;
+            public int ScrollTop;
+            public int SelectedIndex;
+        }
+
+        internal ExpandedSearchState CaptureExpandedSearchState()
+        {
+            if (!isEmbedded || compactPanel || IsDisposed || Disposing) return null;
+            return new ExpandedSearchState
+            {
+                Query = searchBox.Text,
+                Results = new List<SearchResult>(resultsListBox.Items),
+                DefaultResults = _defaultSearchResults == null ? null : new List<SearchResult>(_defaultSearchResults),
+                ExpandedQuery = _expandedQuery,
+                ExpandedByType = new Dictionary<ResultType, int>(_expandedByType),
+                ExpandedUngrouped = _expandedUngrouped,
+                ScrollTop = resultsListBox.ScrollTop,
+                SelectedIndex = resultsListBox.SelectedIndex
+            };
+        }
+
+        internal void RestoreExpandedSearchState(ExpandedSearchState state)
+        {
+            if (!isEmbedded || compactPanel || IsDisposed || Disposing || state == null) return;
+            _currentSearchCts?.Cancel();
+            Interlocked.Increment(ref _currentSearchSequence);
+            Interlocked.Increment(ref _defaultResultsSequence);
+            _selectionRefreshTimer?.Stop();
+            _restoringExpandedSearch = true;
+            try
+            {
+                searchBox.Text = state.Query;
+                searchToolbar?.SetActivePrefix(state.Query);
+                _defaultSearchResults = state.DefaultResults;
+                _expandedQuery = state.ExpandedQuery;
+                _expandedByType.Clear();
+                foreach (var entry in state.ExpandedByType) _expandedByType[entry.Key] = entry.Value;
+                _expandedUngrouped = state.ExpandedUngrouped;
+                resultsListBox.Items = state.Results;
+                resultsListBox.Visible = state.Results.Count > 0;
+                resultsListBox.SetSelectedIndex(state.SelectedIndex, animateScroll: false);
+                resultsListBox.SetScrollPosition(state.ScrollTop);
+                _restoredScrollTop = state.ScrollTop;
+                _preserveRestoredPositionOnLoad = isLoading && state.Results.Count > 0;
+            }
+            finally { _restoringExpandedSearch = false; }
+            if (searchUIConfig.ShowImages) { imageLoadDebounceTimer.Stop(); imageLoadDebounceTimer.Start(); }
+        }
+
+        private bool _restoringExpandedSearch;
+        private int? _restoredScrollTop;
+        private bool _preserveRestoredPositionOnLoad;
+
+        internal void FinishExpandedStateLayout()
+        {
+            if (!_restoredScrollTop.HasValue || IsDisposed || Disposing || !Visible) return;
+            int position = _restoredScrollTop.Value;
+            _restoredScrollTop = null;
+            resultsListBox.SetScrollPosition(position);
+        }
+        internal long ExpandedStateVersion { get; set; }
+        internal bool ExpandedStateSyncEnabled { get; private set; }
+        internal void EnableExpandedStateSync() { ExpandedStateSyncEnabled = true; }
+
         internal void ScheduleSelectedResultsRefresh()
         {
-            if (!isEmbedded || _resourcesDisposed || IsDisposed || Disposing
+            if (!isEmbedded || _resourcesDisposed || IsDisposed || Disposing || !Visible
                 || searchUIConfig.DefaultResults != SearchUIConfig.DefaultResultsChoice.Selected
                 || !string.IsNullOrWhiteSpace(searchBox.Text)) return;
 
@@ -188,8 +265,11 @@ namespace MusicBeePlugin.UI
 
         private void SearchBox_TextChanged(object sender, EventArgs e)
         {
+            if (_restoringExpandedSearch) return;
+            if (sender != null) { _restoredScrollTop = null; _preserveRestoredPositionOnLoad = false; }
             searchToolbar?.SetActivePrefix(searchBox.Text);
             RunSearch(false);
+            if (sender != null && isEmbedded && !compactPanel) Plugin.SaveExpandedSearchState(this);
         }
 
         private void ExpandSearchResults(ResultType type)
@@ -506,12 +586,13 @@ namespace MusicBeePlugin.UI
                 resultsListBox.Items = results;
                 if (preservePosition)
                 {
-                    resultsListBox.SetScrollPosition(previousScroll);
                     if (previousSelection >= 0 && previousSelection < results.Count && results[previousSelection].Type != ResultType.Header)
                         resultsListBox.SetSelectedIndex(previousSelection, animateScroll: false);
+                    resultsListBox.SetScrollPosition(previousScroll);
                 }
                 if (compactPanel) UpdateResultsPopup();
                 else resultsListBox.Visible = results.Count > 0;
+                if (!compactPanel && !_restoringExpandedSearch) Plugin.SaveExpandedSearchState(this);
                 return;
             }
 

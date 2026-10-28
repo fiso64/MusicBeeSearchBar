@@ -29,7 +29,7 @@ namespace MusicBeePlugin.UI
             commandIcon = CreateIcon(theme.Icon, iconSize, iconSize, Services.ResultType.Command, lineSize -1);
 
             Size = searchUIConfig.InitialSize;
-            BackColor = searchUIConfig.BaseColor;
+            BackColor = theme.Background;
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
             ShowInTaskbar = false;
@@ -102,8 +102,8 @@ namespace MusicBeePlugin.UI
             }
             if (searchBox == null) searchBox = new TextBox();
             searchBox.Font = searchBoxFont;
-            searchBox.ForeColor = searchUIConfig.TextColor;
-            searchBox.BackColor = searchUIConfig.BaseColor;
+            searchBox.ForeColor = theme.Foreground;
+            searchBox.BackColor = theme.Background;
             searchBox.BorderStyle = BorderStyle.None;
             searchBox.Dock = DockStyle.Fill;
             searchBox.TextAlign = HorizontalAlignment.Left;
@@ -140,6 +140,7 @@ namespace MusicBeePlugin.UI
                 Visible = searchUIConfig.ShowSearchToolbar
             };
             searchToolbar.ShowDetachButton = !isEmbedded;
+            searchToolbar.SquareCorners = squareCorners;
             searchToolbar.PrefixSelected += prefix =>
             {
                 searchBox.Text = SearchToolbar.ReplacePrefix(searchBox.Text, prefix);
@@ -156,8 +157,8 @@ namespace MusicBeePlugin.UI
                 BackColor = Color.Transparent
             };
 
-            var baseColor = searchUIConfig.BaseColor;
-            var highlightColor = searchUIConfig.ResultHighlightColor;
+            var baseColor = theme.Background;
+            var highlightColor = theme.Highlight;
             var hoverColor = Color.FromArgb(
                 255,
                 baseColor.R + (highlightColor.R - baseColor.R) / 2,
@@ -169,11 +170,12 @@ namespace MusicBeePlugin.UI
             {
                 DpiScale = dpiScale,
                 Dock = DockStyle.Fill, // Use Fill to take up the remaining space
-                BackColor = searchUIConfig.BaseColor,
-                ForeColor = searchUIConfig.TextColor,
-                HighlightColor = searchUIConfig.ResultHighlightColor,
+                BackColor = theme.Background,
+                ForeColor = theme.Foreground,
+                HighlightColor = theme.Highlight,
                 HoverColor = hoverColor,
                 Theme = this.theme,
+                SquareCorners = squareCorners,
                 ItemHeight = (int)(searchUIConfig.ResultItemHeight * dpiScale),
                 CommandItemHeight = Math.Max(1, (int)(Math.Max(24, searchUIConfig.CommandResultItemHeight) * dpiScale)),
                 Visible = false,
@@ -196,6 +198,11 @@ namespace MusicBeePlugin.UI
             };
             resultsListBox.Click += ResultsListBox_Click;
             resultsListBox.Scrolled += ResultsListBox_Scrolled;
+            resultsListBox.SelectedIndexChanged += (s, e) =>
+            {
+                if (isEmbedded && !compactPanel && !_restoringExpandedSearch)
+                    Plugin.SaveExpandedSearchState(this);
+            };
             resultsListBox.ActionButtonClicked += ResultsListBox_ActionButtonClicked;
             resultsListBox.DetailLinkClicked += ResultsListBox_DetailLinkClicked;
 
@@ -267,7 +274,7 @@ namespace MusicBeePlugin.UI
         {
             const int ROTATION_INTERVAL = 20;
             const int ROTATION_ANGLE = 20;
-            var COLOR = Color.FromArgb((int)(255 * 0.3), searchUIConfig.TextColor);
+            var COLOR = Color.FromArgb((int)(255 * 0.3), theme.Foreground);
 
             var searchContainer = searchBox.Parent;
             int availableHeight = searchContainer.ClientSize.Height - searchContainer.Padding.Vertical;

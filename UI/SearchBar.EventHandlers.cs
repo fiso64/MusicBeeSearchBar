@@ -311,6 +311,7 @@ namespace MusicBeePlugin.UI
             }
 
             string actionSearchText = searchBox.Text;
+            if (isEmbedded && !compactPanel) Plugin.SaveExpandedSearchState(this);
             if (isEmbedded)
             {
                 resultsPopup?.Hide();
@@ -510,6 +511,7 @@ namespace MusicBeePlugin.UI
 
         private async void ResultsListBox_Scrolled(object sender, EventArgs e)
         {
+            if (isEmbedded && !compactPanel && !_restoringExpandedSearch) Plugin.SaveExpandedSearchState(this);
             if (searchUIConfig.ShowImages && !_isImageLoading)
             {
                 _isImageLoading = true;

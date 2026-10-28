@@ -9,7 +9,7 @@ namespace MusicBeePlugin.UI
 {
     public static class ConfigControlFactory
     {
-        public static void CreateControlsForObject(TableLayoutPanel layout, object configObject, string category)
+        public static void CreateControlsForObject(TableLayoutPanel layout, object configObject, string category, Action<TableLayoutPanel> appendControls = null, bool includeSpacer = true)
         {
             var properties = configObject.GetType()
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance)
@@ -22,6 +22,7 @@ namespace MusicBeePlugin.UI
             layout.RowStyles.Clear();
             
             var toolTip = new ToolTip();
+            CheckBox squareCornersCheckBox = null;
 
             foreach (var propInfo in properties)
             {
@@ -35,6 +36,18 @@ namespace MusicBeePlugin.UI
                     checkbox.Text = propInfo.Attr.DisplayName ?? propInfo.Property.Name;
                     checkbox.AutoSize = true;
                     checkbox.Anchor = AnchorStyles.Left;
+
+                    if (propInfo.Property.Name == nameof(SearchUIConfig.DisableRoundedCorners))
+                        squareCornersCheckBox = checkbox;
+                    else if (propInfo.Property.Name == nameof(SearchUIConfig.SquareCornersDockedOnly))
+                    {
+                        checkbox.Margin = new Padding(24, checkbox.Margin.Top, checkbox.Margin.Right, checkbox.Margin.Bottom);
+                        if (squareCornersCheckBox != null)
+                        {
+                            checkbox.Enabled = squareCornersCheckBox.Checked;
+                            squareCornersCheckBox.CheckedChanged += (s, e) => checkbox.Enabled = squareCornersCheckBox.Checked;
+                        }
+                    }
 
                     if (!string.IsNullOrEmpty(propInfo.Attr.Description))
                     {
@@ -76,12 +89,17 @@ namespace MusicBeePlugin.UI
                 }
             }
             
+            appendControls?.Invoke(layout);
+
             // Add a spacer row that fills the remaining vertical space, pushing content rows to the top
-            layout.RowCount++;
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            var spacer = new Control { Dock = DockStyle.Fill };
-            layout.Controls.Add(spacer, 0, layout.RowCount - 1);
-            layout.SetColumnSpan(spacer, 2);
+            if (includeSpacer)
+            {
+                layout.RowCount++;
+                layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+                var spacer = new Control { Dock = DockStyle.Fill };
+                layout.Controls.Add(spacer, 0, layout.RowCount - 1);
+                layout.SetColumnSpan(spacer, 2);
+            }
 
             layout.ResumeLayout(true);
         }

@@ -44,6 +44,7 @@ namespace MusicBeePlugin.UI
         private (SearchResult Item, ResultType Type, int ArtistIndex)? _pressedDetailLink;
 
         public float DpiScale { get; set; } = 1.0f;
+        public bool SquareCorners { get; set; }
 
         // Set by the host window while the user is actively dragging a width-resize grip.
         // Every row's layout depends on Width, so a resize forces a full repaint of all
@@ -68,6 +69,7 @@ namespace MusicBeePlugin.UI
         private int _dragStartScrollTop;
 
         public event EventHandler Scrolled;
+        public event EventHandler SelectedIndexChanged;
 
         // Styling & Resources
         public int ItemHeight { get; set; } = 56;
@@ -222,6 +224,7 @@ namespace MusicBeePlugin.UI
                     // Default behavior for all other items
                     EnsureVisible(_selectedIndex, animate: animateScroll);
                 }
+                SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
             }
         }
 
@@ -1213,12 +1216,16 @@ namespace MusicBeePlugin.UI
             using (var thumbBrush = new SolidBrush(thumbColor))
             using (var path = new GraphicsPath())
             {
-                int cornerRadius = _scrollThumb.Width;
-                path.AddArc(_scrollThumb.X, _scrollThumb.Y, cornerRadius, cornerRadius, 180, 90);
-                path.AddArc(_scrollThumb.Right - cornerRadius, _scrollThumb.Y, cornerRadius, cornerRadius, 270, 90);
-                path.AddArc(_scrollThumb.Right - cornerRadius, _scrollThumb.Bottom - cornerRadius, cornerRadius, cornerRadius, 0, 90);
-                path.AddArc(_scrollThumb.X, _scrollThumb.Bottom - cornerRadius, cornerRadius, cornerRadius, 90, 90);
-                path.CloseFigure();
+                if (SquareCorners) path.AddRectangle(_scrollThumb);
+                else
+                {
+                    int cornerRadius = _scrollThumb.Width;
+                    path.AddArc(_scrollThumb.X, _scrollThumb.Y, cornerRadius, cornerRadius, 180, 90);
+                    path.AddArc(_scrollThumb.Right - cornerRadius, _scrollThumb.Y, cornerRadius, cornerRadius, 270, 90);
+                    path.AddArc(_scrollThumb.Right - cornerRadius, _scrollThumb.Bottom - cornerRadius, cornerRadius, cornerRadius, 0, 90);
+                    path.AddArc(_scrollThumb.X, _scrollThumb.Bottom - cornerRadius, cornerRadius, cornerRadius, 90, 90);
+                    path.CloseFigure();
+                }
                 g.FillPath(thumbBrush, path);
             }
         }
@@ -1226,7 +1233,7 @@ namespace MusicBeePlugin.UI
         private GraphicsPath GetRoundedRectPath(Rectangle bounds, int radius)
         {
             GraphicsPath path = new GraphicsPath();
-            if (radius <= 0)
+            if (SquareCorners || radius <= 0)
             {
                 path.AddRectangle(bounds);
                 return path;

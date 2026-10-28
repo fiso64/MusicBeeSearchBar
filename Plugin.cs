@@ -31,6 +31,8 @@ namespace MusicBeePlugin
         private static SearchBar searchBarInstance;
         // Docked views are created and disposed on MusicBee's UI thread.
         private static readonly List<SearchBar> dockedSearchViews = new List<SearchBar>();
+        private static SearchBar.ExpandedSearchState expandedSearchState;
+        private static long expandedSearchStateVersion;
         private static readonly object searchBarLock = new object();
         private static bool searchBarReserved;
         private static bool searchBarReady;
@@ -458,8 +460,11 @@ namespace MusicBeePlugin
                             initialSizeApplied = true;
                         }
                         updateLayout();
+                        view.FinishExpandedStateLayout();
                     };
                     panel.Controls.Add(view);
+                    RestoreExpandedSearchState(view);
+                    view.EnableExpandedStateSync();
                     view.Show();
                     dockedSearchViews.Add(view);
                     view.Disposed += (sender, args) => dockedSearchViews.Remove(view);
@@ -467,6 +472,7 @@ namespace MusicBeePlugin
                     panel.VisibleChanged += (sender, args) =>
                     {
                         if (!panel.Visible || !panel.IsHandleCreated || panel.Disposing || view.IsDisposed) return;
+                        RestoreExpandedSearchState(view);
                         try { panel.BeginInvoke(finishInitialLayout); }
                         catch (InvalidOperationException) { /* The panel handle was destroyed. */ }
                     };
@@ -510,6 +516,23 @@ namespace MusicBeePlugin
                 }));
             }
             catch (InvalidOperationException) { /* MusicBee is shutting down. */ }
+        }
+
+        internal static void SaveExpandedSearchState(SearchBar source)
+        {
+            if (!source.IsExpandedEmbedded || !source.Visible || !source.ExpandedStateSyncEnabled) return;
+            var state = source.CaptureExpandedSearchState();
+            if (state == null) return;
+            expandedSearchState = state;
+            source.ExpandedStateVersion = ++expandedSearchStateVersion;
+        }
+
+        private static void RestoreExpandedSearchState(SearchBar target)
+        {
+            if (expandedSearchState == null || !target.IsExpandedEmbedded
+                || target.ExpandedStateVersion == expandedSearchStateVersion) return;
+            target.ExpandedStateVersion = expandedSearchStateVersion;
+            target.RestoreExpandedSearchState(expandedSearchState);
         }
 
         public static void ShowConfigDialog(int initialTabIndex = 0)

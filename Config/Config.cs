@@ -207,9 +207,6 @@ namespace MusicBeePlugin.Config
         [ConfigProperty("Show Search Toolbar", "Shows result-type filters and a settings button below the search box.", Category = "Appearance")]
         public bool ShowSearchToolbar { get; set; } = true;
 
-        [ConfigProperty("Docked Panel Layout", "Compact shows a dropdown; Expanded shows results in the panel. Remove and re-add the panel after changing this setting.", Category = "Appearance")]
-        public DockedSearchLayout DockedPanelLayout { get; set; } = DockedSearchLayout.Compact;
-
         [ConfigProperty("Show Images in Results", Category = "Appearance")]
         public bool ShowImages { get; set; } = true;
 
@@ -252,6 +249,27 @@ namespace MusicBeePlugin.Config
 
         [ConfigProperty("Highlight Color", Category = "Appearance")]
         public Color ResultHighlightColor { get; set; } = Color.FromArgb(35, 35, 35);
+
+        [ConfigProperty("Docked Panel Layout", "Compact shows a dropdown; Expanded shows results in the panel. Remove and re-add the panel after changing this setting.", Category = "Appearance")]
+        public DockedSearchLayout DockedPanelLayout { get; set; } = DockedSearchLayout.Compact;
+
+        [ConfigProperty("Disable Rounded Corners", "Use square corners throughout the search interface. Artist images remain circular.", Category = "Appearance")]
+        public bool DisableRoundedCorners { get; set; } = false;
+
+        [ConfigProperty("Only in Docked Panel", "Apply the square-corner setting only to the docked search panel.", Category = "Appearance")]
+        public bool SquareCornersDockedOnly { get; set; } = false;
+
+        [ConfigProperty("Use Separate Colors", "Use these colors for the docked panel instead of the main appearance colors.", Category = "DockedColors")]
+        public bool UseDockedColors { get; set; } = false;
+
+        [ConfigProperty("Text Color", Category = "DockedColors")]
+        public Color DockedTextColor { get; set; } = Color.White;
+
+        [ConfigProperty("Base Color", Category = "DockedColors")]
+        public Color DockedBaseColor { get; set; } = Color.FromArgb(16, 16, 16);
+
+        [ConfigProperty("Highlight Color", Category = "DockedColors")]
+        public Color DockedHighlightColor { get; set; } = Color.FromArgb(35, 35, 35);
 
         public static SearchUIConfig GetDefault(MusicBeeApiInterface mbApi)
         {

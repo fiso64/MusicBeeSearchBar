@@ -63,7 +63,7 @@ namespace MusicBeePlugin.UI
                 FormBorderStyle = FormBorderStyle.None,
                 ShowInTaskbar = false,
                 StartPosition = FormStartPosition.Manual,
-                BackColor = searchUIConfig.BaseColor
+                BackColor = theme.Background
             };
             resultsListBox.Parent.Controls.Remove(resultsListBox);
             resultsPopup.Controls.Add(resultsListBox);
