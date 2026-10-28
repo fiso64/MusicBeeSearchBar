@@ -44,6 +44,12 @@ namespace MusicBeePlugin.Config
 
     public class DoNothingActionData : BaseActionData { }
     public class EditTagsActionData : BaseActionData { }
+    public class CommandActionData : BaseActionData
+    {
+        public Utils.ApplicationCommand? Command;
+        public string PluginCommandName;
+        public string DisplayName;
+    }
     public class ShufflePlayActionData : BaseActionData { }
 
     public class QueueNextActionData : BaseActionData

@@ -919,9 +919,9 @@ namespace MusicBeePlugin.Services
             return res;
         }
 
-        public List<SearchResult> SearchCommands(string commandQuery, CancellationToken cancellationToken)
+        public List<CommandResult> GetAvailableCommands(CancellationToken cancellationToken)
         {
-            if (cancellationToken.IsCancellationRequested) return new List<SearchResult>();
+            if (cancellationToken.IsCancellationRequested) return new List<CommandResult>();
 
             var builtInCommands = ApplicationCommandHelper.GetValidBuiltinCommands(mbApi)
                 .OrderBy(r => r.displayName).ToList();
@@ -951,6 +951,12 @@ namespace MusicBeePlugin.Services
             }
 
 
+            return cancellationToken.IsCancellationRequested ? new List<CommandResult>() : combinedResults;
+        }
+
+        public List<SearchResult> SearchCommands(string commandQuery, CancellationToken cancellationToken)
+        {
+            var combinedResults = GetAvailableCommands(cancellationToken);
             if (cancellationToken.IsCancellationRequested) return new List<SearchResult>();
 
             IEnumerable<SearchResult> finalFilteredResults;

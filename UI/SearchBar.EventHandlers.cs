@@ -403,7 +403,7 @@ namespace MusicBeePlugin.UI
                 var configuredAction = actionService.GetConfiguredAction(selectedItem, e);
                 if (configuredAction == null && selectedItem.Type != ResultType.Command) return;
                 if (configuredAction is MusicBeePlugin.Config.DoNothingActionData) return;
-                if (configuredAction is MusicBeePlugin.Config.EditTagsActionData) keepDetachedOnTop = false;
+                if (configuredAction is MusicBeePlugin.Config.EditTagsActionData || configuredAction is MusicBeePlugin.Config.CommandActionData) keepDetachedOnTop = false;
             }
 
             string actionSearchText = searchBox.Text;

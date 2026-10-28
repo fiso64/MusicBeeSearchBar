@@ -111,6 +111,22 @@ namespace MusicBeePlugin.Services
                 return false;
 
             if (action is DoNothingActionData) return true;
+            if (action is CommandActionData commandAction)
+            {
+                try
+                {
+                    if (!commandAction.Command.HasValue || !SupportsExplicitTracks(commandAction.Command.Value))
+                        throw new FeatureUnavailableException("Command for search result", "This command has not been verified to use the search result's tracks. It was not run, to avoid acting on MusicBee's previous selection.");
+                    ReflectionService.Instance.InvokeCommandForFiles(commandAction.Command.Value, GetItemFiles(result, false));
+                }
+                catch (FeatureUnavailableException ex)
+                {
+                    MessageBox.Show(ex.Message, "Modern Search Bar: Feature Unavailable", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return false;
+                }
+                if (action.FocusMainPanelAfterAction) MusicBeeHelpers.FocusMainPanel();
+                return true;
+            }
             if (action is EditTagsActionData)
             {
                 try { ReflectionService.Instance.EditSongTags(GetItemFiles(result, false)); }
@@ -166,6 +182,59 @@ namespace MusicBeePlugin.Services
                 MusicBeeHelpers.FocusMainPanel();
 
             return true;
+        }
+
+        public static bool SupportsExplicitTracks(ApplicationCommand command)
+        {
+            if (command.ToString().StartsWith("RatingSelectedFiles", StringComparison.Ordinal)) return true;
+            if (command >= ApplicationCommand.WebOpenLink0SelectedFile && command <= ApplicationCommand.WebOpenLink14SelectedFile) return true;
+            if (command >= ApplicationCommand.SendToExternalService && command <= ApplicationCommand.SendToExternalService8) return true;
+            switch (command)
+            {
+                case ApplicationCommand.EditProperties:
+                case ApplicationCommand.EditOpenTagInspector:
+                case ApplicationCommand.EditToggleMarkNoLyrics:
+                case ApplicationCommand.SendToOrganisedFolder:
+                case ApplicationCommand.SendToOrganisedFolderCopy:
+                case ApplicationCommand.SendToExternalAudioEditor:
+                case ApplicationCommand.ToolsTagSearchAndReplace:
+                case ApplicationCommand.ToolsAutoNumber:
+                case ApplicationCommand.ToolsAutoTagAlbum:
+                case ApplicationCommand.ToolsAutoTagAll:
+                case ApplicationCommand.ToolsAutoTagMissingTags:
+                case ApplicationCommand.ToolsAutoTagInfer:
+                case ApplicationCommand.ToolsAutoTagMissingPictures:
+                case ApplicationCommand.ToolsAutoTagMissingLyrics:
+                case ApplicationCommand.ToolsTagCapitalise:
+                case ApplicationCommand.ToolsTagResetPlayCount:
+                case ApplicationCommand.ToolsTagResetSkipCount:
+                case ApplicationCommand.EditRemoveTags:
+                case ApplicationCommand.ViewShowFullSizeArtwork:
+                case ApplicationCommand.PlaybackPlayLast:
+                case ApplicationCommand.SendToAutoDj:
+                case ApplicationCommand.SendToClipboard:
+                case ApplicationCommand.SendToActivePlaylist:
+                case ApplicationCommand.SendToActiveDevice:
+                case ApplicationCommand.SendToLibrary:
+                case ApplicationCommand.SendToInbox:
+                case ApplicationCommand.SendToAudioBooks:
+                case ApplicationCommand.SendToPodcasts:
+                case ApplicationCommand.SendToVideo:
+                case ApplicationCommand.SendToNewPlaylist:
+                case ApplicationCommand.SendToFolderMove:
+                case ApplicationCommand.SendToFolderCopy:
+                case ApplicationCommand.SendToReplaceFileSelectSource:
+                case ApplicationCommand.SendToReplaceFileSelectTarget:
+                case ApplicationCommand.ToolsFindArtwork:
+                case ApplicationCommand.ToolsAutoOrganise:
+                case ApplicationCommand.ToolsConvertFormat:
+                case ApplicationCommand.ToolsAnalyseVolume:
+                case ApplicationCommand.ToolsUndoLevelVolume:
+                case ApplicationCommand.PlaylistExport:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         private bool RunCommand(SearchResult result)

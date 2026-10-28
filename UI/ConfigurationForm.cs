@@ -568,6 +568,167 @@ namespace MusicBeePlugin.UI
             return layout;
         }
 
+        private sealed class ActionPickerDialog : Form
+        {
+            private readonly ListBox resultList;
+            private readonly ListBox commandList;
+            private readonly TextBox filter;
+            private readonly TableLayoutPanel sections;
+            private readonly Label resultHeader;
+            private readonly Font sectionHeaderFont;
+            private readonly List<(string Name, string Description, string SearchText, string Group, Func<BaseActionData> Create)> entries;
+            public BaseActionData SelectedAction { get; private set; }
+
+            public ActionPickerDialog(Services.ResultType type, Plugin.MusicBeeApiInterface api, SearchUIConfig config)
+            {
+                Text = "Choose action";
+                ClientSize = new Size(600, 550);
+                MinimumSize = new Size(380, 300);
+                StartPosition = FormStartPosition.CenterParent;
+                entries = ActionRegistry.GetActionsForType(type)
+                    .Select(x => (x.Name, x.Description, x.Name + " " + x.Description, "Result actions", x.Factory)).ToList();
+                var search = new Services.SearchService(api, config);
+                foreach (var command in search.GetAvailableCommands(CancellationToken.None))
+                {
+                    if (!command.Command.HasValue || !Services.ActionService.SupportsExplicitTracks(command.Command.Value)) continue;
+                    var entry = command;
+                    entries.Add((entry.DisplayTitle, null,
+                        entry.DisplayTitle + " " + (entry.Command?.ToString() ?? ""),
+                        "MusicBee and plugin commands",
+                        () => new CommandActionData { Command = entry.Command, PluginCommandName = entry.PluginCommandName, DisplayName = entry.DisplayTitle }));
+                }
+
+                var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(10) };
+                layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                TextBox musicBeeFilter = null;
+                if (api.MB_AddPanel != null)
+                {
+                    try
+                    {
+                        var control = api.MB_AddPanel(null, Plugin.PluginPanelDock.TextBox);
+                        musicBeeFilter = control as TextBox;
+                        if (musicBeeFilter == null) control?.Dispose();
+                    }
+                    catch (Exception ex) { MusicBeePlugin.Utils.Logger.Error("Could not create MusicBee's action filter text box", ex); }
+                }
+                filter = musicBeeFilter ?? new TextBox();
+                filter.Dock = DockStyle.Fill;
+                filter.Margin = new Padding(0, 0, 0, 8);
+                resultList = new ListBox { Dock = DockStyle.Fill, IntegralHeight = false, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = Font.Height + 8 };
+                resultList.DrawItem += (s, e) =>
+                {
+                    e.DrawBackground();
+                    if (e.Index < 0 || e.Index >= resultList.Items.Count) return;
+                    var item = (PickerItem)resultList.Items[e.Index];
+                    var bounds = e.Bounds;
+                    var flags = TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix;
+                    int nameWidth = Math.Min(bounds.Width, Math.Max(bounds.Width / 3, TextRenderer.MeasureText(item.Name, e.Font).Width + 8));
+                    TextRenderer.DrawText(e.Graphics, item.Name, e.Font, new Rectangle(bounds.X + 3, bounds.Y, Math.Max(0, nameWidth - 3), bounds.Height), e.ForeColor, flags);
+                    if (!string.IsNullOrEmpty(item.Description) && bounds.Width > nameWidth)
+                        TextRenderer.DrawText(e.Graphics, item.Description, e.Font, new Rectangle(bounds.X + nameWidth, bounds.Y, bounds.Width - nameWidth - 3, bounds.Height), e.ForeColor, flags | TextFormatFlags.Right);
+                    e.DrawFocusRectangle();
+                };
+                commandList = new ListBox { Dock = DockStyle.Fill, IntegralHeight = false, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = Font.Height + 8 };
+                commandList.DrawItem += (s, e) =>
+                {
+                    e.DrawBackground();
+                    if (e.Index < 0 || e.Index >= commandList.Items.Count) return;
+                    var item = (PickerItem)commandList.Items[e.Index];
+                    TextRenderer.DrawText(e.Graphics, item.Name, e.Font, new Rectangle(e.Bounds.X + 3, e.Bounds.Y, Math.Max(0, e.Bounds.Width - 6), e.Bounds.Height), e.ForeColor,
+                        TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                    e.DrawFocusRectangle();
+                };
+                sections = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4 };
+                sections.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                sections.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                sections.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
+                sections.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                sections.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                sectionHeaderFont = new Font(Font, FontStyle.Bold);
+                Disposed += (s, e) => sectionHeaderFont.Dispose();
+                resultHeader = new Label { Text = "Result actions", AutoSize = true, Margin = new Padding(0, 0, 0, 4), Font = sectionHeaderFont };
+                sections.Controls.Add(resultHeader, 0, 0);
+                sections.Controls.Add(resultList, 0, 1);
+                sections.Controls.Add(new Label { Text = "MusicBee and plugin commands", AutoSize = true, Margin = new Padding(0, 10, 0, 4), Font = sectionHeaderFont }, 0, 2);
+                sections.Controls.Add(commandList, 0, 3);
+                sections.SizeChanged += (s, e) => UpdateResultListHeight();
+                var buttons = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
+                var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true };
+                var select = new Button { Text = "Select", AutoSize = true, Enabled = false };
+                buttons.Controls.Add(cancel);
+                buttons.Controls.Add(select);
+                layout.Controls.Add(filter, 0, 0);
+                layout.Controls.Add(sections, 0, 1);
+                layout.Controls.Add(buttons, 0, 2);
+                Controls.Add(layout);
+                CancelButton = cancel;
+                AcceptButton = select;
+                filter.TextChanged += (s, e) => RefreshEntries();
+                resultList.SelectedIndexChanged += (s, e) =>
+                {
+                    if (resultList.SelectedIndex >= 0) commandList.ClearSelected();
+                    select.Enabled = resultList.SelectedIndex >= 0 || commandList.SelectedIndex >= 0;
+                };
+                commandList.SelectedIndexChanged += (s, e) =>
+                {
+                    if (commandList.SelectedIndex >= 0) resultList.ClearSelected();
+                    select.Enabled = resultList.SelectedIndex >= 0 || commandList.SelectedIndex >= 0;
+                };
+                Action accept = () =>
+                {
+                    var item = (PickerItem)(resultList.SelectedItem ?? commandList.SelectedItem);
+                    if (item == null) return;
+                    SelectedAction = item.Create();
+                    DialogResult = DialogResult.OK;
+                    Close();
+                };
+                select.Click += (s, e) => accept();
+                resultList.DoubleClick += (s, e) => accept();
+                commandList.DoubleClick += (s, e) => accept();
+                RefreshEntries();
+                Shown += (s, e) => filter.Focus();
+            }
+
+            private void RefreshEntries()
+            {
+                var words = filter.Text.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                resultList.BeginUpdate();
+                commandList.BeginUpdate();
+                resultList.Items.Clear();
+                commandList.Items.Clear();
+                foreach (var entry in entries.Where(x => words.All(w => x.SearchText.IndexOf(w, StringComparison.OrdinalIgnoreCase) >= 0)).OrderBy(x => x.Name))
+                {
+                    var target = entry.Group == "Result actions" ? resultList : commandList;
+                    target.Items.Add(new PickerItem { Name = entry.Name, Description = entry.Description, Create = entry.Create });
+                }
+                resultList.EndUpdate();
+                commandList.EndUpdate();
+                resultHeader.Visible = resultList.Items.Count > 0;
+                UpdateResultListHeight();
+                if (resultList.Items.Count > 0) resultList.SelectedIndex = 0;
+                else if (commandList.Items.Count > 0) commandList.SelectedIndex = 0;
+            }
+
+            private void UpdateResultListHeight()
+            {
+                int maxHeight = Math.Max(0, sections.ClientSize.Height / 2);
+                int visibleRows = Math.Min(resultList.Items.Count, Math.Max(0, (maxHeight - 10) / resultList.ItemHeight));
+                int height = visibleRows == 0 ? 0 : visibleRows * resultList.ItemHeight + 10;
+                if (sections.RowStyles[1].Height != height) sections.RowStyles[1].Height = height;
+            }
+
+            private sealed class PickerItem
+            {
+                public string Name;
+                public string Description;
+                public Func<BaseActionData> Create;
+                public override string ToString() => string.IsNullOrEmpty(Description) ? Name : Name + "  —  " + Description;
+            }
+        }
+
         private (FlowLayoutPanel, Panel) CreateActionControls(BaseActionData currentAction, Action<BaseActionData> updateAction, Services.ResultType resultType)
         {
             ComboBox comboBox = new ComboBox
@@ -593,26 +754,60 @@ namespace MusicBeePlugin.UI
 
             var availableActions = ActionRegistry.GetActionsForType(resultType);
             comboBox.Items.AddRange(availableActions.ToArray());
+            const string moreCommands = "More commands…";
+            comboBox.Items.Add(moreCommands);
+            bool changingSelection = false;
+            object lastSelection = null;
+
+            void setSelection(BaseActionData action)
+            {
+                changingSelection = true;
+                var previousCommand = comboBox.Items.Cast<object>().OfType<ActionDefinition>().FirstOrDefault(x => x.DataType == typeof(CommandActionData));
+                if (previousCommand != null) comboBox.Items.Remove(previousCommand);
+                ActionDefinition definition;
+                if (action is CommandActionData command)
+                {
+                    definition = new ActionDefinition(command.DisplayName ?? command.PluginCommandName ?? command.Command?.ToString() ?? "Command", typeof(CommandActionData), () => command);
+                    comboBox.Items.Insert(comboBox.Items.Count - 1, definition);
+                }
+                else definition = availableActions.FirstOrDefault(x => x.DataType == action.GetType());
+                comboBox.SelectedItem = definition ?? availableActions[0];
+                lastSelection = comboBox.SelectedItem;
+                changingSelection = false;
+            }
+
+            void chooseAction()
+            {
+                using (var dialog = new ActionPickerDialog(resultType, _mbApi, _config.SearchUI))
+                {
+                    if (dialog.ShowDialog(this) != DialogResult.OK || dialog.SelectedAction == null) return;
+                    var action = dialog.SelectedAction;
+                    setSelection(action);
+                    updateAction(action);
+                    UpdateOptionsPanel(dropdownPanel, optionsPanel, action);
+                }
+            }
 
             // Select the current action in the combo box based on Type
-            ActionDefinition selectedDef = availableActions.FirstOrDefault(a => a.DataType == currentAction.GetType());
-            if (selectedDef != null)
-            {
-                comboBox.SelectedItem = selectedDef;
-            }
-            else
-            {
-                // Fallback if config has an action not supported by the current type
-                comboBox.SelectedIndex = 0;
-            }
+            setSelection(currentAction);
 
             UpdateOptionsPanel(dropdownPanel, optionsPanel, currentAction);
 
             // Add event handler to update options when selection changes
             comboBox.SelectedIndexChanged += (sender, e) =>
             {
+                if (changingSelection) return;
+                if (Equals(comboBox.SelectedItem, moreCommands))
+                {
+                    changingSelection = true;
+                    comboBox.SelectedItem = lastSelection;
+                    changingSelection = false;
+                    chooseAction();
+                    return;
+                }
                 if (comboBox.SelectedItem is ActionDefinition def)
                 {
+                    lastSelection = def;
                     var newAction = def.Factory();
                     updateAction(newAction);
                     UpdateOptionsPanel(dropdownPanel, optionsPanel, newAction);

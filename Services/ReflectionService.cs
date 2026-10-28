@@ -278,20 +278,25 @@ namespace MusicBeePlugin.Services
 
         public void EditSongTags(string[] filePaths)
         {
-            const string feature = "Edit tags";
+            InvokeCommandForFiles(ApplicationCommand.EditProperties, filePaths);
+        }
+
+        public void InvokeCommandForFiles(ApplicationCommand requestedCommand, string[] filePaths)
+        {
+            const string feature = "Command for search result";
             if (filePaths == null || filePaths.Length == 0 || filePaths.Any(string.IsNullOrWhiteSpace))
                 throw new FeatureUnavailableException(feature, "No valid song files were found for this result.");
 
             EnsureInvokeCommandLoaded();
             if (_invokeCommandMethod == null || _commandMap == null
-                || !_commandMap.TryGetValue(ApplicationCommand.EditProperties, out var command))
-                throw new FeatureUnavailableException(feature, "MusicBee's tag editor command could not be found.");
+                || !_commandMap.TryGetValue(requestedCommand, out var command))
+                throw new FeatureUnavailableException(feature, "MusicBee's command could not be found.");
 
             // This integration uses internal types. Only enable it for the MusicBee
             // build whose explicit-track command and constructors were inspected.
             var assembly = _invokeCommandMethod.DeclaringType.Assembly;
             if (assembly.GetName().Version != new Version(3, 7, 9773, 28129))
-                throw new FeatureUnavailableException(feature, "This MusicBee version has not been verified for editing an explicit song.");
+                throw new FeatureUnavailableException(feature, "This MusicBee version has not been verified for commands on explicit tracks.");
 
             try
             {
@@ -328,7 +333,7 @@ namespace MusicBeePlugin.Services
             catch (FeatureUnavailableException) { throw; }
             catch (Exception ex)
             {
-                Logger.Error("Error opening MusicBee's tag editor", ex);
+                Logger.Error("Error executing MusicBee command for explicit tracks", ex);
                 throw new FeatureUnavailableException(feature, ex.InnerException?.Message ?? ex.Message);
             }
         }
