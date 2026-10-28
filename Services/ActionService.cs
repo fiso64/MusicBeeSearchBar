@@ -84,6 +84,17 @@ namespace MusicBeePlugin.Services
             }
         }
 
+        public BaseActionData GetConfiguredAction(SearchResult result, KeyEventArgs keyEvent)
+        {
+            var config = GetActionConfig(result.Type);
+            if (config == null) return null;
+            if (keyEvent.Alt) return config.Alt;
+            if (keyEvent.Control && keyEvent.Shift) return config.CtrlShift;
+            if (keyEvent.Control) return config.Ctrl;
+            if (keyEvent.Shift) return config.Shift;
+            return config.Default;
+        }
+
         public async Task<bool> RunAction(string searchBoxText, SearchResult result, KeyEventArgs keyEvent)
         {
             Debug.WriteLine($"RunAction called with result={result.DisplayTitle} of type={result.Type}");
@@ -94,19 +105,12 @@ namespace MusicBeePlugin.Services
             ActionConfig actionCfg = GetActionConfig(result.Type);
             if (actionCfg == null) return true;
 
-            BaseActionData action;
-            if (keyEvent.Control && keyEvent.Shift)
-                action = actionCfg.CtrlShift;
-            else if (keyEvent.Control)
-                action = actionCfg.Ctrl;
-            else if (keyEvent.Shift)
-                action = actionCfg.Shift;
-            else
-                action = actionCfg.Default;
+            BaseActionData action = GetConfiguredAction(result, keyEvent);
 
             if (action == null)
                 return false;
 
+            if (action is DoNothingActionData) return true;
             if (action is OpenFilterInTabActionData filterAction)
             {
                 await OpenFilter(result, filterAction);

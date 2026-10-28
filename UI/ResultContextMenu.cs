@@ -123,7 +123,7 @@ namespace MusicBeePlugin.UI
                 var choices = new[]
                 {
                     (config.Default, Keys.None), (config.Ctrl, Keys.Control),
-                    (config.Shift, Keys.Shift), (config.CtrlShift, Keys.Control | Keys.Shift)
+                    (config.Shift, Keys.Shift), (config.CtrlShift, Keys.Control | Keys.Shift), (config.Alt, Keys.Alt)
                 };
                 foreach (var choice in choices)
                 {
@@ -146,7 +146,8 @@ namespace MusicBeePlugin.UI
                     {
                         string shortcut = choice.Modifiers == Keys.None ? "default" :
                             choice.Modifiers == Keys.Control ? "Ctrl+Enter" :
-                            choice.Modifiers == Keys.Shift ? "Shift+Enter" : "Ctrl+Shift+Enter";
+                            choice.Modifiers == Keys.Shift ? "Shift+Enter" :
+                            choice.Modifiers == Keys.Alt ? "Alt+Enter" : "Ctrl+Shift+Enter";
                         label += " (" + shortcut + ")";
                     }
                     var modifiers = choice.Modifiers;

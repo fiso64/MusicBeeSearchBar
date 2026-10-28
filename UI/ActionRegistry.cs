@@ -34,6 +34,7 @@ namespace MusicBeePlugin.UI
         private static readonly ActionDefinition OpenPlaylist = new ActionDefinition("Open Playlist In Tab", typeof(OpenPlaylistInTabActionData), () => new OpenPlaylistInTabActionData());
         private static readonly ActionDefinition MusicExplorer = new ActionDefinition("Open In Music Explorer", typeof(OpenInMusicExplorerActionData), () => new OpenInMusicExplorerActionData());
         private static readonly ActionDefinition MusicExplorerInTab = new ActionDefinition("Open In Music Explorer In Tab", typeof(OpenInMusicExplorerInTabActionData), () => new OpenInMusicExplorerInTabActionData());
+        private static readonly ActionDefinition DoNothing = new ActionDefinition("Do Nothing", typeof(DoNothingActionData), () => new DoNothingActionData());
 
         public static List<ActionDefinition> GetActionsForType(ResultType type)
         {
@@ -42,7 +43,8 @@ namespace MusicBeePlugin.UI
                 PlayNow,
                 QueueNext,
                 QueueLast,
-                SearchInTab
+                SearchInTab,
+                DoNothing
             };
 
             // "Open Filter" is supported by everything except Playlists

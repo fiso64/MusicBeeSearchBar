@@ -129,6 +129,7 @@ namespace MusicBeePlugin.UI
                 new[] { "Ctrl+Enter", "Execute alternative action" },
                 new[] { "Shift+Enter", "Execute alternative action" },
                 new[] { "Ctrl+Shift+Enter", "Execute alternative action" },
+                new[] { "Alt+Enter", "Execute alternative action" },
                 new[] { "Tab / Shift+Tab", "Cycle search filters" },
                 new[] { "Shift+F10", "Open the selected result's context menu" },
                 new[] { "Right", "Open the selected result's context menu (alternative, floating mode only)" },
@@ -353,25 +354,29 @@ namespace MusicBeePlugin.UI
             defaultLayout.Controls.Add(defaultCombo, 1, 0);
             defaultLayout.Controls.Add(defaultOptions, 2, 0);
 
-            var alternativesLayout = CreateActionRowsLayout(3);
+            var alternativesLayout = CreateActionRowsLayout(4);
             alternativesLayout.Visible = false;
             alternativesLayout.Controls.Add(new Label { Text = "Ctrl+Enter:", AutoSize = true, Anchor = AnchorStyles.Top | AnchorStyles.Left, Margin = new Padding(3, 7, 3, 3) }, 0, 0);
             alternativesLayout.Controls.Add(new Label { Text = "Shift+Enter:", AutoSize = true, Anchor = AnchorStyles.Top | AnchorStyles.Left, Margin = new Padding(3, 7, 3, 3) }, 0, 1);
             alternativesLayout.Controls.Add(new Label { Text = "Ctrl+Shift+Enter:", AutoSize = true, Anchor = AnchorStyles.Top | AnchorStyles.Left, Margin = new Padding(3, 7, 3, 3) }, 0, 2);
+            alternativesLayout.Controls.Add(new Label { Text = "Alt+Enter:", AutoSize = true, Anchor = AnchorStyles.Top | AnchorStyles.Left, Margin = new Padding(3, 7, 3, 3) }, 0, 3);
 
             var (ctrlCombo, ctrlOptions) = CreateActionControls(actionConfig.Ctrl, actionConfig, resultType);
             var (shiftCombo, shiftOptions) = CreateActionControls(actionConfig.Shift, actionConfig, resultType);
             var (ctrlShiftCombo, ctrlShiftOptions) = CreateActionControls(actionConfig.CtrlShift, actionConfig, resultType);
+            var (altCombo, altOptions) = CreateActionControls(actionConfig.Alt, actionConfig, resultType);
             alternativesLayout.Controls.Add(ctrlCombo, 1, 0);
             alternativesLayout.Controls.Add(shiftCombo, 1, 1);
             alternativesLayout.Controls.Add(ctrlShiftCombo, 1, 2);
+            alternativesLayout.Controls.Add(altCombo, 1, 3);
             alternativesLayout.Controls.Add(ctrlOptions, 2, 0);
             alternativesLayout.Controls.Add(shiftOptions, 2, 1);
             alternativesLayout.Controls.Add(ctrlShiftOptions, 2, 2);
+            alternativesLayout.Controls.Add(altOptions, 2, 3);
 
             var alternativesLink = new LinkLabel
             {
-                Text = "Show alternative actions (Ctrl / Shift)",
+                Text = "Show alternative actions (Ctrl / Shift / Alt)",
                 AutoSize = true,
                 Margin = new Padding(0, 5, 0, 5)
             };
@@ -380,7 +385,7 @@ namespace MusicBeePlugin.UI
                 alternativesLayout.Visible = !alternativesLayout.Visible;
                 alternativesLink.Text = alternativesLayout.Visible
                     ? "Hide alternative actions"
-                    : "Show alternative actions (Ctrl / Shift)";
+                    : "Show alternative actions (Ctrl / Shift / Alt)";
             };
 
             layout.Controls.Add(defaultLayout, 0, 0);
@@ -456,6 +461,7 @@ namespace MusicBeePlugin.UI
             else if (currentAction == actionConfig.Ctrl) updateAction = x => actionConfig.Ctrl = x;
             else if (currentAction == actionConfig.Shift) updateAction = x => actionConfig.Shift = x;
             else if (currentAction == actionConfig.CtrlShift) updateAction = x => actionConfig.CtrlShift = x;
+            else if (currentAction == actionConfig.Alt) updateAction = x => actionConfig.Alt = x;
 
             // Add event handler to update options when selection changes
             comboBox.SelectedIndexChanged += (sender, e) =>
@@ -486,6 +492,7 @@ namespace MusicBeePlugin.UI
                 control.Dispose();
             }
             var controls = new List<Control>();
+            if (action is DoNothingActionData) return;
 
             // Action-specific options
             switch (action)

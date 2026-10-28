@@ -14,6 +14,13 @@ namespace MusicBeePlugin.UI
     {
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
+            if (keyData == (Keys.Alt | Keys.Enter) && (searchBox?.Focused == true || resultsListBox?.Focused == true))
+            {
+                if (resultsListBox.Visible && resultsListBox.SelectedItem is SearchResult result
+                    && result.Type != ResultType.Command && result.Type != ResultType.Header && result.Type != ResultType.ShowMore)
+                    HandleResultSelection(result, new KeyEventArgs(Keys.Alt | Keys.Enter));
+                return true;
+            }
             if (keyData == (Keys.Shift | Keys.F10) && (searchBox?.Focused == true || resultsListBox?.Focused == true)
                 && ShowSelectedResultContextMenu())
             {
@@ -385,6 +392,12 @@ namespace MusicBeePlugin.UI
             {
                 ExpandSearchResults(showMore.TargetType);
                 return;
+            }
+
+            if (customAction == null && e != null)
+            {
+                var configuredAction = actionService.GetConfiguredAction(selectedItem, e);
+                if (configuredAction is MusicBeePlugin.Config.DoNothingActionData) return;
             }
 
             string actionSearchText = searchBox.Text;
