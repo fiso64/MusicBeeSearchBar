@@ -165,6 +165,7 @@ namespace MusicBeePlugin.UI
         private string _expandedQuery;
         private readonly Dictionary<ResultType, int> _expandedByType = new Dictionary<ResultType, int>();
         private int _expandedUngrouped;
+        private bool _showAllResults;
         private List<SearchResult> _defaultSearchResults;
         private long _defaultResultsSequence;
         private System.Windows.Forms.Timer _selectionRefreshTimer;
@@ -179,6 +180,7 @@ namespace MusicBeePlugin.UI
             public int ExpandedUngrouped;
             public int ScrollTop;
             public int SelectedIndex;
+            public bool ShowAllResults;
         }
 
         internal ExpandedSearchState CaptureExpandedSearchState()
@@ -193,7 +195,8 @@ namespace MusicBeePlugin.UI
                 ExpandedByType = new Dictionary<ResultType, int>(_expandedByType),
                 ExpandedUngrouped = _expandedUngrouped,
                 ScrollTop = resultsListBox.ScrollTop,
-                SelectedIndex = resultsListBox.SelectedIndex
+                SelectedIndex = resultsListBox.SelectedIndex,
+                ShowAllResults = _showAllResults
             };
         }
 
@@ -209,6 +212,8 @@ namespace MusicBeePlugin.UI
             {
                 searchBox.Text = state.Query;
                 searchToolbar?.SetActivePrefix(state.Query);
+                _showAllResults = state.ShowAllResults;
+                searchToolbar?.SetShowAll(_showAllResults);
                 _defaultSearchResults = state.DefaultResults;
                 _expandedQuery = state.ExpandedQuery;
                 _expandedByType.Clear();
@@ -291,6 +296,16 @@ namespace MusicBeePlugin.UI
                 RunSearch(true);
         }
 
+        private void ToggleShowAllResults()
+        {
+            _showAllResults = !_showAllResults;
+            searchToolbar?.SetShowAll(_showAllResults);
+            if (string.IsNullOrWhiteSpace(searchBox.Text) && _defaultSearchResults != null)
+                UpdateResultsList(BuildDefaultPagedResults(), true, resultsListBox.ScrollTop, resultsListBox.SelectedIndex);
+            else RunSearch(true);
+            if (isEmbedded && !compactPanel) Plugin.SaveExpandedSearchState(this);
+        }
+
         private static int AddResultCount(int count, int increment)
         {
             return (int)Math.Min((long)int.MaxValue - 1, (long)count + increment);
@@ -334,7 +349,7 @@ namespace MusicBeePlugin.UI
                     string commandQuery = originalQuery.TrimStart().Substring(1);
                     var commands = searchService.SearchCommands(commandQuery, searchToken);
                     _expandedByType.TryGetValue(ResultType.Command, out int commandExtra);
-                    int commandLimit = AddResultCount(ShowMorePageSize,
+                    int commandLimit = _showAllResults ? int.MaxValue : AddResultCount(ShowMorePageSize,
                         searchUIConfig.GroupResultsByType ? commandExtra : _expandedUngrouped);
                     var visibleCommands = commands.Take(commandLimit).ToList();
                     if (commands.Count > commandLimit)
@@ -396,19 +411,19 @@ namespace MusicBeePlugin.UI
                 var fetchLimits = new Dictionary<ResultType, int>();
                 foreach (var type in PageableResultTypes)
                 {
-                    int initial = Math.Max(0, initialLimits[type]);
+                    int initial = _showAllResults ? int.MaxValue : Math.Max(0, initialLimits[type]);
                     _expandedByType.TryGetValue(type, out int expanded);
                     int extra = searchUIConfig.GroupResultsByType ? expanded : _expandedUngrouped;
-                    int limit = initial == 0 ? 0 : AddResultCount(initial, extra);
+                    int limit = _showAllResults ? int.MaxValue : initial == 0 ? 0 : AddResultCount(initial, extra);
                     visibleLimits[type] = limit;
-                    fetchLimits[type] = limit == 0 ? 0 : AddResultCount(limit, 1);
+                    fetchLimits[type] = _showAllResults ? int.MaxValue : limit == 0 ? 0 : AddResultCount(limit, 1);
                 }
 
                 var results = await searchService.SearchIncrementalAsync(query, filter, searchToken, null, fetchLimits);
                 if (_resourcesDisposed || IsDisposed || Disposing || !IsHandleCreated) return;
                 if (!searchToken.IsCancellationRequested && searchSequence == _currentSearchSequence)
                 {
-                    var visible = BuildPagedResults(results, initialLimits, visibleLimits,
+                    var visible = _showAllResults ? results : BuildPagedResults(results, initialLimits, visibleLimits,
                         searchUIConfig.GroupResultsByType, _expandedUngrouped);
                     PostToUi(() =>
                     {
@@ -465,6 +480,7 @@ namespace MusicBeePlugin.UI
 
         private List<SearchResult> BuildDefaultPagedResults()
         {
+            if (_showAllResults) return new List<SearchResult>(_defaultSearchResults);
             if (!searchUIConfig.GroupResultsByType)
             {
                 int limit = AddResultCount(ShowMorePageSize, _expandedUngrouped);

@@ -14,6 +14,11 @@ namespace MusicBeePlugin.UI
     {
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
+            if (keyData == (Keys.Alt | Keys.Shift | Keys.A) && (searchBox?.Focused == true || resultsListBox?.Focused == true))
+            {
+                ToggleShowAllResults();
+                return true;
+            }
             if ((searchBox?.Focused == true || resultsListBox?.Focused == true) && TryRunResultShortcut(keyData))
                 return true;
             if (keyData == (Keys.Shift | Keys.F10) && (searchBox?.Focused == true || resultsListBox?.Focused == true)

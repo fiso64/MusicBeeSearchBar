@@ -17,6 +17,8 @@ namespace MusicBeePlugin.UI
         private TooltipWindow _tooltip;
         private Rectangle _detachBounds;
         private Rectangle _settingsBounds;
+        private Rectangle _showAllBounds;
+        private bool _showAll;
         private int _hovered = -1;
         private int _pressed = -1;
         private string _activePrefix;
@@ -27,6 +29,7 @@ namespace MusicBeePlugin.UI
         public event Action<string> PrefixSelected;
         public event EventHandler DetachClicked;
         public event EventHandler SettingsClicked;
+        public event EventHandler ShowAllClicked;
 
         public SearchToolbar(Theme theme, float scale, Font baseFont)
         {
@@ -50,6 +53,13 @@ namespace MusicBeePlugin.UI
             if (_isDetached == detached) return;
             _isDetached = detached;
             HideTooltip();
+            Invalidate();
+        }
+
+        public void SetShowAll(bool enabled)
+        {
+            if (_showAll == enabled) return;
+            _showAll = enabled;
             Invalidate();
         }
 
@@ -117,7 +127,10 @@ namespace MusicBeePlugin.UI
             int top = pad + topInset;
             _settingsBounds = new Rectangle(Math.Max(0, Width - gearWidth - pad), top, gearWidth, itemHeight);
             _detachBounds = ShowDetachButton ? new Rectangle(Math.Max(0, _settingsBounds.Left - gearWidth - gap), top, gearWidth, itemHeight) : Rectangle.Empty;
-            int available = Math.Max(0, (ShowDetachButton ? _detachBounds.Left : _settingsBounds.Left) - 2 * pad - gap * Labels.Length);
+            int rightEdge = ShowDetachButton ? _detachBounds.Left : _settingsBounds.Left;
+            int showAllWidth = TextRenderer.MeasureText(graphics, "All results", Font, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine).Width + (int)(14 * _scale);
+            _showAllBounds = _showAll ? new Rectangle(Math.Max(pad, rightEdge - gap - showAllWidth), top, Math.Min(showAllWidth, Math.Max(0, rightEdge - gap - pad)), itemHeight) : Rectangle.Empty;
+            int available = Math.Max(0, (_showAll ? _showAllBounds.Left : rightEdge) - 2 * pad - gap * Labels.Length);
             int[] widths = new int[Labels.Length];
             int total = 0;
             for (int i = 0; i < Labels.Length; i++)
@@ -151,6 +164,20 @@ namespace MusicBeePlugin.UI
             return path;
         }
 
+        private static GraphicsPath RoundedOutline(Rectangle rect, bool square)
+        {
+            var path = new GraphicsPath();
+            var bounds = new RectangleF(rect.X + 0.5f, rect.Y + 0.5f, rect.Width - 1f, rect.Height - 1f);
+            float diameter = square ? 0 : Math.Min(bounds.Width, bounds.Height);
+            if (diameter <= 1) { path.AddRectangle(bounds); return path; }
+            path.AddArc(bounds.Left, bounds.Top, diameter, diameter, 180, 90);
+            path.AddArc(bounds.Right - diameter, bounds.Top, diameter, diameter, 270, 90);
+            path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
+            path.AddArc(bounds.Left, bounds.Bottom - diameter, diameter, diameter, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
@@ -164,16 +191,30 @@ namespace MusicBeePlugin.UI
                 bool hovered = _hovered == i;
                 using (var path = Rounded(rect, SquareCorners ? 0 : rect.Height))
                 using (var brush = new SolidBrush(selected ? _theme.Highlight : Color.FromArgb(hovered ? 26 : 10, _theme.Foreground)))
-                using (var pen = new Pen(Color.FromArgb(selected ? 100 : hovered ? 50 : 30, _theme.Foreground)))
                 {
                     e.Graphics.FillPath(brush, path);
-                    e.Graphics.DrawPath(pen, path);
                 }
+                using (var outline = RoundedOutline(rect, SquareCorners))
+                using (var pen = new Pen(Color.FromArgb(selected ? 110 : hovered ? 65 : 45, _theme.Foreground)))
+                    e.Graphics.DrawPath(pen, outline);
                 TextRenderer.DrawText(e.Graphics, Labels[i], Font, rect,
                     selected ? _theme.Foreground : hovered ? _theme.Icon : _theme.IconDimmed,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
             }
 
+            if (_showAllBounds.Width > 2 && _showAllBounds.Height > 2)
+            {
+                using (var path = Rounded(_showAllBounds, SquareCorners ? 0 : _showAllBounds.Height))
+                using (var brush = new SolidBrush(_theme.Highlight))
+                {
+                    e.Graphics.FillPath(brush, path);
+                }
+                using (var outline = RoundedOutline(_showAllBounds, SquareCorners))
+                using (var pen = new Pen(Color.FromArgb(110, _theme.Foreground)))
+                    e.Graphics.DrawPath(pen, outline);
+                TextRenderer.DrawText(e.Graphics, "All results", Font, _showAllBounds, _theme.Foreground,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
+            }
             if (ShowDetachButton) DrawDetachIcon(e.Graphics);
             if (_settingsBounds.Width <= 0 || _settingsBounds.Height <= 0) return;
             float cx = _settingsBounds.Left + _settingsBounds.Width / 2f;
@@ -259,6 +300,7 @@ namespace MusicBeePlugin.UI
             using (var graphics = CreateGraphics()) UpdateBounds(graphics);
             if (_settingsBounds.Contains(location)) return Labels.Length + 1;
             if (_detachBounds.Contains(location)) return Labels.Length;
+            if (_showAllBounds.Contains(location)) return Labels.Length + 2;
             for (int i = 0; i < _pills.Length; i++)
                 if (_pills[i].Contains(location)) return i;
             return -1;
@@ -309,6 +351,7 @@ namespace MusicBeePlugin.UI
             if (e.Button != MouseButtons.Left || pressed < 0 || HitTest(e.Location) != pressed) return;
             if (pressed == Labels.Length + 1) SettingsClicked?.Invoke(this, EventArgs.Empty);
             else if (pressed == Labels.Length) DetachClicked?.Invoke(this, EventArgs.Empty);
+            else if (pressed == Labels.Length + 2) ShowAllClicked?.Invoke(this, EventArgs.Empty);
             else PrefixSelected?.Invoke(Prefixes[pressed]);
         }
 

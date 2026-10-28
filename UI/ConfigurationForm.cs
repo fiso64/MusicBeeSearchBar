@@ -131,6 +131,7 @@ namespace MusicBeePlugin.UI
                 new[] { "Right", "Open the selected result's context menu (alternative, floating mode only)" },
                 new[] { "Alt+R", "Execute artist action for selected result" },
                 new[] { "Alt+A", "Execute album action for selected result" },
+                new[] { "Alt+Shift+A", "Toggle all results without limits" },
                 new[] { "Ctrl+S", "Shuffle play selected result by default (customizable in Actions)" },
                 new[] { "Ctrl+D", "Toggle detached mode" },
                 new[] { "Ctrl+P", "Open the settings dialog" },

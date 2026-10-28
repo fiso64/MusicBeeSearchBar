@@ -189,6 +189,7 @@ namespace MusicBeePlugin.UI
             };
             searchToolbar.SettingsClicked += (s, e) => OpenSearchSettings();
             searchToolbar.DetachClicked += (s, e) => ToggleDetachedMode();
+            searchToolbar.ShowAllClicked += (s, e) => ToggleShowAllResults();
 
             spacerPanel = new Panel
             {
