@@ -53,7 +53,7 @@ namespace MusicBeePlugin
             about.TargetApplication = "Search";
             about.Type = PluginType.General;
             about.VersionMajor = 1;
-            about.VersionMinor = 15;
+            about.VersionMinor = 16;
             about.Revision = 0;
             about.MinInterfaceVersion = MinInterfaceVersion;
             about.MinApiRevision = MinApiRevision;
