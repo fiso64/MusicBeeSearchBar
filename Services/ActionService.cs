@@ -95,6 +95,11 @@ namespace MusicBeePlugin.Services
             return config.Shortcuts?.FirstOrDefault(x => x.Key == key)?.Action;
         }
 
+        public bool KeepDetachedWindowOnTop(BaseActionData action)
+        {
+            return !(action is EditTagsActionData) && !(action is CommandActionData);
+        }
+
         public async Task<bool> RunAction(string searchBoxText, SearchResult result, KeyEventArgs keyEvent)
         {
             Debug.WriteLine($"RunAction called with result={result.DisplayTitle} of type={result.Type}");
@@ -115,9 +120,7 @@ namespace MusicBeePlugin.Services
             {
                 try
                 {
-                    if (!commandAction.Command.HasValue || !SupportsExplicitTracks(commandAction.Command.Value))
-                        throw new FeatureUnavailableException("Command for search result", "This command has not been verified to use the search result's tracks. It was not run, to avoid acting on MusicBee's previous selection.");
-                    ReflectionService.Instance.InvokeCommandForFiles(commandAction.Command.Value, GetItemFiles(result, false));
+                    ReflectionService.Instance.InvokeCustomCommand(commandAction, ResolveItemFiles(result));
                 }
                 catch (FeatureUnavailableException ex)
                 {
@@ -129,7 +132,7 @@ namespace MusicBeePlugin.Services
             }
             if (action is EditTagsActionData)
             {
-                try { ReflectionService.Instance.EditSongTags(GetItemFiles(result, false)); }
+                try { ReflectionService.Instance.EditSongTags(ResolveItemFiles(result)); }
                 catch (FeatureUnavailableException ex)
                 {
                     MessageBox.Show(ex.Message, "Modern Search Bar: Feature Unavailable", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -182,59 +185,6 @@ namespace MusicBeePlugin.Services
                 MusicBeeHelpers.FocusMainPanel();
 
             return true;
-        }
-
-        public static bool SupportsExplicitTracks(ApplicationCommand command)
-        {
-            if (command.ToString().StartsWith("RatingSelectedFiles", StringComparison.Ordinal)) return true;
-            if (command >= ApplicationCommand.WebOpenLink0SelectedFile && command <= ApplicationCommand.WebOpenLink14SelectedFile) return true;
-            if (command >= ApplicationCommand.SendToExternalService && command <= ApplicationCommand.SendToExternalService8) return true;
-            switch (command)
-            {
-                case ApplicationCommand.EditProperties:
-                case ApplicationCommand.EditOpenTagInspector:
-                case ApplicationCommand.EditToggleMarkNoLyrics:
-                case ApplicationCommand.SendToOrganisedFolder:
-                case ApplicationCommand.SendToOrganisedFolderCopy:
-                case ApplicationCommand.SendToExternalAudioEditor:
-                case ApplicationCommand.ToolsTagSearchAndReplace:
-                case ApplicationCommand.ToolsAutoNumber:
-                case ApplicationCommand.ToolsAutoTagAlbum:
-                case ApplicationCommand.ToolsAutoTagAll:
-                case ApplicationCommand.ToolsAutoTagMissingTags:
-                case ApplicationCommand.ToolsAutoTagInfer:
-                case ApplicationCommand.ToolsAutoTagMissingPictures:
-                case ApplicationCommand.ToolsAutoTagMissingLyrics:
-                case ApplicationCommand.ToolsTagCapitalise:
-                case ApplicationCommand.ToolsTagResetPlayCount:
-                case ApplicationCommand.ToolsTagResetSkipCount:
-                case ApplicationCommand.EditRemoveTags:
-                case ApplicationCommand.ViewShowFullSizeArtwork:
-                case ApplicationCommand.PlaybackPlayLast:
-                case ApplicationCommand.SendToAutoDj:
-                case ApplicationCommand.SendToClipboard:
-                case ApplicationCommand.SendToActivePlaylist:
-                case ApplicationCommand.SendToActiveDevice:
-                case ApplicationCommand.SendToLibrary:
-                case ApplicationCommand.SendToInbox:
-                case ApplicationCommand.SendToAudioBooks:
-                case ApplicationCommand.SendToPodcasts:
-                case ApplicationCommand.SendToVideo:
-                case ApplicationCommand.SendToNewPlaylist:
-                case ApplicationCommand.SendToFolderMove:
-                case ApplicationCommand.SendToFolderCopy:
-                case ApplicationCommand.SendToReplaceFileSelectSource:
-                case ApplicationCommand.SendToReplaceFileSelectTarget:
-                case ApplicationCommand.ToolsFindArtwork:
-                case ApplicationCommand.ToolsAutoOrganise:
-                case ApplicationCommand.ToolsConvertFormat:
-                case ApplicationCommand.ToolsAnalyseVolume:
-                case ApplicationCommand.ToolsUndoLevelVolume:
-                case ApplicationCommand.PlaylistExport:
-                    return true;
-                default:
-                    return false;
-            }
         }
 
         private bool RunCommand(SearchResult result)
@@ -493,7 +443,7 @@ namespace MusicBeePlugin.Services
             mbApi.NowPlayingList_QueueFilesLast(files);
         }
 
-        private string[] GetItemFiles(SearchResult result, bool shuffle)
+        private string[] ResolveItemFiles(SearchResult result)
         {
             string[] files;
 
@@ -531,8 +481,13 @@ namespace MusicBeePlugin.Services
                 files = new string[] { };
             }
 
-            if (files == null || files.Length == 0)
-                return new string[] { };
+            return files ?? Array.Empty<string>();
+        }
+
+        private string[] GetItemFiles(SearchResult result, bool shuffle)
+        {
+            var files = ResolveItemFiles(result);
+            if (files.Length == 0) return files;
 
             if (shuffle)
             {

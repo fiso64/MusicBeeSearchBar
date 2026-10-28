@@ -22,6 +22,16 @@ namespace MusicBeePlugin.Services
         private Type _mbApplicationCommandType;
         private Dictionary<ApplicationCommand, object> _commandMap;
         private bool _invokeCommandTried;
+        private readonly object _trackBindingLock = new object();
+        private TrackBinding _trackBinding;
+
+        private sealed class TrackBinding
+        {
+            public Type TrackType;
+            public ConstructorInfo TrackConstructor, PathConstructor;
+            public FieldInfo PathField;
+            public MethodInfo ResolveTrack;
+        }
 
         private FieldInfo _pluginCommandsField;
         private bool _pluginCommandsTried;
@@ -292,14 +302,54 @@ namespace MusicBeePlugin.Services
                 || !_commandMap.TryGetValue(requestedCommand, out var command))
                 throw new FeatureUnavailableException(feature, "MusicBee's command could not be found.");
 
-            // This integration uses internal types. Only enable it for the MusicBee
-            // build whose explicit-track command and constructors were inspected.
-            var assembly = _invokeCommandMethod.DeclaringType.Assembly;
-            if (assembly.GetName().Version != new Version(3, 7, 9773, 28129))
-                throw new FeatureUnavailableException(feature, "This MusicBee version has not been verified for commands on explicit tracks.");
-
             try
             {
+                var tracks = CreateCommandTracks(filePaths);
+                _invokeCommandMethod.Invoke(null, new object[] { command, null, tracks });
+            }
+            catch (FeatureUnavailableException) { throw; }
+            catch (Exception ex)
+            {
+                Logger.Error("Error executing MusicBee command for explicit tracks", ex);
+                throw new FeatureUnavailableException(feature, ex.InnerException?.Message ?? ex.Message);
+            }
+        }
+
+        private Array CreateCommandTracks(string[] filePaths)
+        {
+            if (filePaths == null || filePaths.Length == 0 || filePaths.Any(string.IsNullOrWhiteSpace))
+                throw new FeatureUnavailableException("Command for search result", "No valid song files were found for this result.");
+            EnsureInvokeCommandLoaded();
+            if (_invokeCommandMethod == null)
+                throw new FeatureUnavailableException("Command for search result", "MusicBee's command dispatcher could not be found.");
+            var binding = GetTrackBinding();
+            var trackType = binding.TrackType;
+            var constructor = binding.TrackConstructor;
+            var pathConstructor = binding.PathConstructor;
+            var pathField = binding.PathField;
+            var resolveTrack = binding.ResolveTrack;
+            const string feature = "Command for search result";
+            var tracks = Array.CreateInstance(trackType, filePaths.Length);
+            for (int i = 0; i < filePaths.Length; i++)
+            {
+                var path = pathConstructor.Invoke(new object[] { filePaths[i] });
+                var track = constructor.Invoke(new[] { path });
+                var resolveArguments = new[] { track };
+                resolveTrack.Invoke(null, resolveArguments);
+                track = resolveArguments[0];
+                if (!string.Equals(pathField.GetValue(track)?.ToString(), filePaths[i], StringComparison.OrdinalIgnoreCase))
+                    throw new FeatureUnavailableException(feature, "MusicBee's track object does not match the requested file.");
+                tracks.SetValue(track, i);
+            }
+            return tracks;
+        }
+
+        private TrackBinding GetTrackBinding()
+        {
+            lock (_trackBindingLock)
+            {
+                if (_trackBinding != null) return _trackBinding;
+                const string feature = "Command for search result";
                 Type trackType = _invokeCommandMethod.GetParameters()[2].ParameterType.GetGenericArguments()[0];
                 var candidates = trackType.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                     .Where(c =>
@@ -319,22 +369,61 @@ namespace MusicBeePlugin.Services
                 var pathField = trackType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                     .Single(f => f.FieldType == pathType);
                 var pathConstructor = pathType.GetConstructor(new[] { typeof(string) });
-                var tracks = Array.CreateInstance(trackType, filePaths.Length);
-                for (int i = 0; i < filePaths.Length; i++)
+                // MusicBee's path constructor can load file tags without attaching its
+                // library record. Resolve the library object as MusicBee does before
+                // opening the tag editor, so database-only tags and artwork are present.
+                var resolveTrack = FindLibraryTrackResolver(_invokeCommandMethod, trackType);
+                if (resolveTrack == null)
+                    throw new FeatureUnavailableException(feature, "MusicBee's library track lookup could not be identified safely.");
+                _trackBinding = new TrackBinding { TrackType = trackType, TrackConstructor = constructor,
+                    PathConstructor = pathConstructor, PathField = pathField, ResolveTrack = resolveTrack };
+                return _trackBinding;
+            }
+        }
+
+        private static MethodInfo FindLibraryTrackResolver(MethodInfo dispatcher, Type trackType)
+        {
+            // The dispatcher calls the library resolver for EditPropertiesPlaying.
+            // Identify that call by signature rather than obfuscated type/method names;
+            // refuse to guess if a build contains more than one matching call.
+            var matches = InternalMethodReader.Calls(dispatcher).Where(method =>
+            {
+                var parameters = method.GetParameters();
+                return method.IsStatic && method.ReturnType == typeof(void) && parameters.Length == 1
+                    && parameters[0].ParameterType == trackType.MakeByRefType();
+            }).Distinct().ToArray();
+            return matches.Length == 1 ? matches[0] : null;
+        }
+
+        public void InvokeCustomCommand(Config.CommandActionData action, string[] filePaths)
+        {
+            try
+            {
+                var tracks = CreateCommandTracks(filePaths);
+                using (CommandSelectionContext.Enter(_invokeCommandMethod.DeclaringType.Assembly, tracks, filePaths))
                 {
-                    var path = pathConstructor.Invoke(new object[] { filePaths[i] });
-                    var track = constructor.Invoke(new[] { path });
-                    if (!string.Equals(pathField.GetValue(track)?.ToString(), filePaths[i], StringComparison.OrdinalIgnoreCase))
-                        throw new FeatureUnavailableException(feature, "MusicBee's track object does not match the requested file.");
-                    tracks.SetValue(track, i);
+                    // Verify the exact API used by plugins before dispatching anything.
+                    // Failure aborts the command rather than using the old selection.
+                    if (!Plugin.mbApi.Library_QueryFilesEx("domain=SelectedFiles", out var selected)
+                        || selected == null || !selected.SequenceEqual(filePaths, StringComparer.OrdinalIgnoreCase))
+                        throw new FeatureUnavailableException("Command selection", "MusicBee did not return the temporary search-result selection.");
+                    if (action.Command.HasValue)
+                    {
+                        if (_commandMap == null || !_commandMap.TryGetValue(action.Command.Value, out var command))
+                            throw new FeatureUnavailableException("Command selection", "The requested MusicBee command could not be found.");
+                        _invokeCommandMethod.Invoke(null, new object[] { command, null, tracks });
+                    }
+                    else
+                    {
+                        InvokePluginCommand(action.PluginCommandName);
+                    }
                 }
-                _invokeCommandMethod.Invoke(null, new object[] { command, null, tracks });
             }
             catch (FeatureUnavailableException) { throw; }
             catch (Exception ex)
             {
-                Logger.Error("Error executing MusicBee command for explicit tracks", ex);
-                throw new FeatureUnavailableException(feature, ex.InnerException?.Message ?? ex.Message);
+                Logger.Error("Error executing custom command with temporary selection", ex);
+                throw new FeatureUnavailableException("Command selection", ex.InnerException?.Message ?? ex.Message);
             }
         }
 
@@ -346,7 +435,12 @@ namespace MusicBeePlugin.Services
 
             try
             {
+                if (string.IsNullOrWhiteSpace(commandName))
+                    throw new FeatureUnavailableException("Invoke Plugin Command", "The command name is empty.");
                 int hash = StringComparer.OrdinalIgnoreCase.GetHashCode(commandName);
+                // MusicBee registers and looks up plugin commands using negative hashes.
+                // Negation preserves int.MinValue and avoids Math.Abs overflowing on it.
+                if (hash > 0) hash = -hash;
                 object enumValue = Enum.ToObject(_mbApplicationCommandType, hash);
                 _invokeCommandMethod.Invoke(null, new object[] { enumValue, null, null });
             }

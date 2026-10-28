@@ -76,6 +76,10 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="0Harmony">
+      <HintPath>packages\Lib.Harmony.2.4.3\lib\net48\0Harmony.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <HintPath>packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
@@ -108,6 +112,8 @@
     <Compile Include="Config\Config.cs" />
     <Compile Include="Config\ConfigAttributes.cs" />
     <Compile Include="Services\ActionService.cs" />
+    <Compile Include="Services\CommandSelectionContext.cs" />
+    <Compile Include="Services\InternalMethodReader.cs" />
     <Compile Include="UI\ConfigurationForm.cs">
       <SubType>Form</SubType>
     </Compile>

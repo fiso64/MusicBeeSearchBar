@@ -576,7 +576,7 @@ namespace MusicBeePlugin.UI
             private readonly TableLayoutPanel sections;
             private readonly Label resultHeader;
             private readonly Font sectionHeaderFont;
-            private readonly List<(string Name, string Description, string SearchText, string Group, Func<BaseActionData> Create)> entries;
+            private readonly List<(string Name, string Description, string SearchText, bool IsResultAction, Func<BaseActionData> Create)> entries;
             public BaseActionData SelectedAction { get; private set; }
 
             public ActionPickerDialog(Services.ResultType type, Plugin.MusicBeeApiInterface api, SearchUIConfig config)
@@ -586,15 +586,14 @@ namespace MusicBeePlugin.UI
                 MinimumSize = new Size(380, 300);
                 StartPosition = FormStartPosition.CenterParent;
                 entries = ActionRegistry.GetActionsForType(type)
-                    .Select(x => (x.Name, x.Description, x.Name + " " + x.Description, "Result actions", x.Factory)).ToList();
+                    .Select(x => (x.Name, x.Description, x.Name + " " + x.Description, true, x.Factory)).ToList();
                 var search = new Services.SearchService(api, config);
                 foreach (var command in search.GetAvailableCommands(CancellationToken.None))
                 {
-                    if (!command.Command.HasValue || !Services.ActionService.SupportsExplicitTracks(command.Command.Value)) continue;
                     var entry = command;
                     entries.Add((entry.DisplayTitle, null,
                         entry.DisplayTitle + " " + (entry.Command?.ToString() ?? ""),
-                        "MusicBee and plugin commands",
+                        false,
                         () => new CommandActionData { Command = entry.Command, PluginCommandName = entry.PluginCommandName, DisplayName = entry.DisplayTitle }));
                 }
 
@@ -652,7 +651,7 @@ namespace MusicBeePlugin.UI
                 resultHeader = new Label { Text = "Result actions", AutoSize = true, Margin = new Padding(0, 0, 0, 4), Font = sectionHeaderFont };
                 sections.Controls.Add(resultHeader, 0, 0);
                 sections.Controls.Add(resultList, 0, 1);
-                sections.Controls.Add(new Label { Text = "MusicBee and plugin commands", AutoSize = true, Margin = new Padding(0, 10, 0, 4), Font = sectionHeaderFont }, 0, 2);
+                sections.Controls.Add(new Label { Text = "MusicBee and plugin commands (Experimental)", AutoSize = true, Margin = new Padding(0, 10, 0, 4), Font = sectionHeaderFont }, 0, 2);
                 sections.Controls.Add(commandList, 0, 3);
                 sections.SizeChanged += (s, e) => UpdateResultListHeight();
                 var buttons = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
@@ -701,7 +700,7 @@ namespace MusicBeePlugin.UI
                 commandList.Items.Clear();
                 foreach (var entry in entries.Where(x => words.All(w => x.SearchText.IndexOf(w, StringComparison.OrdinalIgnoreCase) >= 0)).OrderBy(x => x.Name))
                 {
-                    var target = entry.Group == "Result actions" ? resultList : commandList;
+                    var target = entry.IsResultAction ? resultList : commandList;
                     target.Items.Add(new PickerItem { Name = entry.Name, Description = entry.Description, Create = entry.Create });
                 }
                 resultList.EndUpdate();

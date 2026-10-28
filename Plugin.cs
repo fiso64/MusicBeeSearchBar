@@ -210,6 +210,7 @@ namespace MusicBeePlugin
         public void Close(PluginCloseReason reason)
         {
             ipcService?.Dispose();
+            CommandSelectionContext.Shutdown();
         }
 
         public static void LoadConfig()
