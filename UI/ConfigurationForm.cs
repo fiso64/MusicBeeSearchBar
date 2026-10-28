@@ -116,7 +116,7 @@ namespace MusicBeePlugin.UI
             helpLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             AddHelpSection(helpLayout, "Prefixes", "Use these at the start of your search to filter results:", new[]
             {
-                new[] { "a:", "Artists" }, new[] { "l:", "Albums" }, new[] { "s:", "Songs" },
+                new[] { "r:", "Artists" }, new[] { "l:", "Albums" }, new[] { "s:", "Songs" },
                 new[] { "p:", "Playlists" }, new[] { ">", "Commands" }
             });
             AddHelpSection(helpLayout, "Suffixes", "Use these at the end of your search to show more results:", new[]
@@ -129,12 +129,12 @@ namespace MusicBeePlugin.UI
                 new[] { "Tab / Shift+Tab", "Cycle search filters" },
                 new[] { "Shift+F10", "Open the selected result's context menu" },
                 new[] { "Right", "Open the selected result's context menu (alternative, floating mode only)" },
-                new[] { "Alt+R", "Execute artist action for selected result" },
-                new[] { "Alt+A", "Execute album action for selected result" },
-                new[] { "Alt+Shift+A", "Toggle all results without limits" },
+                new[] { "Alt+R / L / S / P", "Filter artists / albums / songs / playlists" },
+                new[] { "Alt+Shift+R", "Execute artist action for selected result" },
+                new[] { "Alt+Shift+L", "Execute album action for selected result" },
+                new[] { "Alt+A / Alt+Shift+A", "Toggle all results without limits" },
                 new[] { "Ctrl+Shift+A", "Select visible results of the current type" },
                 new[] { "Ctrl+A", "Select search text, or results when the result list is focused" },
-                new[] { "Ctrl+S", "Shuffle play selected result by default (customizable in Actions)" },
                 new[] { "Ctrl+D", "Toggle detached mode" },
                 new[] { "Ctrl+P", "Open the settings dialog" },
                 new[] { "Ctrl+H", "Open this help page" },

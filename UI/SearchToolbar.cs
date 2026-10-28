@@ -8,7 +8,11 @@ namespace MusicBeePlugin.UI
     internal sealed class SearchToolbar : Control
     {
         private static readonly string[] Labels = { "Artists", "Albums", "Songs", "Playlists", "Commands" };
-        private static readonly string[] Prefixes = { "a:", "l:", "s:", "p:", ">" };
+        private static readonly string[] Prefixes = { "r:", "l:", "s:", "p:", ">" };
+        private static readonly string[] FilterTooltips =
+        {
+            "Artists (Alt+R)", "Albums (Alt+L)", "Songs (Alt+S)", "Playlists (Alt+P)", "Commands (>)"
+        };
         private readonly Rectangle[] _pills = new Rectangle[Labels.Length];
         private readonly Theme _theme;
         private readonly float _scale;
@@ -60,6 +64,7 @@ namespace MusicBeePlugin.UI
         {
             if (_showAll == enabled) return;
             _showAll = enabled;
+            HideTooltip();
             Invalidate();
         }
 
@@ -78,7 +83,7 @@ namespace MusicBeePlugin.UI
             if (value.Length < 2 || value[1] != ':') return null;
             switch (char.ToLowerInvariant(value[0]))
             {
-                case 'a': return "a:";
+                case 'r': return "r:";
                 case 'l': return "l:";
                 case 's':
                 case 't': return "s:";
@@ -87,12 +92,12 @@ namespace MusicBeePlugin.UI
             }
         }
 
-        public static string ReplacePrefix(string text, string prefix)
+        public static string ReplacePrefix(string text, string prefix, bool toggleExisting = true)
         {
             string value = (text ?? string.Empty).TrimStart();
             string existing = GetPrefix(value);
             if (existing != null) value = value.Substring(existing == ">" ? 1 : 2).TrimStart();
-            return prefix == null || existing == prefix ? value : prefix + " " + value;
+            return prefix == null || (toggleExisting && existing == prefix) ? value : prefix + " " + value;
         }
 
         public static string NextPrefix(string text, bool backwards)
@@ -128,9 +133,11 @@ namespace MusicBeePlugin.UI
             _settingsBounds = new Rectangle(Math.Max(0, Width - gearWidth - pad), top, gearWidth, itemHeight);
             _detachBounds = ShowDetachButton ? new Rectangle(Math.Max(0, _settingsBounds.Left - gearWidth - gap), top, gearWidth, itemHeight) : Rectangle.Empty;
             int rightEdge = ShowDetachButton ? _detachBounds.Left : _settingsBounds.Left;
-            int showAllWidth = TextRenderer.MeasureText(graphics, "All results", Font, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine).Width + (int)(14 * _scale);
-            _showAllBounds = _showAll ? new Rectangle(Math.Max(pad, rightEdge - gap - showAllWidth), top, Math.Min(showAllWidth, Math.Max(0, rightEdge - gap - pad)), itemHeight) : Rectangle.Empty;
-            int available = Math.Max(0, (_showAll ? _showAllBounds.Left : rightEdge) - 2 * pad - gap * Labels.Length);
+            int showAllWidth = _showAll
+                ? TextRenderer.MeasureText(graphics, "All results", Font, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine).Width + (int)(14 * _scale)
+                : gearWidth;
+            _showAllBounds = new Rectangle(Math.Max(pad, rightEdge - gap - showAllWidth), top, Math.Min(showAllWidth, Math.Max(0, rightEdge - gap - pad)), itemHeight);
+            int available = Math.Max(0, _showAllBounds.Left - 2 * pad - gap * Labels.Length);
             int[] widths = new int[Labels.Length];
             int total = 0;
             for (int i = 0; i < Labels.Length; i++)
@@ -206,7 +213,7 @@ namespace MusicBeePlugin.UI
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
             }
 
-            if (_showAllBounds.Width > 2 && _showAllBounds.Height > 2)
+            if (_showAll && _showAllBounds.Width > 2 && _showAllBounds.Height > 2)
             {
                 using (var path = Rounded(_showAllBounds, SquareCorners ? 0 : _showAllBounds.Height))
                 using (var brush = new SolidBrush(_theme.Highlight))
@@ -218,6 +225,12 @@ namespace MusicBeePlugin.UI
                     e.Graphics.DrawPath(pen, outline);
                 TextRenderer.DrawText(e.Graphics, "All results", Font, _showAllBounds, _theme.Foreground,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
+            }
+            else if (!_showAll && _showAllBounds.Width > 2 && _showAllBounds.Height > 2)
+            {
+                TextRenderer.DrawText(e.Graphics, "A", Font, _showAllBounds,
+                    _hovered == Labels.Length + 2 ? _theme.Icon : _theme.IconDimmed,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
             }
             if (ShowDetachButton) DrawDetachIcon(e.Graphics);
             if (_settingsBounds.Width <= 0 || _settingsBounds.Height <= 0) return;
@@ -290,11 +303,15 @@ namespace MusicBeePlugin.UI
                 _tooltip.Hide();
                 return;
             }
-            if (_hovered != Labels.Length || IsDisposed || Disposing || !Visible) return;
+            if (_hovered < 0 || IsDisposed || Disposing || !Visible) return;
             var owner = FindForm();
             if (owner == null || owner.IsDisposed || owner.Disposing) return;
             if (_tooltip == null || _tooltip.IsDisposed) _tooltip = new TooltipWindow();
-            _tooltip.ShowNearCursor(owner, _isDetached ? "Attach search bar" : "Detach search bar");
+            string text = _hovered < Labels.Length ? FilterTooltips[_hovered]
+                : _hovered == Labels.Length ? (_isDetached ? "Attach search bar (Ctrl+D)" : "Detach search bar (Ctrl+D)")
+                : _hovered == Labels.Length + 1 ? "Settings (Ctrl+P)"
+                : (_showAll ? "Restore result limits (Alt+A)" : "Show all results (Alt+A)");
+            _tooltip.ShowNearCursor(owner, text);
             _tooltipTimer.Interval = 5000;
             _tooltipTimer.Start();
         }
@@ -318,7 +335,7 @@ namespace MusicBeePlugin.UI
             {
                 HideTooltip();
                 _hovered = hovered;
-                if (hovered == Labels.Length)
+                if (hovered >= 0)
                 {
                     _tooltipTimer.Interval = 500;
                     _tooltipTimer.Start();

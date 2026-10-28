@@ -9,7 +9,7 @@ A customizable search bar for MusicBee. Search your library for artists, albums,
 ## Features
 
 - Search across your library in one place, with fuzzy matching to help find what you're looking for.
-- Filter results using the toolbar or a prefix: `a:` for artists, `l:` for albums, `s:` for songs, `p:` for playlists, and `>` for commands.
+- Filter results using the toolbar or a prefix: `r:` for artists, `l:` for albums, etc.
 - Choose what happens when you select a result, and configure custom alternative actions and shortcuts.
 - Customize its appearance, and use it in detached mode while MusicBee is hidden.
 - Add a dockable search panel in MusicBee.

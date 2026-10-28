@@ -153,7 +153,7 @@ namespace MusicBeePlugin
             mbApi.MB_RegisterCommand("Modern Search Bar: Focus Docked Search", (a, b) => FocusDockedSearch());
             mbApi.MB_RegisterCommand("Modern Search Bar: Select All Docked Results", (a, b) => SelectAllDockedResults());
 
-            mbApi.MB_RegisterCommand("Modern Search Bar: Search Artists", (a, b) => ShowSearchBar("a: "));
+            mbApi.MB_RegisterCommand("Modern Search Bar: Search Artists", (a, b) => ShowSearchBar("r: "));
             mbApi.MB_RegisterCommand("Modern Search Bar: Search Albums", (a, b) => ShowSearchBar("l: "));
             mbApi.MB_RegisterCommand("Modern Search Bar: Search Songs", (a, b) => ShowSearchBar("s: "));
             mbApi.MB_RegisterCommand("Modern Search Bar: Search Playlists", (a, b) => ShowSearchBar("p: "));
@@ -380,10 +380,6 @@ namespace MusicBeePlugin
         {
             try
             {
-                var modifiers = Keys.None;
-                if (Control.ModifierKeys.HasFlag(Keys.Control)) modifiers |= Keys.Control;
-                if (Control.ModifierKeys.HasFlag(Keys.Shift)) modifiers |= Keys.Shift;
-
                 var path = MusicBeeHelpers.GetFirstSelectedTrack().path;
                 var track = new Track(path);
 
@@ -403,7 +399,7 @@ namespace MusicBeePlugin
                 }
 
                 var actionService = new ActionService(config.SearchActions);
-                await actionService.RunAction(result.DisplayTitle, result, new KeyEventArgs(modifiers));
+                await actionService.RunAction(result.DisplayTitle, result, new KeyEventArgs(Keys.Enter));
             }
             catch (Exception ex)
             {

@@ -38,10 +38,36 @@ namespace MusicBeePlugin.UI
                 ExtendSelection(keyData == (Keys.Shift | Keys.Down) ? 1 : -1);
                 return true;
             }
-            if (keyData == (Keys.Alt | Keys.Shift | Keys.A) && (searchBox?.Focused == true || resultsListBox?.Focused == true))
+            bool searchFocused = searchBox?.Focused == true || resultsListBox?.Focused == true;
+            if (searchFocused && (keyData == (Keys.Alt | Keys.A) || keyData == (Keys.Alt | Keys.Shift | Keys.A)))
             {
                 ToggleShowAllResults();
                 return true;
+            }
+            if (searchFocused)
+            {
+                string prefix = keyData == (Keys.Alt | Keys.R) ? "r:"
+                    : keyData == (Keys.Alt | Keys.L) ? "l:"
+                    : keyData == (Keys.Alt | Keys.S) ? "s:"
+                    : keyData == (Keys.Alt | Keys.P) ? "p:" : null;
+                if (prefix != null)
+                {
+                    searchBox.Text = SearchToolbar.ReplacePrefix(searchBox.Text, prefix, toggleExisting: false);
+                    searchBox.Focus();
+                    searchBox.Select(searchBox.TextLength, 0);
+                    return true;
+                }
+                if (keyData == (Keys.Alt | Keys.Shift | Keys.R) || keyData == (Keys.Alt | Keys.Shift | Keys.L))
+                {
+                    if (resultsListBox.SelectedItems.Count <= 1 && resultsListBox.SelectedItem is SearchResult result
+                        && result.Type != ResultType.ShowMore)
+                    {
+                        var related = keyData == (Keys.Alt | Keys.Shift | Keys.R)
+                            ? (SearchResult)ArtistResult.FromDetail(result) : AlbumResult.FromSearchResult(result);
+                        if (related != null) HandleResultSelection(related, new KeyEventArgs(Keys.None));
+                    }
+                    return true;
+                }
             }
             if ((searchBox?.Focused == true || resultsListBox?.Focused == true) && TryRunResultShortcut(keyData))
                 return true;
@@ -336,23 +362,6 @@ namespace MusicBeePlugin.UI
                 searchBox.SelectAll();
                 e.Handled = true;
                 e.SuppressKeyPress = true;
-            }
-            else if (e.Alt && e.KeyCode == Keys.R)
-            {
-                if (resultsListBox.SelectedItems.Count > 1) return;
-                if (resultsListBox.SelectedItem is SearchResult selectedResult && selectedResult.Type != ResultType.ShowMore)
-                {
-                    var artist = ArtistResult.FromDetail(selectedResult);
-                    if (artist != null) HandleResultSelection(artist, new KeyEventArgs(e.Modifiers & ~Keys.Alt));
-                }
-            }
-            else if (e.Alt && e.KeyCode == Keys.A)
-            {
-                if (resultsListBox.SelectedItems.Count > 1) return;
-                 if (resultsListBox.SelectedItem is SearchResult selectedResult && selectedResult.Type != ResultType.ShowMore)
-                {
-                    HandleResultSelection(AlbumResult.FromSearchResult(selectedResult), new KeyEventArgs(e.Modifiers & ~Keys.Alt));
-                }
             }
         }
 

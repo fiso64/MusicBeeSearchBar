@@ -414,7 +414,7 @@ namespace MusicBeePlugin.UI
                     suffixLimit = (int)Math.Min(int.MaxValue - 1, 100 * Math.Pow(10, (trailingDots / 2) - 1));
                 }
 
-                if (query.StartsWith("a:", StringComparison.OrdinalIgnoreCase))
+                if (query.StartsWith("r:", StringComparison.OrdinalIgnoreCase))
                 {
                     filter = ResultType.Artist;
                     query = query.Substring(2).TrimStart();
