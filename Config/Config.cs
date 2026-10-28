@@ -42,6 +42,7 @@ namespace MusicBeePlugin.Config
     }
 
     public class DoNothingActionData : BaseActionData { }
+    public class EditTagsActionData : BaseActionData { }
 
     public class QueueNextActionData : BaseActionData
     {
@@ -115,9 +116,9 @@ namespace MusicBeePlugin.Config
         [OnDeserialized]
         private void SetMissingAltActions(StreamingContext context)
         {
-            if (ArtistAction != null && ArtistAction.Alt == null) ArtistAction.Alt = new DoNothingActionData();
-            if (AlbumAction != null && AlbumAction.Alt == null) AlbumAction.Alt = new DoNothingActionData();
-            if (SongAction != null && SongAction.Alt == null) SongAction.Alt = new DoNothingActionData();
+            if (ArtistAction != null && ArtistAction.Alt == null) ArtistAction.Alt = new EditTagsActionData();
+            if (AlbumAction != null && AlbumAction.Alt == null) AlbumAction.Alt = new EditTagsActionData();
+            if (SongAction != null && SongAction.Alt == null) SongAction.Alt = new EditTagsActionData();
             if (PlaylistAction != null && PlaylistAction.Alt == null) PlaylistAction.Alt = new DoNothingActionData();
         }
 
@@ -130,7 +131,7 @@ namespace MusicBeePlugin.Config
                 Default = new OpenInMusicExplorerActionData(),
                 Ctrl = new QueueLastActionData { ShufflePlay = true },
                 Shift = new QueueNextActionData { ShufflePlay = true },
-                CtrlShift = new PlayActionData { ShufflePlay = true }, Alt = new DoNothingActionData()
+                CtrlShift = new PlayActionData { ShufflePlay = true }, Alt = new EditTagsActionData()
             };
 
             config.AlbumAction = new ActionConfig
@@ -138,7 +139,7 @@ namespace MusicBeePlugin.Config
                 Default = new PlayActionData(),
                 Ctrl = new QueueLastActionData(),
                 Shift = new QueueNextActionData(),
-                CtrlShift = new QueueNextActionData(), Alt = new DoNothingActionData()
+                CtrlShift = new QueueNextActionData(), Alt = new EditTagsActionData()
             };
 
             config.SongAction = new ActionConfig
@@ -146,7 +147,7 @@ namespace MusicBeePlugin.Config
                 Default = new PlayActionData(),
                 Ctrl = new QueueLastActionData(),
                 Shift = new QueueNextActionData(),
-                CtrlShift = new QueueNextActionData(), Alt = new DoNothingActionData()
+                CtrlShift = new QueueNextActionData(), Alt = new EditTagsActionData()
             };
 
             config.PlaylistAction = new ActionConfig

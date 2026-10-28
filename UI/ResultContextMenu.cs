@@ -77,6 +77,7 @@ namespace MusicBeePlugin.UI
             if (action is OpenPlaylistInTabActionData playlist) return "Open playlist in " + TabLabel(playlist.TabChoice);
             if (action is OpenInMusicExplorerInTabActionData explorer) return "Open in music explorer in " + TabLabel(explorer.TabChoice);
             if (action is OpenInMusicExplorerActionData) return "Open in music explorer";
+            if (action is EditTagsActionData) return "Edit tags";
             if (action is QueueNextActionData next)
             {
                 var options = new List<string>();

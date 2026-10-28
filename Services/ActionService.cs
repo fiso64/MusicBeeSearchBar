@@ -111,6 +111,16 @@ namespace MusicBeePlugin.Services
                 return false;
 
             if (action is DoNothingActionData) return true;
+            if (action is EditTagsActionData)
+            {
+                try { ReflectionService.Instance.EditSongTags(GetItemFiles(result, false)); }
+                catch (FeatureUnavailableException ex)
+                {
+                    MessageBox.Show(ex.Message, "Modern Search Bar: Feature Unavailable", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                return true;
+            }
+
             if (action is OpenFilterInTabActionData filterAction)
             {
                 await OpenFilter(result, filterAction);

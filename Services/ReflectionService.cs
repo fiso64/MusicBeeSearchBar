@@ -276,6 +276,63 @@ namespace MusicBeePlugin.Services
             }
         }
 
+        public void EditSongTags(string[] filePaths)
+        {
+            const string feature = "Edit tags";
+            if (filePaths == null || filePaths.Length == 0 || filePaths.Any(string.IsNullOrWhiteSpace))
+                throw new FeatureUnavailableException(feature, "No valid song files were found for this result.");
+
+            EnsureInvokeCommandLoaded();
+            if (_invokeCommandMethod == null || _commandMap == null
+                || !_commandMap.TryGetValue(ApplicationCommand.EditProperties, out var command))
+                throw new FeatureUnavailableException(feature, "MusicBee's tag editor command could not be found.");
+
+            // This integration uses internal types. Only enable it for the MusicBee
+            // build whose explicit-track command and constructors were inspected.
+            var assembly = _invokeCommandMethod.DeclaringType.Assembly;
+            if (assembly.GetName().Version != new Version(3, 7, 9773, 28129))
+                throw new FeatureUnavailableException(feature, "This MusicBee version has not been verified for editing an explicit song.");
+
+            try
+            {
+                Type trackType = _invokeCommandMethod.GetParameters()[2].ParameterType.GetGenericArguments()[0];
+                var candidates = trackType.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                    .Where(c =>
+                    {
+                        var parameters = c.GetParameters();
+                        if (parameters.Length != 1 || !parameters[0].ParameterType.IsValueType) return false;
+                        Type candidatePathType = parameters[0].ParameterType;
+                        return candidatePathType.GetConstructor(new[] { typeof(string) }) != null
+                            && trackType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                                .Count(f => f.FieldType == candidatePathType) == 1;
+                    }).ToArray();
+                if (candidates.Length != 1)
+                    throw new FeatureUnavailableException(feature, "MusicBee's track constructor could not be identified safely.");
+
+                var constructor = candidates[0];
+                Type pathType = constructor.GetParameters()[0].ParameterType;
+                var pathField = trackType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                    .Single(f => f.FieldType == pathType);
+                var pathConstructor = pathType.GetConstructor(new[] { typeof(string) });
+                var tracks = Array.CreateInstance(trackType, filePaths.Length);
+                for (int i = 0; i < filePaths.Length; i++)
+                {
+                    var path = pathConstructor.Invoke(new object[] { filePaths[i] });
+                    var track = constructor.Invoke(new[] { path });
+                    if (!string.Equals(pathField.GetValue(track)?.ToString(), filePaths[i], StringComparison.OrdinalIgnoreCase))
+                        throw new FeatureUnavailableException(feature, "MusicBee's track object does not match the requested file.");
+                    tracks.SetValue(track, i);
+                }
+                _invokeCommandMethod.Invoke(null, new object[] { command, null, tracks });
+            }
+            catch (FeatureUnavailableException) { throw; }
+            catch (Exception ex)
+            {
+                Logger.Error("Error opening MusicBee's tag editor", ex);
+                throw new FeatureUnavailableException(feature, ex.InnerException?.Message ?? ex.Message);
+            }
+        }
+
         public void InvokePluginCommand(string commandName)
         {
             EnsureInvokeCommandLoaded();

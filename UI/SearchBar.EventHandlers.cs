@@ -398,6 +398,7 @@ namespace MusicBeePlugin.UI
             {
                 var configuredAction = actionService.GetConfiguredAction(selectedItem, e);
                 if (configuredAction is MusicBeePlugin.Config.DoNothingActionData) return;
+                if (configuredAction is MusicBeePlugin.Config.EditTagsActionData) keepDetachedOnTop = false;
             }
 
             string actionSearchText = searchBox.Text;

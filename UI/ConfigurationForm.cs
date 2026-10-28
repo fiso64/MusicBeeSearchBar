@@ -129,7 +129,7 @@ namespace MusicBeePlugin.UI
                 new[] { "Ctrl+Enter", "Execute alternative action" },
                 new[] { "Shift+Enter", "Execute alternative action" },
                 new[] { "Ctrl+Shift+Enter", "Execute alternative action" },
-                new[] { "Alt+Enter", "Execute alternative action" },
+                new[] { "Alt+Enter", "Execute alternative action (edit tags by default)" },
                 new[] { "Tab / Shift+Tab", "Cycle search filters" },
                 new[] { "Shift+F10", "Open the selected result's context menu" },
                 new[] { "Right", "Open the selected result's context menu (alternative, floating mode only)" },
@@ -492,7 +492,7 @@ namespace MusicBeePlugin.UI
                 control.Dispose();
             }
             var controls = new List<Control>();
-            if (action is DoNothingActionData) return;
+            if (action is DoNothingActionData || action is EditTagsActionData) return;
 
             // Action-specific options
             switch (action)
