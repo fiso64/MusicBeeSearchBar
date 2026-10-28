@@ -13,6 +13,46 @@ namespace MusicBeePlugin.UI
 {
     public partial class SearchBar
     {
+        private sealed class ClearSearchButton : Control
+        {
+            private readonly Color normalColor;
+            private readonly Color hoverColor;
+            private bool hovered;
+
+            public ClearSearchButton(Theme theme, float scale)
+            {
+                normalColor = theme.IconDimmed;
+                hoverColor = theme.Icon;
+                Width = Math.Max(20, (int)(24 * scale));
+                Dock = DockStyle.Right;
+                BackColor = theme.Background;
+                Cursor = Cursors.Hand;
+                TabStop = false;
+                AccessibleName = "Clear search";
+                AccessibleRole = AccessibleRole.PushButton;
+                SetStyle(ControlStyles.Selectable, false);
+                SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            }
+
+            protected override void OnMouseEnter(EventArgs e) { base.OnMouseEnter(e); hovered = true; Invalidate(); }
+            protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); hovered = false; Invalidate(); }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                float half = Math.Max(3, Math.Min(Width, Height) * 0.19f);
+                float x = Width / 2f, y = Height / 2f;
+                using (var pen = new Pen(hovered ? hoverColor : normalColor, Math.Max(1f, DeviceDpi / 96f * 1.4f)))
+                {
+                    pen.StartCap = LineCap.Round;
+                    pen.EndCap = LineCap.Round;
+                    e.Graphics.DrawLine(pen, x - half, y - half, x + half, y + half);
+                    e.Graphics.DrawLine(pen, x + half, y - half, x - half, y + half);
+                }
+            }
+        }
+
         private void InitializeUI(float dpiScale)
         {
             FormClosed += (s, e) =>
@@ -277,6 +317,13 @@ namespace MusicBeePlugin.UI
             var COLOR = Color.FromArgb((int)(255 * 0.3), theme.Foreground);
 
             var searchContainer = searchBox.Parent;
+            var clearButton = new ClearSearchButton(theme, dpiScale) { Visible = searchBox.TextLength > 0 };
+            clearButton.Click += (s, e) =>
+            {
+                searchBox.Clear();
+                searchBox.Focus();
+            };
+            searchContainer.Controls.Add(clearButton);
             int availableHeight = searchContainer.ClientSize.Height - searchContainer.Padding.Vertical;
             int indicatorSize = Math.Max(8, availableHeight - 4);
 
@@ -301,7 +348,8 @@ namespace MusicBeePlugin.UI
                     if (searchContainer != null && searchContainer.IsHandleCreated)
                     {
                         loadingIndicator.Location = new Point(
-                            searchContainer.ClientSize.Width - searchContainer.Padding.Right - loadingIndicator.Width - 2,
+                            searchContainer.ClientSize.Width - searchContainer.Padding.Right
+                                - (searchBox.TextLength > 0 ? clearButton.Width : 0) - loadingIndicator.Width - 2,
                             searchContainer.Padding.Top + (availableHeight - loadingIndicator.Height) / 2
                         );
                     }
@@ -318,6 +366,12 @@ namespace MusicBeePlugin.UI
 
             searchContainer.SizeChanged += (s, e) => UpdateLoadingIndicatorPosition();
             Shown += (s, e) => UpdateLoadingIndicatorPosition();
+            searchBox.TextChanged += (s, e) =>
+            {
+                clearButton.Visible = searchBox.TextLength > 0;
+                UpdateLoadingIndicatorPosition();
+            };
+            loadingIndicator.VisibleChanged += (s, e) => UpdateLoadingIndicatorPosition();
 
 
             searchContainer.Controls.Add(loadingIndicator);

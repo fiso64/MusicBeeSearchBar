@@ -245,7 +245,7 @@ namespace MusicBeePlugin.Config
         public Color TextColor { get; set; } = Color.White;
 
         [ConfigProperty("Base Color", Category = "Appearance")]
-        public Color BaseColor { get; set; } = Color.FromArgb(16, 16, 16);
+        public Color BaseColor { get; set; } = Color.FromArgb(14, 14, 14);
 
         [ConfigProperty("Highlight Color", Category = "Appearance")]
         public Color ResultHighlightColor { get; set; } = Color.FromArgb(35, 35, 35);
