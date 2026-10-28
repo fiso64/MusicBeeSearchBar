@@ -185,7 +185,7 @@ namespace MusicBeePlugin.UI
             {
                 searchBox.Text = SearchToolbar.ReplacePrefix(searchBox.Text, prefix);
                 searchBox.Select(searchBox.Text.Length, 0);
-                searchBox.Focus();
+                if (!UsesListSelection) searchBox.Focus();
             };
             searchToolbar.SettingsClicked += (s, e) => OpenSearchSettings();
             searchToolbar.DetachClicked += (s, e) => ToggleDetachedMode();
@@ -236,7 +236,9 @@ namespace MusicBeePlugin.UI
                     { ResultType.Command, commandIcon },
                 }
             };
+            if (UsesListSelection) resultsListBox.DoubleClickToActivate = true;
             resultsListBox.Click += ResultsListBox_Click;
+            resultsListBox.ResultDoubleClicked += ResultsListBox_DoubleClick;
             resultsListBox.Scrolled += ResultsListBox_Scrolled;
             resultsListBox.SelectedIndexChanged += (s, e) =>
             {
@@ -305,6 +307,7 @@ namespace MusicBeePlugin.UI
         {
             // Assign event handlers defined in SearchBar.EventHandlers.cs
             searchBox.KeyDown += HandleSearchBoxKeyDown;
+            resultsListBox.KeyDown += HandleResultsKeyDown;
             if (!isEmbedded) Deactivate += HandleFormDeactivate;
             KeyDown += HandleFormKeyDown;
             KeyPreview = true; // Need to set KeyPreview to true for Form to receive KeyDown events before controls
@@ -321,7 +324,7 @@ namespace MusicBeePlugin.UI
             clearButton.Click += (s, e) =>
             {
                 searchBox.Clear();
-                searchBox.Focus();
+                if (!UsesListSelection) searchBox.Focus();
             };
             searchContainer.Controls.Add(clearButton);
             int availableHeight = searchContainer.ClientSize.Height - searchContainer.Padding.Vertical;

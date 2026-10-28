@@ -51,6 +51,7 @@ namespace MusicBeePlugin.UI
         private readonly bool isEmbedded;
         private readonly bool compactPanel;
         internal bool IsExpandedEmbedded => isEmbedded && !compactPanel;
+        private bool UsesListSelection => IsExpandedEmbedded || (!isEmbedded && isDetached);
         private readonly bool squareCorners;
         private Form resultsPopup;
         private bool isDragging = false;
@@ -204,6 +205,7 @@ namespace MusicBeePlugin.UI
             _attachmentVersion++;
             isDetached = !isDetached;
             searchToolbar?.SetDetached(isDetached);
+            resultsListBox.DoubleClickToActivate = UsesListSelection;
             dragPanel.Visible = isDetached;
             Height += isDetached ? dragPanel.Height : -dragPanel.Height;
             TopMost = !isDetached;

@@ -279,6 +279,7 @@ namespace MusicBeePlugin.UI
 
         private void ResultsListBox_Click(object sender, EventArgs e)
         {
+            if (UsesListSelection && !(resultsListBox.SelectedItem is ShowMoreResult)) return;
             if (resultsListBox.SelectedItem != null)
             {
                 var modifiers = Keys.None;
@@ -290,6 +291,24 @@ namespace MusicBeePlugin.UI
             }
         }
 
+        private void ResultsListBox_DoubleClick(object sender, EventArgs e)
+        {
+            if (!UsesListSelection || resultsListBox.SelectedItem == null) return;
+            var modifiers = Control.ModifierKeys & (Keys.Control | Keys.Shift);
+            HandleResultSelection(resultsListBox.SelectedItem, new KeyEventArgs(modifiers));
+        }
+
+        private void HandleResultsKeyDown(object sender, KeyEventArgs e)
+        {
+            if (!UsesListSelection) return;
+            switch (e.KeyCode)
+            {
+                case Keys.Up: case Keys.Down: case Keys.PageUp: case Keys.PageDown: case Keys.Enter:
+                    HandleSearchBoxKeyDown(sender, e);
+                    break;
+            }
+        }
+
         private void HandleSearchBoxEnter(KeyEventArgs e)
         {
             if (resultsListBox.Visible && resultsListBox.SelectedItem != null)
@@ -298,7 +317,7 @@ namespace MusicBeePlugin.UI
             }
             else
             {
-                if (!isEmbedded) Close();
+                if (!isEmbedded && !UsesListSelection) Close();
             }
         }
 

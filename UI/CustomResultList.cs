@@ -40,11 +40,27 @@ namespace MusicBeePlugin.UI
 
         public event EventHandler<ResultActionEventArgs> ActionButtonClicked;
         public event Action<SearchResult, ResultType, int> DetailLinkClicked;
+        public event EventHandler ResultDoubleClicked;
         private (int Index, ResultType Type, int ArtistIndex)? _hoveredDetailLink;
         private (SearchResult Item, ResultType Type, int ArtistIndex)? _pressedDetailLink;
 
         public float DpiScale { get; set; } = 1.0f;
         public bool SquareCorners { get; set; }
+        private bool _doubleClickToActivate;
+        private bool _originalSelectable;
+        private bool _originalTabStop;
+        private bool _originalDoubleClick;
+        public bool DoubleClickToActivate
+        {
+            get => _doubleClickToActivate;
+            set
+            {
+                _doubleClickToActivate = value;
+                SetStyle(ControlStyles.StandardDoubleClick, value || _originalDoubleClick);
+                SetStyle(ControlStyles.Selectable, value || _originalSelectable);
+                TabStop = value || _originalTabStop;
+            }
+        }
 
         // Set by the host window while the user is actively dragging a width-resize grip.
         // Every row's layout depends on Width, so a resize forces a full repaint of all
@@ -354,6 +370,9 @@ namespace MusicBeePlugin.UI
 
         public CustomResultList()
         {
+            _originalSelectable = GetStyle(ControlStyles.Selectable);
+            _originalTabStop = TabStop;
+            _originalDoubleClick = GetStyle(ControlStyles.StandardDoubleClick);
             this.DoubleBuffered = true;
             this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
 
@@ -1301,6 +1320,19 @@ namespace MusicBeePlugin.UI
 
         private bool _suppressClick = false;
 
+        protected override bool IsInputKey(Keys keyData)
+        {
+            if (_doubleClickToActivate)
+            {
+                switch (keyData & Keys.KeyCode)
+                {
+                    case Keys.Up: case Keys.Down: case Keys.PageUp: case Keys.PageDown: case Keys.Enter:
+                        return true;
+                }
+            }
+            return base.IsInputKey(keyData);
+        }
+
         protected override void OnMouseDown(MouseEventArgs e)
         {
             base.OnMouseDown(e);
@@ -1345,6 +1377,7 @@ namespace MusicBeePlugin.UI
 
             if (index >= 0 && index < _items.Count)
             {
+                if (_doubleClickToActivate && e.Button == MouseButtons.Left && CanFocus) Focus();
                 if (_items[index].Type != ResultType.Header)
                 {
                     SetSelectedIndex(index, animateScroll: false);
@@ -1471,6 +1504,20 @@ namespace MusicBeePlugin.UI
                 return;
             }
             base.OnClick(e);
+        }
+
+        protected override void OnMouseDoubleClick(MouseEventArgs e)
+        {
+            base.OnMouseDoubleClick(e);
+            if (!_doubleClickToActivate || e.Button != MouseButtons.Left
+                || (_isThumbVisible && e.X >= Width - SCROLLBAR_WIDTH)) return;
+            int index = GetIndexFromY(e.Y);
+            if (index < 0 || index >= _items.Count || _items[index].Type == ResultType.Header
+                || _items[index].Type == ResultType.ShowMore
+                || TryGetDetailLinkAt(index, e.Location, out _, out _)
+                || TryGetActionButtonAt(index, e.Location, out _)) return;
+            SetSelectedIndex(index, animateScroll: false);
+            ResultDoubleClicked?.Invoke(this, EventArgs.Empty);
         }
 
         protected override void OnMouseLeave(EventArgs e)
